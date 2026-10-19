@@ -22,7 +22,9 @@ MAP-01,Expansão,Importar avenida Dona Belmira Marin inteira com 55 trechos OSM,
 MAP-02,Expansão,Adicionar Estrada Canal de Cocaia e conexões reais,Implementado,Testar condução pelo trecho carregado em mobile
 MAP-03,Expansão,Adicionar Rua Pedro Escobar e conexões reais,Implementado,Testar direção e cruzamentos reais
 MAP-04,Expansão,Adicionar Rua Rubens de Oliveira e conexões reais,Implementado,Confirmar cobertura de todos trechos com OSM e testar percurso
-MAP-05,Expansão,Adicionar quarteirões e fachadas reais em etapas,Futuro,Após os corredores principais
+MAP-05,Expansão,Adicionar quarteirões e fachadas reais em etapas,Futuro,Após validar os quatro corredores no mobile
+MAP-06,Expansão,Ampliar limite de mundo para corredores geográficos,Implementado,Testar travessia entre extremos e recuperar carro
+MAP-07,Expansão,Validar conexões rodoviárias e curvas reais na tela,Pendente,Revisar no iPhone com demonstração do usuário
 F2-04,Mundo 3D,Relevo real via DEM e adaptação das ruas,Futuro,Após validar eixos principais no terreno plano
 F6-01,Carreira,Corridas por aplicativo e passageiros simples,Futuro,Após validação da versão 0.1
 F7-01,Carreira,Criação de personagem e economia,Futuro,Após versão 0.2
