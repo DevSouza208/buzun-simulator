@@ -1,6 +1,6 @@
 # BUZUN SIMULATOR — Game Design Document (GDD)
 
-**Versão:** 1.0 — visão consolidada / pré-produção  
+**Versão:** 1.1 — direção de arte low poly e editor de fachadas / pré-produção  
 **Data:** 19 de outubro de 2026  
 **Projeto:** Buzun Simulator  
 **Repositório:** https://github.com/DevSouza208/buzun-simulator  
@@ -11,7 +11,7 @@
 
 ## 1. Resumo executivo
 
-Buzun Simulator é um jogo de mundo aberto de transporte e progressão profissional ambientado inicialmente em São Paulo. O jogador dirige por uma **malha viária baseada em dados geográficos reais**, representada em um **3D estilizado, legível e leve**. Começa escolhendo uma origem de carreira e, ao longo da evolução, pode trabalhar com transporte individual, serviços sobre duas rodas, vans, ônibus urbanos e rodoviários e, futuramente, administrar empresas.
+Buzun Simulator é um jogo de mundo aberto de transporte e progressão profissional ambientado inicialmente em São Paulo. O jogador dirige por uma **malha viária baseada em dados geográficos reais**, representada em um **3D low poly, legível e leve, sem estética voxel**. Começa escolhendo uma origem de carreira e, ao longo da evolução, pode trabalhar com transporte individual, serviços sobre duas rodas, vans, ônibus urbanos e rodoviários e, futuramente, administrar empresas.
 
 O diferencial não é copiar fielmente cada prédio. É reconhecer a cidade pelas ruas, cruzamentos, trajetos e marcos importantes, sem abrir mão de uma estética própria e de bom desempenho.
 
@@ -30,7 +30,7 @@ A experiência deve equilibrar **direção acessível**, **sistemas semirrealist
 | Área inicial | Grajaú e região do Terminal Grajaú |
 | Representação | Mapa geograficamente real, cenários estilizados e pontos famosos mais detalhados |
 | Plataforma | Navegador no PC primeiro |
-| Visual | 3D estilizado, leve |
+| Visual | **3D low poly, sem voxel**, leve e com identidade própria |
 | Veículos futuros | Carros, motos, ônibus urbanos e rodoviários, entre outras categorias |
 | Primeiro veículo | Carro de aplicativo |
 | Atividades futuras | Corridas de aplicativo, passeio, serviços de transporte, ônibus, gestão de empresa e corridas competitivas eventualmente |
@@ -47,6 +47,7 @@ A experiência deve equilibrar **direção acessível**, **sistemas semirrealist
 | Dificuldade | Equilibrada, com consequências financeiras |
 | Multiplayer | Não é prioridade |
 | Objetivo da 0.1 | Explorar ruas reais com um veículo dirigível |
+| Editor de mundo (futuro) | Permitir selecionar edifícios, definir qual fachada representa cada lugar e modificar os modelos da cidade |
 | Prioridade atual | "Por enquanto quero ver existir" |
 
 ### 2.2 Propostas técnicas deste GDD — ainda NÃO aprovadas
@@ -55,7 +56,7 @@ Three.js, TypeScript, Vite, processamento prévio de dados OpenStreetMap, físic
 
 ### 2.3 Questões abertas — não preencher com suposições
 
-Nome final/identidade visual e mascote; marcas de veículos reais ou fictícias; mapa exato e raio inicial; proporção de tempo do jogo; sistemas de customização do personagem; economia numérica/balanceamento; se haverá energia/fadiga; nível de realismo das leis de trânsito; classificação etária; monetização; suporte offline; expansão para celular; multiplayer; suporte a volante; licenças de assets e uso de marcas.
+Nome final/identidade visual e mascote; marcas de veículos reais ou fictícias; mapa exato e raio inicial; proporção de tempo do jogo; sistemas de customização do personagem; economia numérica/balanceamento; se haverá energia/fadiga; nível de realismo das leis de trânsito; classificação etária; monetização; suporte offline; expansão para celular; multiplayer; suporte a volante; licenças de assets e uso de marcas; escopo técnico da edição profunda de malha 3D (vértices/UV) versus edição paramétrica de modelos (dimensões, materiais e componentes).
 
 ## 3. Fantasia do jogador e pilares de design
 
@@ -99,7 +100,7 @@ Passageiro cancela; passageiro demora; chuva intensa; obra fecha acesso; acident
 
 A topologia viária — posição das ruas, conexões, curvas e cruzamentos — vem de dados de mapa aberto. **Real não significa automaticamente idêntico:** largura de pista, sinalização, viadutos, elevação, fachadas e restrições viárias podem exigir aproximações ou dados complementares.
 
-O cenário 3D estiliza edifícios, calçadas, comércio, árvores, postes e mobiliário urbano. Locais icônicos podem receber assets artesanais separados, sem modificar a geografia real.
+O cenário **low poly, sem voxel**, estiliza edifícios, calçadas, comércio, árvores, postes e mobiliário urbano. Locais icônicos podem receber assets artesanais separados, sem modificar a geografia real.
 
 ### 5.2 Área de estreia
 
@@ -131,6 +132,26 @@ Não usar a API pública de edição do OSM como backend de jogo nem fazer consu
 ### 5.5 Reconhecimento da cidade
 
 Terminal Grajaú é uma âncora espacial; outros marcos ficam para fases posteriores. Marcas, nomes e fachadas reais exigem avaliação própria de licenciamento/representação. **Não afirmar fidelidade fotográfica.**
+
+### 5.6 Editor de edifícios e fachadas — confirmado como funcionalidade FUTURA
+
+**Decisão do criador:** depois da geração inicial do mundo, deve existir um editor onde seja possível **apontar para um prédio, dizer que lugar/fachada ele representa e modificar seu modelo 3D**. A geração automática entrega uma cidade dirigível imediatamente; as edições refinam o resultado ao longo do tempo. Não exigir o editor na 0.1.
+
+**Proposta de fluxo de edição (sujeita a refinamento):**
+
+1. Entrar no modo de edição (ferramenta de criação, separada da direção normal).
+2. Clicar em um prédio existente no mundo 3D; o inspetor mostra a referência geográfica e o ID da construção.
+3. Nomear/identificar o local (ex.: padaria, escola, farmácia, garagem, edifício residencial ou ponto de referência) **manualmente**, sem afirmar que o mapa já conheça a fachada real.
+4. Escolher um preset de fachada low poly ou definir componentes (portas, janelas, vitrines, fachada comercial, telhado) e ajustar material/cor.
+5. Ajustar dimensões, altura, orientação e posição visual do modelo dentro das restrições que o editor suportar.
+6. Pré-visualizar, desfazer/refazer, salvar e recarregar sem perder as alterações.
+7. Opcionalmente, numa etapa posterior, importar assets 3D (ex.: glTF/GLB), editar partes mais profundas da geometria e criar bibliotecas de fachadas reutilizáveis; **essas capacidades avançadas ainda não foram definidas como obrigatórias**.
+
+**Arquitetura recomendada desde a base:** separar (a) **geografia original OSM** (nunca sobrescrever silenciosamente), (b) **geometria padrão procedural** e (c) **camada de sobrescritas/edições do usuário**. Um prédio terá identificador estável (ID OSM quando disponível, ou ID próprio derivado do recorte/geometria com estratégia para mudanças do mapa), tipo do local, preset/modelo, transformações e materiais. As edições devem estar em um formato serializável (por exemplo, JSON com versionamento), com opção futura de importar/exportar e possibilidade de recuperar alterações após regenerar setores. IDs derivados não são garantia absoluta quando a origem muda: prever detecção de conflitos e associação manual.
+
+**Regra visual:** terrenos, pistas e veículos mantêm curvas e volumes adequados à direção; prédios são modelos low poly editáveis, **não blocos voxel**. Marcos icônicos podem ter modelos próprios e prioridades de detalhamento.
+
+**Divisão de escopo:** 0.1 apenas prepara identificadores e estrutura de dados, *se isso não atrasar o protótipo*. O editor com seleção, catálogo de fachadas, personalização e persistência só entra após existir uma versão dirigível. Até lá, modelos genéricos são suficientes.
 
 ## 6. Veículos e direção
 
@@ -228,7 +249,9 @@ Legenda/ícones legíveis, opções gráficas, desligar trepidação excessiva d
 
 ## 12. Direção de arte e áudio
 
-**Direção:** formas geométricas simples, materiais econômicos, paleta coesa, veículos reconhecíveis por silhueta. Prédios procedurais com variedades modestas de altura e fachada; pontos conhecidos mais elaborados progressivamente.
+**Direção confirmada:** 3D **low poly sem voxel**. Usar superfícies poligonais limpas, silhuetas legíveis, materiais econômicos, paleta coesa e veículos estilizados reconhecíveis. As ruas permanecem suaves e dirigíveis. Prédios comuns devem ser gerados automaticamente com variações de altura, formato e fachadas; edifícios marcantes ganham modelos mais detalhados progressivamente. Evitar a aparência de cubos quadriculados típica de jogos voxel.
+
+**Editabilidade futura confirmada:** os prédios não são apenas decoração descartável. Cada instância deve poder receber um identificador e, num editor posterior, ser identificada, receber uma fachada/modelo específico e sofrer ajustes visuais. Presets e sistemas parametrizados são propostas de implementação, não decisões finais.
 
 **Áudio:** motor com pitch por rotação/velocidade, freio, colisão, ambiente urbano e interface. Usar recursos criados/licenciados, evitando sons copiados de jogos.
 
@@ -250,7 +273,9 @@ Acessórios publicitários e marcas reais não estão decididos; usar modelos fi
 
 ### 13.2 Módulos previstos
 
-**core/** loop de atualização, configuração e estado; **input/** teclado e gamepad; **world/** leitura de setores, projeção geográfica, estradas, cenário e colisões; **vehicles/** controle e física; **camera/** seguimento e orbit; **ui/** HUD e menus; **data/** mapa de teste e assets; **tools/** importador e validação OSM; **tests/** regressões.
+**core/** loop de atualização, configuração e estado; **input/** teclado e gamepad; **world/** leitura de setores, projeção geográfica, estradas, cenário, construções e colisões; **vehicles/** controle e física; **camera/** seguimento e orbit; **ui/** HUD e menus; **data/** mapa de teste e assets; **tools/** importador e validação OSM; **editor/** (futuro) seleção, inspeção, fachadas e sobrescritas; **tests/** regressões.
+
+Ao implementar edifícios, considerar separar **dados-base**, **geração low poly padrão** e **edições persistidas** para evitar reescrever o motor quando chegar o editor. Essa preparação não deve adiar a primeira versão dirigível.
 
 Separar **posição geográfica real** da **posição local renderizada**; documentar projeção e origem do mapa para evitar drift, inversões e distorções.
 
@@ -288,7 +313,7 @@ Abrir o navegador em um PC, carregar um recorte geográfico real da região do T
 
 ### 14.3 Explicitamente FORA da 0.1
 
-Passageiros; corridas pagas; Uber funcional; missões; dinheiro; personalização de personagem; garagem; habilitações; motos; ônibus; trânsito IA; pedestres; sinistros completos; guincho; seguro; combustível consumível; multas; clima dinâmico; dia/noite; GPS completo; multiplayer; mapa inteiro de São Paulo; versão mobile; save em nuvem.
+Passageiros; corridas pagas; Uber funcional; missões; dinheiro; personalização de personagem; garagem; habilitações; motos; ônibus; trânsito IA; pedestres; sinistros completos; guincho; seguro; combustível consumível; multas; clima dinâmico; dia/noite; GPS completo; **editor visual de edifícios e fachadas**; multiplayer; mapa inteiro de São Paulo; versão mobile; save em nuvem.
 
 **Nota:** esses recursos continuam no GDD. Estão fora somente da primeira prova técnica.
 
@@ -325,6 +350,7 @@ Jogo visualmente fluido em PC intermediário, com meta inicial de **30 FPS está
 | F9 — Ônibus | Veículos coletivos, linhas/pontos, rodoviários | F8 ou trilha paralela | Futura |
 | F10 — Empresas | Frota, contratos, funcionários e gestão financeira | F7/F9 | Futura |
 | F11 — Expansão | Setores, bairros/cidades, passeio sofisticado e corridas | Após estabilidade | Futura |
+| F12 — Editor de mundo | Selecionar prédios, identificar fachadas/locais, ajustar modelos low poly e salvar alterações persistentes | Após protótipo dirigível e base de edifícios | Futura |
 
 O roadmap é **orientado por marcos**, não por prazo inventado. Concluir uma fase significa entregar algo executável ou observável, não apenas escrever código.
 
@@ -350,7 +376,8 @@ Se a geração procedural travar o projeto, usar **um recorte estático pré-pro
 | Dados incompletos, sentidos errados, viadutos | Médio/alto | Validação por recorte; tags quando confiáveis; correções de pipeline documentadas |
 | Licenciamento e atribuições ignorados | Alto | Créditos OSM e inventário de assets desde o começo |
 | Gamepad inconsistente entre navegadores | Médio | Normalização de input, deadzone, testes e fallback teclado |
-| Expectativa de fidelidade total à cidade | Médio | Declarar mapa real + cenários estilizados, não gêmeo digital |
+| Expectativa de fidelidade total à cidade | Médio | Declarar mapa real + cenários low poly, não gêmeo digital |
+| Perder edições de fachada ao regenerar a cidade | Alto (futuro) | Separar dados OSM, geração padrão e camada de alterações com IDs estáveis/conciliação |
 
 ## 17. Definição de pronto e governança
 
@@ -380,4 +407,5 @@ Criar a base do projeto e entregar **uma cena 3D com ruas reais do entorno do Te
 
 ## 20. Histórico
 
+- **v1.1 (2026-10-19):** visual **low poly sem voxel** confirmado; editor futuro de prédios, identificação de fachadas e personalização de modelos; preservada a prioridade de lançar a 0.1 dirigível.
 - **v1.0 (2026-10-19):** consolidação das quatro rodadas de definição com o criador; distinção entre decisões confirmadas, propostas técnicas e dúvidas; escopo fechado do protótipo 0.1 e roadmap completo.
