@@ -1,0 +1,25 @@
+ID,Etapa,Tarefa,Status,Validação pendente
+F0-01,Fundação,Entrada HTML e módulos ES,Implementado,Conferir abertura em navegador com WebGL
+F0-02,Fundação,Teste automático de sintaxe Node,Concluído,Nenhuma
+F1-01,Mapa,Extrair ruas reais do Grajaú,Concluído,Nenhuma
+F1-02,Mapa,Extrair polígonos de construções,Concluído,Nenhuma
+F1-03,Mapa,Registrar atribuição OSM,Concluído,Confirmar visualmente no navegador
+F2-01,Mundo 3D,Gerar malha de ruas e acostamentos,Implementado,Conferir cruzamentos e buracos
+F2-02,Mundo 3D,Gerar prédios low poly em lotes,Implementado,Medir FPS e procurar sobreposições
+F2-03,Mundo 3D,Criar vegetação low poly,Implementado,Conferir sobreposições
+F3-01,Veículo,Criar modelo low poly próprio,Implementado,Conferir direção e câmera
+F3-02,Veículo,Aceleração freio ré e direção,Implementado,Testar dirigibilidade em PC
+F3-03,Veículo,Colisão simples e botão de recuperação,Implementado,Testar mapas e obstáculos
+F4-01,Interação,HUD velocímetro e nome de rua,Implementado,Conferir no navegador
+F4-02,Interação,Minimapa de vias reais,Implementado,Conferir atualização e escala
+F4-03,Interação,Teclado mouse e controle,Implementado,Testar controle físico
+F4-04,Interação,Tela de entrada e ajuda,Implementado,Conferir fontes e layout
+F5-01,Validação,Verificações de sintaxe e dados no Actions,Concluído,Nenhuma
+F5-02,Validação,Teste manual em navegador WebGL,Pendente,Executar e registrar problemas
+F5-03,Publicação,Link público de preview,Pendente,Vercel não autorizou criar projeto 403
+F6-01,Carreira,Corridas por aplicativo e passageiros simples,Futuro,Após validação da versão 0.1
+F7-01,Carreira,Criação de personagem e economia,Futuro,Após versão 0.2
+F8-01,Mundo vivo,Trânsito e eventos,Futuro,Após validação do mapa
+F9-01,Ônibus,Urbanos e rodoviários,Futuro,Após base de direção
+F10-01,Empresa,Frota e negócios,Futuro,Após economia
+F12-01,Editor,Selecionar prédio e editar fachadas,Futuro,Após existência do mundo dirigível
