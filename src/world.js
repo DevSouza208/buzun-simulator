@@ -62,7 +62,7 @@ function simpleSign(text, backdrop = "#142b38") {
 }
 export function createWorld(scene, map) {
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(1600, 1600),
+    new THREE.PlaneGeometry(14000, 14000),
     new THREE.MeshLambertMaterial({ color: "#a2bd9b" }),
   );
   ground.rotation.x = -Math.PI / 2;
@@ -74,7 +74,7 @@ export function createWorld(scene, map) {
   for (const road of map.roads) {
     const width = roadWidth(road.t);
     for (let i = 1; i < road.p.length; i++) {
-      const clipped = clippedLine(road.p[i - 1], road.p[i]);
+      const clipped = clippedLine(road.p[i - 1], road.p[i], 6500);
       if (!clipped) continue;
       const [a, b] = clipped, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
       if (len < .12) continue;
@@ -191,7 +191,7 @@ export function createWorld(scene, map) {
       const side = seeded(i * 13 + v) > .5 ? 1 : -1;
       const x = s.a[0] + dx * v + nx * (s.width / 2 + 8) * side;
       const z = s.a[1] + dz * v + nz * (s.width / 2 + 8) * side;
-      if (Math.abs(x) > 520 || Math.abs(z) > 520 || collides(x, z)) continue;
+      if (Math.abs(x) > 5800 || Math.abs(z) > 5800 || collides(x, z)) continue;
       trunks.push([x, z]);
       crowns.push([x, z]);
     }
@@ -216,9 +216,21 @@ export function createWorld(scene, map) {
   pin.position.set(x, 22, z);
   scene.add(pin);
 
+  // Keep the starting point in Grajaú even after the Belmira Marin backbone
+  // adds several kilometers of roads across the eastern neighborhoods.
   const start = closestSegment(x, z, segments) || closestSegment(0, 0, segments);
   const spawn = start ? { x: start.x, z: start.z, angle: start.angle } : { x: 0, z: 0, angle: 0 };
-  return { segments, spawn, collides, closest: (x, z) => closestSegment(x, z, segments),
+  // Original prototype remains freely explorable inside its square. Beyond it,
+  // we allow exploration in a broad corridor along authentic OSM roads.
+  // Buildings in distant neighborhoods will arrive in future map expansions.
+  function inExploreArea(x, z) {
+    if (Math.abs(x) > 6100 || Math.abs(z) > 6100) return false;
+    if (Math.abs(x) <= 530 && Math.abs(z) <= 530) return true;
+    const nearby = closestSegment(x, z, segments);
+    return !!nearby && nearby.distance <= 70;
+  }
+  return { segments, spawn, collides, inExploreArea,
+    closest: (x, z) => closestSegment(x, z, segments),
     stats: { roads: map.roads.length, buildings: stored.length, trees: trunks.length },
     terminal: { x, z } };
 }
