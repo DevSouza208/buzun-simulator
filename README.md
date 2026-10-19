@@ -27,6 +27,19 @@ Não precisa instalar dependências npm nem configurar backend. O navegador prec
 
 **No celular:** aparecem automaticamente duas **setas de direção** à esquerda e dois **pedais** à direita (**FREIO / ACELERAR**). É possível segurar uma seta e um pedal com dedos diferentes. Soltar o dedo interrompe a ação, inclusive em caso de cancelamento do toque. Se não aparecerem, confira se o navegador reconhece o dispositivo como tela sensível ao toque. A interface e a dirigibilidade mobile ainda precisam de validação em aparelhos reais.
 
+## 🛣️ Expansão: Belmira Marin e Cocaia (19/10/2026)
+
+O jogo agora carrega, no mesmo sistema métrico do Grajaú, dois conjuntos de vias adicionais:
+
+- **`public/data/belmira-marin.json`**: eixo da **Avenida Dona Belmira Marin** completo nos dados OSM consultados, com **55 segmentos de vias nomeadas** e ligação verificada entre os fragmentos.
+- **`public/data/cocaia-corredores.json`**: **Estrada Canal de Cocaia (16 segmentos)**, **Rua Pedro Escobar (9)** e **Rua Rubens de Oliveira (3)**.
+
+As geometrias são extraídas do **OpenStreetMap**, mantendo os identificadores originais das vias. Trechos iguais aos do mapa anterior são deduplicados ao carregar. O terreno foi ampliado para permitir a navegação além da área inicial e o veículo pode trafegar dentro de um corredor ao redor das ruas reais, sem precisar carregar bairros inteiros de uma vez.
+
+**Limitação importante:** fora da região inicial do Terminal Grajaú, ainda não existem fachadas e prédios detalhados, semáforos ou relevo. A presença de uma estrada no mapa não garante que as interseções, acessos e proibições de circulação estejam perfeitos na simulação atual. Os três eixos adicionais precisam de uma inspeção manual de ponta a ponta.
+
+**Próxima prioridade:** testar as quatro vias em celular e PC, consertar eventuais cruzamentos e completar arredores em etapas. **Somente depois entra o relevo real** — para evitar estradas flutuantes ou rampas desconectadas.
+
 ## 🗺️ Mapa e implementação
 
 O arquivo `public/data/grajau.json` contém **201 vias reais**, **3.347 contornos de construções** e **31 pontos identificados**, extraídos do OpenStreetMap em **19/10/2026**. Nem todos são desenhados; parte da geometria é filtrada na renderização.
