@@ -1,6 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 import { createWorld } from "./world.js";
 import { bindTouchControls } from "./touch-controls.js";
+import { modelYawFromHeading } from "./driving.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -112,7 +113,7 @@ function resetCar(announce = true) {
   player.yaw = spawn.angle; player.speed = 0;
   yawOrbit = 0; pitchOrbit = .15;
   car.position.set(player.x, 0, player.z);
-  car.rotation.y = player.yaw;
+  car.rotation.y = modelYawFromHeading(player.yaw);
   if (announce) showToast("Veículo reposicionado perto do Terminal Grajaú");
 }
 function advance(dt) {
@@ -154,7 +155,7 @@ function advance(dt) {
     player.boundaryWarned = false;
   }
   car.position.set(player.x, 0, player.z);
-  car.rotation.y = player.yaw;
+  car.rotation.y = modelYawFromHeading(player.yaw);
   const lean = THREE.MathUtils.clamp(-ctrl.steer * Math.abs(player.speed) * .003, -.055, .055);
   car.userData.shell.rotation.z = THREE.MathUtils.lerp(car.userData.shell.rotation.z, lean, Math.min(dt * 6, 1));
 }
