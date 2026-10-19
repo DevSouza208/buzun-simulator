@@ -1,6 +1,6 @@
 # BUZUN SIMULATOR — Game Design Document (GDD)
 
-**Versão:** 1.1 — direção de arte low poly e editor de fachadas / pré-produção  
+**Versão:** 1.2 — primeira implementação da 0.1 / validação pendente  
 **Data:** 19 de outubro de 2026  
 **Projeto:** Buzun Simulator  
 **Repositório:** https://github.com/DevSouza208/buzun-simulator  
@@ -338,12 +338,12 @@ Jogo visualmente fluido em PC intermediário, com meta inicial de **30 FPS está
 
 | Etapa | Objetivo verificável | Dependência | Situação |
 |---|---|---|---|
-| F0 — Fundação | Projeto Three.js/TS/Vite abre uma cena 3D e tem scripts de execução | Nenhuma | Planejada |
-| F1 — Dados reais | Extrair, versionar e validar o recorte do Grajaú | F0 | Planejada |
-| F2 — Rua dirigível | Gerar pistas, cruzamentos simples e solo sem buracos críticos | F1 | Planejada |
-| F3 — Primeiro carro | Modelo, aceleração, frenagem, ré, esterçamento e câmera | F2 | Planejada |
-| F4 — Interação | Teclado, mouse, gamepad, HUD, recuperação e erros | F3 | Planejada |
-| F5 — Prova pública | Build hospedável, README, teste em desktop e ajustes de desempenho | F4 | Planejada |
+| F0 — Fundação | Projeto JavaScript ES Modules e Three.js com entrada HTML, sem build obrigatório | Nenhuma | Código implementado; abertura WebGL pendente |
+| F1 — Dados reais | Extrair e versionar OSM real do Grajaú | F0 | Concluída (201 vias, 3.347 polígonos de construções) |
+| F2 — Rua dirigível | Gerar pistas, cruzamentos simples e solo sem buracos críticos | F1 | Código implementado; validação visual pendente |
+| F3 — Primeiro carro | Modelo, aceleração, frenagem, ré, esterçamento e câmera | F2 | Código implementado; teste jogável pendente |
+| F4 — Interação | Teclado, mouse, gamepad, HUD, recuperação e erros | F3 | Código implementado; teste com gamepad pendente |
+| F5 — Prova pública | Build hospedável, README, teste em desktop e ajustes de desempenho | F4 | README e verificação CI prontos; preview e teste desktop pendentes |
 | F6 — 0.2 Aplicativo | Primeiras corridas, origem/destino, passageiro simples e pagamento | F5 | Futura |
 | F7 — Carreira | Criador de personagem, economia, combustível, missões/habilitações | F6 | Futura |
 | F8 — Mundo vivo | Tráfego, sinalização, eventos e clima gradual | F7 | Futura |
@@ -407,5 +407,6 @@ Criar a base do projeto e entregar **uma cena 3D com ruas reais do entorno do Te
 
 ## 20. Histórico
 
+- **v1.2 (2026-10-19):** primeira base estática WebGL implementada no repositório; extração real de ruas e construções do Grajaú; testes Node/GitHub Actions aprovados. Execução visual, gamepad, FPS e publicação hospedada continuam **não validados**. Registro de tarefas em ROADMAP.csv. Stack inicial efetiva: ES modules + Three.js via CDN, sem Vite obrigatório.
 - **v1.1 (2026-10-19):** visual **low poly sem voxel** confirmado; editor futuro de prédios, identificação de fachadas e personalização de modelos; preservada a prioridade de lançar a 0.1 dirigível.
 - **v1.0 (2026-10-19):** consolidação das quatro rodadas de definição com o criador; distinção entre decisões confirmadas, propostas técnicas e dúvidas; escopo fechado do protótipo 0.1 e roadmap completo.
