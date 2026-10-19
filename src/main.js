@@ -1,5 +1,6 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 import { createWorld } from "./world.js";
+import { bindTouchControls } from "./touch-controls.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -15,6 +16,7 @@ const terrainLabel = $("terrain-label");
 const minimap = $("minimap");
 const minimapContext = minimap.getContext("2d");
 const keys = new Set();
+let mobileInput;
 let world, player, car, renderer, scene, camera, clock, roadData;
 let driving = false, cameraMode = 0, yawOrbit = 0, pitchOrbit = .15;
 let lastHud = 0, lastMinimap = 0, toastTimer = null;
@@ -83,6 +85,13 @@ function controls() {
   if (keys.has("KeyS") || keys.has("ArrowDown")) brake = 1;
   if (keys.has("KeyA") || keys.has("ArrowLeft")) steer -= 1;
   if (keys.has("KeyD") || keys.has("ArrowRight")) steer += 1;
+  // Two independent pointer captures enable steering while holding a pedal.
+  const touch = mobileInput?.read();
+  if (touch) {
+    throttle = Math.max(throttle, touch.throttle);
+    brake = Math.max(brake, touch.brake);
+    steer = THREE.MathUtils.clamp(steer + touch.steer, -1, 1);
+  }
   if (navigator.getGamepads) {
     const pad = [...navigator.getGamepads()].find(Boolean);
     if (pad) {
@@ -238,8 +247,10 @@ function toggleHelp(force) {
   el.classList.toggle("hidden", !open);
   driving = !open && landing.classList.contains("hidden");
   keys.clear();
+  mobileInput?.releaseAll();
 }
 function bindInputs() {
+  mobileInput = bindTouchControls($("mobile-controls"), () => driving);
   document.addEventListener("keydown", e => {
     if (["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))
       e.preventDefault();
@@ -252,7 +263,8 @@ function bindInputs() {
     keys.add(e.code);
   });
   document.addEventListener("keyup", e => keys.delete(e.code));
-  window.addEventListener("blur", () => { keys.clear(); pointerDown = false; });
+  window.addEventListener("blur", () => { keys.clear(); mobileInput?.releaseAll(); pointerDown = false; });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { keys.clear(); mobileInput?.releaseAll(); } });
   canvas.addEventListener("pointerdown", e => {
     if (!driving) return;
     pointerDown = true;lastPointerX = e.clientX;lastPointerY = e.clientY;
@@ -300,7 +312,7 @@ async function start() {
     scene.add(sunlight);
 
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.65));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.matchMedia("(pointer:coarse)").matches ? 1 : 1.65));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.55;
