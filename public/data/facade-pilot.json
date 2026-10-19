@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "label": "Piloto Buzun World Engine — 3 construções do OSM",
+  "disclaimer": "Categorias e aparências são criações demonstrativas, não identificações verificadas das fachadas reais.",
+  "sources": {
+    "geometry": "OpenStreetMap via public/data/grajau.json",
+    "elevation": "src/terrain.js, relevo demonstrativo NÃO REAL",
+    "photos": "nenhuma API de fotografias foi usada"
+  },
+  "buildings": [
+    {
+      "osmId": 619054952,
+      "preset": "casa_portao",
+      "note": "Demonstração de fachada residencial com portão"
+    },
+    {
+      "osmId": 618875333,
+      "preset": "comercio",
+      "note": "Demonstração de vitrine e porta comercial (uso real não verificado)"
+    },
+    {
+      "osmId": 618869167,
+      "preset": "sobrado",
+      "note": "Demonstração de dois andares com janelas e muro"
+    }
+  ],
+  "futurePipeline": [
+    "OSM: contorno e geolocalização",
+    "Altitude: DEM/interpolador com licença adequada",
+    "Referências visuais: Mapillary/fotos próprias quando permitidas",
+    "Classificação semântica: tipo de muro, portão, janela, telhado",
+    "Assets: biblioteca local, depois Cloudflare R2",
+    "Edição persistente de variações usando ID estável"
+  ],
+  "assetLibrary": {
+    "gate": [
+      "ferro-vertical",
+      "garagem-metal"
+    ],
+    "wall": [
+      "reboco",
+      "cimento"
+    ],
+    "sidewalk": [
+      "cimento-simples"
+    ],
+    "roof": [
+      "laje",
+      "telha-simplificada"
+    ],
+    "window": [
+      "vidro-pequeno",
+      "vitrine"
+    ]
+  }
+}
