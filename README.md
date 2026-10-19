@@ -25,13 +25,15 @@ Não precisa instalar dependências npm nem configurar backend. O navegador prec
 | Voltar ao início | R | Teclado por enquanto |
 | Ajuda | ? / Esc | Teclado por enquanto |
 
+**No celular:** aparecem automaticamente duas **setas de direção** à esquerda e dois **pedais** à direita (**FREIO / ACELERAR**). É possível segurar uma seta e um pedal com dedos diferentes. Soltar o dedo interrompe a ação, inclusive em caso de cancelamento do toque. Se não aparecerem, confira se o navegador reconhece o dispositivo como tela sensível ao toque. A interface e a dirigibilidade mobile ainda precisam de validação em aparelhos reais.
+
 ## 🗺️ Mapa e implementação
 
 O arquivo `public/data/grajau.json` contém **201 vias reais**, **3.347 contornos de construções** e **31 pontos identificados**, extraídos do OpenStreetMap em **19/10/2026**. Nem todos são desenhados; parte da geometria é filtrada na renderização.
 
-As ruas usam coordenadas geográficas reais convertidas para metros locais. Prédios, fachadas e vegetação são gerados automaticamente em **low poly, sem voxel**. Alturas, larguras, calçadas e cruzamentos são aproximados, não um gêmeo digital fidedigno. O cenário e os veículos são simplificados para testes iniciais de performance.
+As ruas usam coordenadas geográficas reais convertidas para metros locais. **Nesta versão o terreno é plano.** Para uma evolução futura de relevo real, podemos importar um DEM (ex.: tiles Terrarium) e aplicar altitudes suavizadas ao terreno, às ruas, aos prédios, às colisões e ao veículo. Não basta elevar só o chão: o automóvel também precisará se orientar nas inclinações. Prédios, fachadas e vegetação são gerados automaticamente em **low poly, sem voxel**. Alturas, larguras, calçadas e cruzamentos são aproximados, não um gêmeo digital fidedigno. O cenário e os veículos são simplificados para testes iniciais de performance.
 
-Componentes já implementados no código: carro com aceleração/freio/ré/direção, câmera externa e próxima experimental, minimapa, HUD, gamepad, detecção de obstáculo simples e recuperação de posição.
+Componentes já implementados no código: carro com aceleração/freio/ré/direção, câmera externa e próxima experimental, minimapa, HUD, gamepad e botões mobile multitoque, detecção de obstáculo simples e recuperação de posição.
 
 ### Estrutura
 
@@ -39,6 +41,7 @@ Componentes já implementados no código: carro com aceleração/freio/ré/dire�
 - `src/main.js`: loop de direção, controles, câmera, velocímetro e minimapa.
 - `src/world.js`: geração da malha de ruas e edifícios, colisões.
 - `src/geo.js`: funções matemáticas e geográficas puras.
+- `src/touch-controls.js`: setas e pedais mobile multitoque.
 - `src/styles.css`: interface.
 - `public/data/grajau.json`: extrato vetorial OSM.
 - `tests/geo.test.js`: testes da base de mapas e integridade.
@@ -50,10 +53,11 @@ Use **Node.js 22+** e execute `npm run verify` para verificar sintaxe e testes u
 
 ## ⏭️ Próximos passos
 
-1. Validar execução, posicionamento no asfalto, sensibilidade de direção e FPS em um PC real.
-2. Corrigir cruzamentos e detalhes de colisão.
+1. Validar execução, posicionamento no asfalto, sensibilidade de direção e FPS em PC e celular reais.
+2. Corrigir cruzamentos, detalhes de colisão e ajustar o HUD em diferentes tamanhos de tela.
 3. Implementar missões iniciais de transporte por aplicativo.
-4. Desenvolver carreira, mais veículos e **um editor futuro de fachadas**, usando IDs das construções preservados do mapa.
+4. Estudar relevo real com DEM após estabilizar a direção e a geometria das ruas.
+5. Desenvolver carreira, mais veículos e **um editor futuro de fachadas**, usando IDs das construções preservados do mapa.
 
 **Não incluído na 0.1:** passageiros, corridas pagas, motos, ônibus, trânsito por IA, economia e editor visual.
 
