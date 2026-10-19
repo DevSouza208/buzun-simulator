@@ -300,28 +300,35 @@ async function start() {
     // Marin street geometry extends the same local coordinate system.
     // Importing a road backbone first avoids downloading thousands of
     // distant building meshes on mobile before neighborhood tiles exist.
-    const [initialResponse, spineResponse] = await Promise.all([
+    const [initialResponse, spineResponse, feedersResponse] = await Promise.all([
       fetch("./public/data/grajau.json"),
       fetch("./public/data/belmira-marin.json"),
+      fetch("./public/data/cocaia-corredores.json"),
     ]);
-    if (!initialResponse.ok || !spineResponse.ok)
-      throw new Error("Não foi possível carregar os mapas locais (Grajaú / Belmira Marin).");
-    const [original, spine] = await Promise.all([
-      initialResponse.json(), spineResponse.json(),
+    if (!initialResponse.ok || !spineResponse.ok || !feedersResponse.ok)
+      throw new Error("Não foi possível carregar os mapas locais (Grajaú / Belmira / Cocaia).");
+    const [original, spine, feeders] = await Promise.all([
+      initialResponse.json(), spineResponse.json(), feedersResponse.json(),
     ]);
     if (!Array.isArray(original.roads) || original.roads.length < 10 ||
-        !Array.isArray(spine.roads) || spine.roads.length < 15)
+        !Array.isArray(spine.roads) || spine.roads.length < 15 ||
+        !Array.isArray(feeders.roads) || feeders.roads.length < 15)
       throw new Error("Os dados de alguma das vias estão incompletos.");
-    if (original.origin.lat !== spine.origin.lat || original.origin.lon !== spine.origin.lon)
+    if ([spine, feeders].some(part => part.origin.lat !== original.origin.lat ||
+                                    part.origin.lon !== original.origin.lon))
       throw new Error("As origens geográficas dos arquivos não coincidem.");
-    const arteryIds = new Set(spine.roads.map(road => road.id));
+    // Keep full OSM ways without duplicating pieces already seen in the
+    // first neighbourhood extract. This is the permanent arterial skeleton
+    // on which future streamed low-poly neighbourhood sectors can be added.
+    const namedWays = new Map([...spine.roads, ...feeders.roads].map(road => [road.id, road]));
     roadData = {
       ...original,
       roads: [
-        ...original.roads.filter(road => !arteryIds.has(road.id)),
-        ...spine.roads,
+        ...original.roads.filter(road => !namedWays.has(road.id)),
+        ...namedWays.values(),
       ],
       backbone: spine.stats,
+      feeders: feeders.stats,
     };
 
     status.textContent = "Construindo ruas e fachadas low poly...";
@@ -368,7 +375,7 @@ async function start() {
     clock = new THREE.Clock();
     tick();
     $("map-status").textContent = world.stats.roads + " trechos reais";
-    status.textContent = "Belmira Marin ampliada! " + world.stats.roads + " vias · " +
+    status.textContent = "Belmira Marin + ramais do Cocaia! " + world.stats.roads + " vias · " +
       world.stats.buildings + " construções low poly.";
     startButton.disabled = false;
     startButton.textContent = "COMEÇAR A DIRIGIR  ↗";
