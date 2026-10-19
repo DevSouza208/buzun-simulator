@@ -72,6 +72,28 @@ Componentes já implementados no código: carro com aceleração/freio/ré/dire�
 
 Use **Node.js 22+** e execute `npm run verify` para verificar sintaxe e testes unitários; há também uma checagem configurada no GitHub Actions. Esses testes **não substituem testar a cena WebGL em um navegador**.
 
+## 🏘️ Buzun World Engine — piloto automático (3 fachadas)
+
+A cidade mantém a geometria real do OpenStreetMap, mas agora um módulo interno constrói **três fachadas modulares demonstrativas** automaticamente ao carregar:
+
+| OSM Way ID | Modelo de demonstração | O que o motor constrói |
+|---|---|---|
+| `619054952` | Casa e portão | Fachada residencial estilizada e grades |
+| `618875333` | Comércio hipotético | Vitrine, porta metálica e marquise |
+| `618869167` | Sobrado hipotético | Dois andares, janelas e portão |
+
+**Importante:** esses três imóveis estão cadastrados como edifícios no OSM, mas seu uso, cor e fachada **não foram verificados**. O motor não utiliza fotos do Street View e não reproduz construções reais automaticamente. O piloto é uma prova de arquitetura procedural.
+
+Fluxo executado ao iniciar: **contorno OSM → identificador → preset semântico → altura do solo → geometria low poly → fachada e elementos modulares**. A configuração fica em `public/data/facade-pilot.json` e o código em `src/facade-recipe.js` e `src/world-engine.js`. Um futuro editor poderá substituir presets e salvar estilos por ID. R2, imagens de rua e IA **não estão conectados** ainda.
+
+### 🏔️ Relevo de teste
+
+O motor passou a compartilhar uma função `sampleHeight(x,z)` (em `src/terrain.js`) entre terreno, asfalto, construções, vegetação, carro e câmera. A elevação é **procedural e aproximada, não representa a topografia real do Grajaú**. Ela aparece apenas na região de estreia, diminuindo suavemente até a rede plana das vias mais distantes.
+
+É a base para substituirmos a função por um DEM com alturas reais, verificando licença e resolução dos dados. Não comparar o relevo do protótipo com fotos reais para assumir precisão geográfica.
+
+**Teste no celular:** verifique se o asfalto acompanha as pequenas inclinações, se o carro não atravessa o terreno e se a cena continua fluida. Nenhum botão Create/editor foi adicionado nesta etapa, por decisão de escopo.
+
 ## ⏭️ Próximos passos
 
 1. Validar o percurso completo da **Belmira Marin** e seus três ramais no celular, incluindo cruzamentos, limites e FPS.
