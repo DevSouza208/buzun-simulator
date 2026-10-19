@@ -142,7 +142,7 @@ function advance(dt) {
 
   const nextX = player.x + Math.sin(player.yaw) * player.speed * dt;
   const nextZ = player.z - Math.cos(player.yaw) * player.speed * dt;
-  if (Math.abs(nextX) > 530 || Math.abs(nextZ) > 530) {
+  if (!world.inExploreArea(nextX, nextZ)) {
     player.speed = 0;
     if (!player.boundaryWarned) showToast("Fim da área disponível nesta versão. Aperte R para voltar.");
     player.boundaryWarned = true;
@@ -296,11 +296,33 @@ async function start() {
   bindInputs();
   try {
     status.textContent = "Buscando ruas reais e construções do OpenStreetMap...";
-    const response = await fetch("./public/data/grajau.json");
-    if (!response.ok) throw new Error("O arquivo de dados do Grajaú não carregou (HTTP " + response.status + ").");
-    roadData = await response.json();
-    if (!Array.isArray(roadData.roads) || roadData.roads.length < 10)
-      throw new Error("O arquivo do mapa não contém ruas suficientes.");
+    // The original Grajaú neighborhood stays in place; the new Belmira
+    // Marin street geometry extends the same local coordinate system.
+    // Importing a road backbone first avoids downloading thousands of
+    // distant building meshes on mobile before neighborhood tiles exist.
+    const [initialResponse, spineResponse] = await Promise.all([
+      fetch("./public/data/grajau.json"),
+      fetch("./public/data/belmira-marin.json"),
+    ]);
+    if (!initialResponse.ok || !spineResponse.ok)
+      throw new Error("Não foi possível carregar os mapas locais (Grajaú / Belmira Marin).");
+    const [original, spine] = await Promise.all([
+      initialResponse.json(), spineResponse.json(),
+    ]);
+    if (!Array.isArray(original.roads) || original.roads.length < 10 ||
+        !Array.isArray(spine.roads) || spine.roads.length < 15)
+      throw new Error("Os dados de alguma das vias estão incompletos.");
+    if (original.origin.lat !== spine.origin.lat || original.origin.lon !== spine.origin.lon)
+      throw new Error("As origens geográficas dos arquivos não coincidem.");
+    const arteryIds = new Set(spine.roads.map(road => road.id));
+    roadData = {
+      ...original,
+      roads: [
+        ...original.roads.filter(road => !arteryIds.has(road.id)),
+        ...spine.roads,
+      ],
+      backbone: spine.stats,
+    };
 
     status.textContent = "Construindo ruas e fachadas low poly...";
     await new Promise(resolve => setTimeout(resolve, 25));
@@ -346,7 +368,7 @@ async function start() {
     clock = new THREE.Clock();
     tick();
     $("map-status").textContent = world.stats.roads + " trechos reais";
-    status.textContent = "Cidade pronta! " + world.stats.roads + " ruas · " +
+    status.textContent = "Belmira Marin ampliada! " + world.stats.roads + " vias · " +
       world.stats.buildings + " construções low poly.";
     startButton.disabled = false;
     startButton.textContent = "COMEÇAR A DIRIGIR  ↗";
