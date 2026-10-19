@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#101e2a" />
   <meta name="description" content="Buzun Simulator: uma primeira volta pelas ruas reais do Grajaú em um mundo 3D low poly." />
   <title>Buzun Simulator | Primeira volta no Grajaú</title>
@@ -57,6 +57,16 @@
     </div>
   </div>
 
+  <nav id="mobile-controls" class="mobile-controls" aria-label="Controles no celular">
+    <div class="mobile-control-group steering-controls" aria-label="Direção">
+      <button type="button" class="touch-control touch-steer" data-drive="left" aria-label="Virar à esquerda" aria-pressed="false">←</button>
+      <button type="button" class="touch-control touch-steer" data-drive="right" aria-label="Virar à direita" aria-pressed="false">→</button>
+    </div>
+    <div class="mobile-control-group pedal-controls" aria-label="Pedais">
+      <button type="button" class="touch-control touch-pedal touch-brake" data-drive="brake" aria-label="Frear e dar ré" aria-pressed="false"><span class="pedal-icon">▰</span><span>FREIO</span></button>
+      <button type="button" class="touch-control touch-pedal touch-accelerate" data-drive="accelerate" aria-label="Acelerar" aria-pressed="false"><span class="pedal-icon">▰</span><span>ACELERAR</span></button>
+    </div>
+  </nav>
   <div id="landing" class="overlay">
     <section class="welcome">
       <div class="welcome-badge"><span class="live-dot"></span> PRIMEIRA VERSÃO JOGÁVEL · V0.1</div>
@@ -85,6 +95,7 @@
         <span><kbd>C</kbd></span><span>Alternar câmera</span>
         <span><kbd>R</kbd></span><span>Voltar ao ponto de partida</span>
         <span><b>Gamepad</b></span><span>Analógico esquerdo + gatilhos</span>
+        <span><b>Celular</b></span><span>Segure as setas e pedais ao mesmo tempo</span>
       </div>
       <p>Esta é a primeira prova técnica. A geometria das ruas vem do mapa real, mas prédios e alturas ainda são estilizados. Algumas vias, cruzamentos e colisões são simplificados.</p>
       <button id="resume-button">VOLTAR A DIRIGIR</button>
