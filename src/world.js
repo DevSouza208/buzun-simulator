@@ -65,13 +65,21 @@ function simpleSign(text, backdrop = "#142b38") {
   return sp;
 }
 export function createWorld(scene, map, options = {}) {
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(14000, 14000),
-    new THREE.MeshLambertMaterial({ color: "#a2bd9b" }),
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -.085;
-  scene.add(ground);
+  // Render the far-flat ground as a ring around the 1.26 km terrain pilot.
+  // A full flat plane would incorrectly fill valleys and hide lower streets.
+  const flatMaterial = new THREE.MeshLambertMaterial({color:"#a2bd9b"});
+  const edge = 630, outer = 7000, bandSize = outer - edge;
+  for (const [w,d,x,z] of [
+    [outer*2,bandSize,0,-(edge+bandSize/2)],
+    [outer*2,bandSize,0,edge+bandSize/2],
+    [bandSize,edge*2,-(edge+bandSize/2),0],
+    [bandSize,edge*2,edge+bandSize/2,0],
+  ]) {
+    const tile = new THREE.Mesh(new THREE.PlaneGeometry(w,d),flatMaterial);
+    tile.rotation.x = -Math.PI/2;
+    tile.position.set(x,-.06,z);
+    scene.add(tile);
+  }
   // Local low-poly terrain mesh, gently fading into the old flat map.
   // Height and road vertices sample the SAME function to avoid floating asphalt.
   const landGeometry = new THREE.PlaneGeometry(1260, 1260, 84, 84);
