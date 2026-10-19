@@ -1,6 +1,6 @@
 # BUZUN SIMULATOR — Game Design Document (GDD)
 
-**Versão:** 1.2 — primeira implementação da 0.1 / validação pendente  
+**Versão:** 1.3 — HUD mobile e estudo de relevo / validação pendente  
 **Data:** 19 de outubro de 2026  
 **Projeto:** Buzun Simulator  
 **Repositório:** https://github.com/DevSouza208/buzun-simulator  
@@ -120,6 +120,16 @@ O cenário **low poly, sem voxel**, estiliza edifícios, calçadas, comércio, �
 10. Validar visualmente contra o mapa fonte: posição relativa, cruzamentos, trechos interrompidos, sobreposições e sentido das vias.
 
 **Dificuldades reconhecidas:** cruzamentos não são apenas retângulos; pontes e túneis precisam de níveis distintos; vias estreitas e sentido único exigem tratamento; geografia não garante altura dos edifícios. A primeira versão pode usar **terreno plano**, cruzamentos simplificados e fachadas genéricas, com evolução progressiva.
+
+### 5.3.1 Relevo e ladeiras reais — possibilidade técnica, não implementada
+
+**Pedido de estudo do criador:** avaliar a possibilidade de adicionar as elevações reais do mapa, principalmente subidas e descidas do Grajaú. **Resposta técnica: é viável**, porém esta não é uma escolha de implementação já confirmada para a 0.1.
+
+**Abordagem proposta:** obter um Modelo Digital de Elevação (DEM), por exemplo dados de altitude em formato Mapzen Terrarium ou equivalente licenciado. O OSM responde *onde* estão as vias; o DEM aproxima *a que altitude* fica o terreno.
+
+**Pipeline futuro:** (1) baixar/extrair alturas para a área de teste; (2) converter em grade de alturas local, relativa ao mesmo ponto de origem do mapa; (3) interpolar entre amostras e suavizar ruídos em trechos dirigíveis; (4) modificar terreno, ruas, calçadas e prédios, mantendo a geometria consistente; (5) atualizar colisores, posição e inclinação do carro; (6) adaptar a física a aclives/declives e ajustar câmera; (7) validar FPS e geometria em locais conhecidos. Em resolução da ordem de dezenas de metros, o DEM captura morros e inclinações gerais, não os centímetros de cada lombada ou rampa.
+
+Não simplesmente elevar o plano e deixar os prédios/asfalto flutuando. Recomenda-se introduzir **depois de validar direção, rua e colisões no terreno plano**, sem comprometer a entrega do primeiro teste. Referência de codificação Terrarium: https://www.mapzen.com/blog/elevation/
 
 ### 5.4 Estratégia de escala
 
@@ -246,6 +256,12 @@ Permitir remapeamento posteriormente; prever sensibilidade, zona morta do contro
 ### 11.3 Acessibilidade e conforto
 
 Legenda/ícones legíveis, opções gráficas, desligar trepidação excessiva de câmera, controle de volume, suporte a resolução variável; no futuro personalização de controles e alternativas para distinção de cores.
+
+### 11.4 Controles touch mínimos — implementados no código, validação mobile pendente
+
+Exibição automática em dispositivos de ponteiro sensível ao toque (CSS media `pointer: coarse`). Duas **setas esquerda/direita** à esquerda; dois **pedais FREIO/ACELERAR** à direita. Botões grandes, próximos aos polegares, visíveis em retrato e paisagem. Cada dedo mantém seu próprio estado de toque através de Pointer Events e pointer capture, permitindo acelerar e esterçar simultaneamente. Soltar/cancelar o toque interrompe a ação, assim como pausar, perder o foco ou ocultar a página. Freio funciona também como ré contextual conforme o modelo atual.
+
+A HUD touch é **adaptação de controle** da 0.1 e não equivale a declarar suporte mobile plenamente otimizado. Performance, proporções e comportamento de gestos precisam ser testados em aparelhos reais.
 
 ## 12. Direção de arte e áudio
 
@@ -407,6 +423,7 @@ Criar a base do projeto e entregar **uma cena 3D com ruas reais do entorno do Te
 
 ## 20. Histórico
 
+- **v1.3 (2026-10-19):** adicionado HUD mobile com setas e pedais multitoque no código; proposta técnica de relevo real via DEM (ainda não implementada), com dependências de malha, edifícios e dinâmica do carro; testes em dispositivo real pendentes.
 - **v1.2 (2026-10-19):** primeira base estática WebGL implementada no repositório; extração real de ruas e construções do Grajaú; testes Node/GitHub Actions aprovados. Execução visual, gamepad, FPS e publicação hospedada continuam **não validados**. Registro de tarefas em ROADMAP.csv. Stack inicial efetiva: ES modules + Three.js via CDN, sem Vite obrigatório.
 - **v1.1 (2026-10-19):** visual **low poly sem voxel** confirmado; editor futuro de prédios, identificação de fachadas e personalização de modelos; preservada a prioridade de lançar a 0.1 dirigível.
 - **v1.0 (2026-10-19):** consolidação das quatro rodadas de definição com o criador; distinção entre decisões confirmadas, propostas técnicas e dúvidas; escopo fechado do protótipo 0.1 e roadmap completo.
