@@ -42,7 +42,13 @@ As geometrias são extraídas do **OpenStreetMap**, mantendo os identificadores 
 
 ## 🗺️ Mapa e implementação
 
-O arquivo `public/data/grajau.json` contém **201 vias reais**, **3.347 contornos de construções** e **31 pontos identificados**, extraídos do OpenStreetMap em **19/10/2026**. Nem todos são desenhados; parte da geometria é filtrada na renderização.
+O primeiro recorte, `public/data/grajau.json`, contém **201 trechos de rua**, **3.347 contornos de construções** e **31 pontos identificados**, obtidos do OpenStreetMap em **19/10/2026**.
+
+**Expansão dos corredores reais:** `public/data/belmira-marin.json` contém os **55 segmentos mapeados** que formam um eixo conectado da **Avenida Dona Belmira Marin**. São 481 pontos e cerca de 9,1 km de linhas somadas (incluindo os trechos subdivididos e as pistas paralelas; **não é a extensão linear da avenida**). O mapa alcança a região do Jardim Shangrilá.
+
+`public/data/cocaia-corredores.json` acrescenta **28 trechos mapeados**, distribuídos entre **Estrada Canal de Cocaia** (16), **Rua Pedro Escobar** (9) e **Rua Rubens de Oliveira** (3). Os arquivos compartilham a mesma origem geográfica e são mesclados pelo identificador original da via, sem duplicar ruas.
+
+O mundo deixou de ter limite fixo de 530 metros: a área inicial do Grajaú permanece explorável, e mais longe o jogador pode seguir pelos corredores mapeados. **Nesta etapa só o asfalto dos novos bairros foi importado**; os edifícios low poly continuam detalhados principalmente no entorno inicial. Os quarteirões serão incorporados por setores depois de validar o percurso e a performance no celular.
 
 As ruas usam coordenadas geográficas reais convertidas para metros locais. **Nesta versão o terreno é plano.** Para uma evolução futura de relevo real, podemos importar um DEM (ex.: tiles Terrarium) e aplicar altitudes suavizadas ao terreno, às ruas, aos prédios, às colisões e ao veículo. Não basta elevar só o chão: o automóvel também precisará se orientar nas inclinações. Prédios, fachadas e vegetação são gerados automaticamente em **low poly, sem voxel**. Alturas, larguras, calçadas e cruzamentos são aproximados, não um gêmeo digital fidedigno. O cenário e os veículos são simplificados para testes iniciais de performance.
 
@@ -56,7 +62,9 @@ Componentes já implementados no código: carro com aceleração/freio/ré/dire�
 - `src/geo.js`: funções matemáticas e geográficas puras.
 - `src/touch-controls.js`: setas e pedais mobile multitoque.
 - `src/styles.css`: interface.
-- `public/data/grajau.json`: extrato vetorial OSM.
+- `public/data/grajau.json`: extrato inicial do Grajaú.
+- `public/data/belmira-marin.json`: eixo completo mapeado da Avenida Dona Belmira Marin.
+- `public/data/cocaia-corredores.json`: Canal de Cocaia, Pedro Escobar e Rubens de Oliveira.
 - `tests/geo.test.js`: testes da base de mapas e integridade.
 - `GDD.md`: visão completa, escopo 0.1 e roadmap.
 
@@ -66,7 +74,7 @@ Use **Node.js 22+** e execute `npm run verify` para verificar sintaxe e testes u
 
 ## ⏭️ Próximos passos
 
-1. Validar execução, posicionamento no asfalto, sensibilidade de direção e FPS em PC e celular reais.
+1. Validar o percurso completo da **Belmira Marin** e seus três ramais no celular, incluindo cruzamentos, limites e FPS.
 2. Corrigir cruzamentos, detalhes de colisão e ajustar o HUD em diferentes tamanhos de tela.
 3. Implementar missões iniciais de transporte por aplicativo.
 4. Estudar relevo real com DEM após estabilizar a direção e a geometria das ruas.
