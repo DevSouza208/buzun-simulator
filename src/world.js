@@ -1,5 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 import { clippedLine, closestSegment, pointInPolygon, roadWidth, seeded } from "./geo.js";
+import { sampleHeight } from "./terrain.js";
+import { buildPilotFacades } from "./world-engine.js";
 
 const palette = [
   "#e9b6a0", "#f1d1a2", "#b7d0c8", "#c0b7d8", "#c8d8a2",
@@ -38,11 +40,13 @@ function band(buf, a, b, halfWidth, height, tint) {
   const dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
   if (len < .01) return;
   const nx = (-dz / len) * halfWidth, nz = (dx / len) * halfWidth;
+  const ay = height + sampleHeight(a[0], a[1]);
+  const by = height + sampleHeight(b[0], b[1]);
   quad(buf,
-    [a[0] + nx, height, a[1] + nz],
-    [b[0] + nx, height, b[1] + nz],
-    [b[0] - nx, height, b[1] - nz],
-    [a[0] - nx, height, a[1] - nz], tint);
+    [a[0] + nx, ay, a[1] + nz],
+    [b[0] + nx, by, b[1] + nz],
+    [b[0] - nx, by, b[1] - nz],
+    [a[0] - nx, ay, a[1] - nz], tint);
 }
 function simpleSign(text, backdrop = "#142b38") {
   const canvas = document.createElement("canvas");
@@ -60,14 +64,27 @@ function simpleSign(text, backdrop = "#142b38") {
   sp.scale.set(32, 8, 1);
   return sp;
 }
-export function createWorld(scene, map) {
+export function createWorld(scene, map, options = {}) {
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(14000, 14000),
     new THREE.MeshLambertMaterial({ color: "#a2bd9b" }),
   );
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -.045;
+  ground.position.y = -.085;
   scene.add(ground);
+  // Local low-poly terrain mesh, gently fading into the old flat map.
+  // Height and road vertices sample the SAME function to avoid floating asphalt.
+  const landGeometry = new THREE.PlaneGeometry(1260, 1260, 84, 84);
+  landGeometry.rotateX(-Math.PI / 2);
+  const landPosition = landGeometry.getAttribute("position");
+  for (let i = 0; i < landPosition.count; i++) {
+    const x = landPosition.getX(i), z = landPosition.getZ(i);
+    landPosition.setY(i, sampleHeight(x,z) - .057);
+  }
+  landGeometry.computeVertexNormals();
+  scene.add(new THREE.Mesh(landGeometry, new THREE.MeshLambertMaterial({
+    color:"#9fb99b", side:THREE.DoubleSide, flatShading:false
+  })));
 
   const shoulders = positions(), roads = positions(), stripes = positions();
   const segments = [];
@@ -100,6 +117,7 @@ export function createWorld(scene, map) {
   // Keep source OSM building IDs intact: a future facade editor can store
   // overrides per id rather than rewriting the underlying map.
   const walls = positions(), details = positions();
+  const pilotIds = new Set((options.facadePilot?.buildings || []).map(x => x.osmId));
   const GRID = 32, collisionGrid = new Map();
   const key = (i, j) => i + ":" + j;
   const stored = [];
@@ -120,6 +138,8 @@ export function createWorld(scene, map) {
         collisionGrid.get(k).push(item);
       }
 
+    if (pilotIds.has(b.id)) continue; // Replaced by a modular pilot facade.
+    const baseY = sampleHeight(centerX, centerZ);
     const seed = seeded(b.id), height = 5.5 + Math.floor(seed * 4) * 2.8 +
       (seeded(b.id * 7) > .91 ? 12 : 0);
     const facade = buildingMaterials[Math.floor(seed * buildingMaterials.length)];
@@ -135,9 +155,9 @@ export function createWorld(scene, map) {
       const points = poly.map(v => new THREE.Vector2(v[0], v[1]));
       const triangles = THREE.ShapeUtils.triangulateShape(points, []);
       for (const [i, j, k] of triangles)
-        tri(walls, [poly[i][0], height, poly[i][1]],
-          [poly[j][0], height, poly[j][1]],
-          [poly[k][0], height, poly[k][1]], roof);
+        tri(walls, [poly[i][0], baseY + height, poly[i][1]],
+          [poly[j][0], baseY + height, poly[j][1]],
+          [poly[k][0], baseY + height, poly[k][1]], roof);
     } catch { /* poorly formed OSM outline: walls still appear */ }
 
     for (let i = 0; i < poly.length; i++) {
@@ -145,8 +165,9 @@ export function createWorld(scene, map) {
       const dx = c[0] - a[0], dz = c[1] - a[1], len = Math.hypot(dx, dz);
       if (len < .2) continue;
       const tint = facade.clone().multiplyScalar(.88 + ((i % 3) * .045));
-      quad(walls, [a[0], 0, a[1]], [c[0], 0, c[1]],
-        [c[0], height, c[1]], [a[0], height, a[1]], tint);
+      quad(walls, [a[0], sampleHeight(a[0],a[1])-.01, a[1]],
+        [c[0], sampleHeight(c[0],c[1])-.01, c[1]],
+        [c[0], baseY+height, c[1]], [a[0], baseY+height, a[1]], tint);
 
       if (len < 5.5 || len > 72 || seeded(b.id + i * 17) < .22) continue;
       const count = Math.min(4, Math.floor(len / 5.2));
@@ -154,8 +175,8 @@ export function createWorld(scene, map) {
       const normalX = outward * dz / len, normalZ = -outward * dx / len;
       const glass = color(seeded(b.id + i) > .5 ? "#547e8a" : "#8fadb1");
       for (let row = 0; row < floors; row++) {
-        const y = 1.6 + row * 3;
-        if (y + 1.4 > height) continue;
+        const y = baseY + 1.6 + row * 3;
+        if (y + 1.4 > baseY + height) continue;
         for (let col = 0; col < count; col++) {
           const u = (col + 1) / (count + 1);
           const x = a[0] + dx * u + normalX * .06;
@@ -171,6 +192,10 @@ export function createWorld(scene, map) {
   const windowMesh = materialMesh(details);
   if (buildingMesh) scene.add(buildingMesh);
   if (windowMesh) scene.add(windowMesh);
+  const facades = buildPilotFacades(scene, map, options.facadePilot, {
+    sampleHeight,
+    nearestStreet: (x,z) => closestSegment(x,z,segments),
+  });
 
   function collides(x, z) {
     const candidates = collisionGrid.get(key(Math.floor(x / GRID), Math.floor(z / GRID))) || [];
@@ -203,8 +228,8 @@ export function createWorld(scene, map) {
     const crownMesh = new THREE.InstancedMesh(crownGeo, new THREE.MeshLambertMaterial({ color: "#548c72" }), crowns.length);
     const obj = new THREE.Object3D();
     trunks.forEach(([x, z], i) => {
-      obj.position.set(x, 1.25, z); obj.updateMatrix(); trunkMesh.setMatrixAt(i, obj.matrix);
-      obj.position.set(x, 6.1, z); obj.updateMatrix(); crownMesh.setMatrixAt(i, obj.matrix);
+      obj.position.set(x, sampleHeight(x,z)+1.25, z); obj.updateMatrix(); trunkMesh.setMatrixAt(i, obj.matrix);
+      obj.position.set(x, sampleHeight(x,z)+6.1, z); obj.updateMatrix(); crownMesh.setMatrixAt(i, obj.matrix);
     });
     trunkMesh.instanceMatrix.needsUpdate = crownMesh.instanceMatrix.needsUpdate = true;
     scene.add(trunkMesh, crownMesh);
@@ -213,7 +238,7 @@ export function createWorld(scene, map) {
   const x = (terminal[0] - map.origin.lon) * 111320 * Math.cos(map.origin.lat * Math.PI / 180);
   const z = (map.origin.lat - terminal[1]) * 111132;
   const pin = simpleSign("TERMINAL GRAJAÚ");
-  pin.position.set(x, 22, z);
+  pin.position.set(x, sampleHeight(x,z)+22, z);
   scene.add(pin);
 
   // Keep the starting point in Grajaú even after the Belmira Marin backbone
@@ -229,8 +254,8 @@ export function createWorld(scene, map) {
     const nearby = closestSegment(x, z, segments);
     return !!nearby && nearby.distance <= 70;
   }
-  return { segments, spawn, collides, inExploreArea,
+  return { segments, spawn, collides, inExploreArea, heightAt:sampleHeight, facades,
     closest: (x, z) => closestSegment(x, z, segments),
-    stats: { roads: map.roads.length, buildings: stored.length, trees: trunks.length },
+    stats: { roads: map.roads.length, buildings: stored.length, trees: trunks.length, pilotFacades:facades.length },
     terminal: { x, z } };
 }
