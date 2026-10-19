@@ -1,11 +1,11 @@
 # BUZUN SIMULATOR — Game Design Document (GDD)
 
-**Versão:** 1.3 — HUD mobile e estudo de relevo / validação pendente  
+**Versão:** 1.4 — expansão da malha viária e corredores de Cocaia  
 **Data:** 19 de outubro de 2026  
 **Projeto:** Buzun Simulator  
 **Repositório:** https://github.com/DevSouza208/buzun-simulator  
 **Plataforma prioritária:** navegador em computadores  
-**Estado:** documento de planejamento; jogo ainda não implementado
+**Estado:** protótipo 0.1 implementado e relatado como executado em iPhone; expansão dos corredores aguardando testes reais de percurso
 
 > **Diretriz máxima:** antes de construir um simulador enorme, provar que ele existe: um carro dirigível em ruas reais do Grajaú, dentro do navegador.
 
@@ -423,7 +423,35 @@ Criar a base do projeto e entregar **uma cena 3D com ruas reais do entorno do Te
 
 ## 20. Histórico
 
+- **v1.4 (2026-10-19):** Belmira Marin ampliada por 55 vias OSM e conectada ao Canal de Cocaia, Pedro Escobar e Rubens de Oliveira (mais 28 vias); terreno plano preservado, validação visual da expansão pendente.
 - **v1.3 (2026-10-19):** adicionado HUD mobile com setas e pedais multitoque no código; proposta técnica de relevo real via DEM (ainda não implementada), com dependências de malha, edifícios e dinâmica do carro; testes em dispositivo real pendentes.
 - **v1.2 (2026-10-19):** primeira base estática WebGL implementada no repositório; extração real de ruas e construções do Grajaú; testes Node/GitHub Actions aprovados. Execução visual, gamepad, FPS e publicação hospedada continuam **não validados**. Registro de tarefas em ROADMAP.csv. Stack inicial efetiva: ES modules + Three.js via CDN, sem Vite obrigatório.
 - **v1.1 (2026-10-19):** visual **low poly sem voxel** confirmado; editor futuro de prédios, identificação de fachadas e personalização de modelos; preservada a prioridade de lançar a 0.1 dirigível.
 - **v1.0 (2026-10-19):** consolidação das quatro rodadas de definição com o criador; distinção entre decisões confirmadas, propostas técnicas e dúvidas; escopo fechado do protótipo 0.1 e roadmap completo.
+
+## 21. Expansão de mapa antes do relevo — 19/10/2026
+
+**Nova prioridade confirmada pelo criador:** ampliar **primeiro a Avenida Dona Belmira Marin inteira**, pois ela é a espinha dorsal para desenvolver os arredores. Em sequência, carregar a **Estrada Canal de Cocaia**, a **Rua Pedro Escobar** e a **Rua Rubens de Oliveira**. Somente após a navegação e os cruzamentos nessas vias serem validados será considerado o relevo real.
+
+### 21.1 Implementação da malha
+
+- **Dona Belmira Marin:** arquivo `public/data/belmira-marin.json`, com **55 segmentos originais do OSM** conectados pelos seus pontos. Os segmentos incluem desdobramentos, então a soma de seus comprimentos não equivale necessariamente à extensão linear da avenida.
+- **Canal de Cocaia, Pedro Escobar e Rubens de Oliveira:** arquivo `public/data/cocaia-corredores.json` com **28 segmentos nomeados** (16 / 9 / 3 respectivamente).
+- **Grajaú original:** permanece em `public/data/grajau.json`; os novos arquivos são mesclados pelos IDs OSM sem gerar segmentos inventados.
+- **Mundo 3D:** terreno plano expandido, ruas com malhas reais e corredor explorável perto delas; prédios low poly continuam prioritariamente na região inicial. Não criar obras futuras como se fossem ruas já existentes.
+
+### 21.2 Definição de pronto da expansão
+
+1. O trajeto principal da Belmira pode ser percorrido na área real mapeada, sem bloqueio da borda do antigo mapa.
+2. As vias secundárias entram nos mesmos metros locais e são exibidas no mesmo minimapa.
+3. O carro pode sair da Belmira em direções reais disponíveis, observadas as limitações de física e vias de mão única ainda não implementadas.
+4. Testar em navegador de PC e iPhone com tempos de carregamento e FPS aceitáveis.
+5. Identificar e registrar pontas de vias desconectadas e inconsistências no OSM antes de modificar geometria manualmente.
+6. Nenhum relevo é adicionado enquanto não houver ao menos um percurso rodoviário completo testado.
+
+**Status em 19/10:** carregamento, geometria e área dirigível implementados; testes automáticos aprovados; percurso visual completo e desempenho móvel da expansão ainda dependem de teste manual.
+
+### 21.3 Visão futura de bairros
+
+Desenvolver as ruas secundárias, áreas comerciais, casas, calçadas e fachadas por setores ligados aos corredores. Depois, incorporar o editor low poly para personalizar modelos, preservando IDs e camadas de edições. O relevo por DEM deve deformar *em conjunto* terreno, rodovias e bases de edifícios, com tratamento distinto para pontes e túneis.
+
