@@ -2,6 +2,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import { createWorld } from "./world.js";
 import { bindTouchControls } from "./touch-controls.js";
 import { modelYawFromHeading } from "./driving.js";
+import { heightAlongHeading } from "./terrain.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -112,8 +113,10 @@ function resetCar(announce = true) {
   player.x = spawn.x; player.z = spawn.z;
   player.yaw = spawn.angle; player.speed = 0;
   yawOrbit = 0; pitchOrbit = .15;
-  car.position.set(player.x, 0, player.z);
+  car.position.set(player.x, world.heightAt(player.x,player.z), player.z);
+  car.rotation.order = "YXZ";
   car.rotation.y = modelYawFromHeading(player.yaw);
+  car.rotation.x = heightAlongHeading(player.x,player.z,player.yaw);
   if (announce) showToast("Veículo reposicionado perto do Terminal Grajaú");
 }
 function advance(dt) {
@@ -154,8 +157,10 @@ function advance(dt) {
     player.distance += Math.abs(player.speed) * dt;
     player.boundaryWarned = false;
   }
-  car.position.set(player.x, 0, player.z);
+  car.position.set(player.x, world.heightAt(player.x,player.z), player.z);
+  car.rotation.order = "YXZ";
   car.rotation.y = modelYawFromHeading(player.yaw);
+  car.rotation.x = THREE.MathUtils.lerp(car.rotation.x,heightAlongHeading(player.x,player.z,player.yaw),Math.min(dt*5,1));
   const lean = THREE.MathUtils.clamp(-ctrl.steer * Math.abs(player.speed) * .003, -.055, .055);
   car.userData.shell.rotation.z = THREE.MathUtils.lerp(car.userData.shell.rotation.z, lean, Math.min(dt * 6, 1));
 }
@@ -163,17 +168,18 @@ function updateCamera(dt) {
   const turn = player.yaw + yawOrbit;
   const forward = new THREE.Vector3(Math.sin(turn), 0, -Math.cos(turn));
   let target, desired;
+  const terrainY = world.heightAt(player.x,player.z);
   if (cameraMode === 0) {
-    target = new THREE.Vector3(player.x, 1.6, player.z);
+    target = new THREE.Vector3(player.x, terrainY + 1.6, player.z);
     desired = new THREE.Vector3(
       player.x - forward.x * 12,
-      5.4 + pitchOrbit * 8,
+      terrainY + 5.4 + pitchOrbit * 8,
       player.z - forward.z * 12,
     );
     car.visible = true;
   } else {
     const facing = new THREE.Vector3(Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-    desired = new THREE.Vector3(player.x + facing.x * 1.0, 1.84, player.z + facing.z * 1.0);
+    desired = new THREE.Vector3(player.x + facing.x * 1.0, terrainY + 1.84, player.z + facing.z * 1.0);
     target = new THREE.Vector3(
       desired.x + forward.x * 20,
       desired.y + pitchOrbit * 3,
@@ -300,15 +306,16 @@ async function start() {
     // Marin street geometry extends the same local coordinate system.
     // Importing a road backbone first avoids downloading thousands of
     // distant building meshes on mobile before neighborhood tiles exist.
-    const [initialResponse, spineResponse, feedersResponse] = await Promise.all([
+    const [initialResponse, spineResponse, feedersResponse, facadeResponse] = await Promise.all([
       fetch("./public/data/grajau.json"),
       fetch("./public/data/belmira-marin.json"),
       fetch("./public/data/cocaia-corredores.json"),
+      fetch("./public/data/facade-pilot.json"),
     ]);
-    if (!initialResponse.ok || !spineResponse.ok || !feedersResponse.ok)
-      throw new Error("Não foi possível carregar os mapas locais (Grajaú / Belmira / Cocaia).");
-    const [original, spine, feeders] = await Promise.all([
-      initialResponse.json(), spineResponse.json(), feedersResponse.json(),
+    if (!initialResponse.ok || !spineResponse.ok || !feedersResponse.ok || !facadeResponse.ok)
+      throw new Error("Não foi possível carregar os dados do Grajaú ou do piloto de fachadas.");
+    const [original, spine, feeders, pilot] = await Promise.all([
+      initialResponse.json(), spineResponse.json(), feedersResponse.json(),facadeResponse.json(),
     ]);
     if (!Array.isArray(original.roads) || original.roads.length < 10 ||
         !Array.isArray(spine.roads) || spine.roads.length < 15 ||
@@ -348,7 +355,7 @@ async function start() {
     renderer.toneMappingExposure = 1.55;
     camera = new THREE.PerspectiveCamera(67, 1, .1, 1600);
     resize();
-    world = createWorld(scene, roadData);
+    world = createWorld(scene, roadData, { facadePilot:pilot });
     car = createCar();
     scene.add(car);
     player = { x: world.spawn.x, z: world.spawn.z, yaw: world.spawn.angle,
@@ -370,13 +377,13 @@ async function start() {
       }
     }
     resetCar(false);
-    camera.position.set(player.x, 5, player.z + 15);
-    camera.lookAt(player.x, 1, player.z);
+    camera.position.set(player.x, world.heightAt(player.x,player.z)+5, player.z + 15);
+    camera.lookAt(player.x, world.heightAt(player.x,player.z)+1, player.z);
     clock = new THREE.Clock();
     tick();
     $("map-status").textContent = world.stats.roads + " trechos reais";
-    status.textContent = "Belmira Marin + ramais do Cocaia! " + world.stats.roads + " vias · " +
-      world.stats.buildings + " construções low poly.";
+    status.textContent = "Mundo pronto: " + world.stats.roads + " vias · " +
+      world.stats.pilotFacades + " fachadas piloto · relevo suave de demonstração.";
     startButton.disabled = false;
     startButton.textContent = "COMEÇAR A DIRIGIR  ↗";
   } catch (error) {
