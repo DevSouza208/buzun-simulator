@@ -32,3 +32,12 @@ F8-01,Mundo vivo,Trânsito e eventos,Futuro,Após validação do mapa
 F9-01,Ônibus,Urbanos e rodoviários,Futuro,Após base de direção
 F10-01,Empresa,Frota e negócios,Futuro,Após economia
 F12-01,Editor,Selecionar prédio e editar fachadas,Futuro,Após existência do mundo dirigível
+WENG-01,World Engine,Selecionar 3 prédios reais do OSM para piloto,Concluído,IDs e contornos validados nos testes
+WENG-02,World Engine,Gerar três modelos modulares low poly,Implementado,Inspecionar visualmente fachadas e FPS no iPhone
+WENG-03,World Engine,Preservar contorno original e associar presets pelo ID,Implementado,Conferir posição e sobreposição dos 3 pilotos
+WENG-04,World Engine,Integrar imagens de rua licenciadas e IA de estilos,Futuro,Definir direitos das referências e custos da geração
+WENG-05,World Engine,Integrar biblioteca de texturas R2,Futuro,Após validação dos presets locais
+WENG-06,World Engine,Editor de seleção de região e botão Create,Futuro,Após a automação de 3 prédios estar estável
+TERR-01,Relevo,Adicionar altura aproximada só na região inicial,Implementado,Conferir encostas sem buracos e desempenho
+TERR-02,Relevo,Aplicar mesma altura a ruas árvores prédios carro e câmera,Implementado,Verificar visualmente alinhamentos e rampas
+TERR-03,Relevo,Substituir terreno demonstrativo por DEM real,Futuro,Selecionar e validar fonte de altitude
