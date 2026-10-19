@@ -1,6 +1,6 @@
 # BUZUN SIMULATOR — Game Design Document (GDD)
 
-**Versão:** 1.4 — expansão da malha viária e corredores de Cocaia  
+**Versão:** 1.5 — World Engine piloto (3 fachadas) e relevo suave demonstrativo
 **Data:** 19 de outubro de 2026  
 **Projeto:** Buzun Simulator  
 **Repositório:** https://github.com/DevSouza208/buzun-simulator  
@@ -177,6 +177,16 @@ Terminal Grajaú é uma âncora espacial; outros marcos ficam para fases posteri
 **Regra visual:** terrenos, pistas e veículos mantêm curvas e volumes adequados à direção; prédios são modelos low poly editáveis, **não blocos voxel**. Marcos icônicos podem ter modelos próprios e prioridades de detalhamento.
 
 **Divisão de escopo:** 0.1 apenas prepara identificadores e estrutura de dados, *se isso não atrasar o protótipo*. O editor com seleção, catálogo de fachadas, personalização e persistência só entra após existir uma versão dirigível. Até lá, modelos genéricos são suficientes.
+
+### 5.7 Prova do World Engine antes do botão Create (2026-10-19)
+
+**Implementado em código:** três construções OSM existentes foram escolhidas para uma primeira geração automática de fachada low poly. IDs: `619054952` (casa com portão — ficção visual), `618875333` (comércio — ficção visual) e `618869167` (sobrado — ficção visual). As edificações e contornos existem nos dados OSM, **mas os respectivos tipos, fachadas e materiais são hipóteses artísticas**, não informações observadas em fotografia.
+
+Motor piloto: `public/data/facade-pilot.json` define os presets; `src/facade-recipe.js` planeja o modelo sem dependências 3D; `src/world-engine.js` gera as peças em Three.js. A configuração preserva os IDs e pode ser substituída futuramente por editor, classificação semântica e materiais guardados em R2. **Nenhuma imagem de Street View/Mapillary, serviço de IA ou conta R2 foi acionado neste piloto.**
+
+**Relevo agora:** `src/terrain.js` centraliza a amostragem `sampleHeight(x,z)` em metros. O terreno low poly no entorno inicial, asfalto, árvores, prédios, carro e câmera passam pela mesma interface. O valor atual é **uma ondulação procedural artificial suave, não dados de altitude reais**. As ruas distantes mantêm o terreno plano, com transição gradual. A próxima implementação pode trocar o amostrador por um DEM confiável, respeitando suavização de ruas, pontes e terrenos de construção.
+
+**Próximo marco, ainda não feito:** validar no celular o relevo e as três fachadas; depois organizar uma biblioteca de texturas neutras reutilizáveis, referências legalmente permitidas e só então o botão que seleciona uma região e dispara a cadeia de processamento. O editor **não existe ainda** e a automação **não consulta APIs de imagem**.
 
 ## 6. Veículos e direção
 
@@ -438,6 +448,7 @@ Criar a base do projeto e entregar **uma cena 3D com ruas reais do entorno do Te
 
 ## 20. Histórico
 
+- **v1.5 (2026-10-19):** motor interno piloto com três fachadas estilizadas associadas a edifícios OSM reais, sem afirmar aparência real; relevo artificial suave e interface de altitude compartilhada por mapa/carro; testes automatizados e validação visual ainda pendente.
 - **v1.4 (2026-10-19):** Belmira Marin completa no OSM (55 trechos conectados) e ramais Canal de Cocaia, Pedro Escobar e Rubens de Oliveira (28 trechos); motor ampliado para percursos longos e construção de bairros postergada até validação no celular. Relevo segue depois da malha viária.
 - **v1.3 (2026-10-19):** adicionado HUD mobile com setas e pedais multitoque no código; proposta técnica de relevo real via DEM (ainda não implementada), com dependências de malha, edifícios e dinâmica do carro; testes em dispositivo real pendentes.
 - **v1.2 (2026-10-19):** primeira base estática WebGL implementada no repositório; extração real de ruas e construções do Grajaú; testes Node/GitHub Actions aprovados. Execução visual, gamepad, FPS e publicação hospedada continuam **não validados**. Registro de tarefas em ROADMAP.csv. Stack inicial efetiva: ES modules + Three.js via CDN, sem Vite obrigatório.
