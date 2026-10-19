@@ -439,7 +439,6 @@ Criar a base do projeto e entregar **uma cena 3D com ruas reais do entorno do Te
 ## 20. Histórico
 
 - **v1.4 (2026-10-19):** Belmira Marin completa no OSM (55 trechos conectados) e ramais Canal de Cocaia, Pedro Escobar e Rubens de Oliveira (28 trechos); motor ampliado para percursos longos e construção de bairros postergada até validação no celular. Relevo segue depois da malha viária.
-- **v1.4 (2026-10-19):** Belmira Marin ampliada por 55 vias OSM e conectada ao Canal de Cocaia, Pedro Escobar e Rubens de Oliveira (mais 28 vias); terreno plano preservado, validação visual da expansão pendente.
 - **v1.3 (2026-10-19):** adicionado HUD mobile com setas e pedais multitoque no código; proposta técnica de relevo real via DEM (ainda não implementada), com dependências de malha, edifícios e dinâmica do carro; testes em dispositivo real pendentes.
 - **v1.2 (2026-10-19):** primeira base estática WebGL implementada no repositório; extração real de ruas e construções do Grajaú; testes Node/GitHub Actions aprovados. Execução visual, gamepad, FPS e publicação hospedada continuam **não validados**. Registro de tarefas em ROADMAP.csv. Stack inicial efetiva: ES modules + Three.js via CDN, sem Vite obrigatório.
 - **v1.1 (2026-10-19):** visual **low poly sem voxel** confirmado; editor futuro de prédios, identificação de fachadas e personalização de modelos; preservada a prioridade de lançar a 0.1 dirigível.
