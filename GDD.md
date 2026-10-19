@@ -106,6 +106,21 @@ O cenário **low poly, sem voxel**, estiliza edifícios, calçadas, comércio, �
 
 **Grajaú, nas proximidades do Terminal Grajaú, São Paulo.** O recorte exato será fixado durante a implementação depois da inspeção dos dados. Não prometer mapa de toda São Paulo na versão inicial.
 
+### 5.2.1 Expansão real dos corredores — implementada, verificação em campo pendente
+
+A primeira versão de expansão deixa de estar restrita a um quadrado de cerca de 1 km em torno do Terminal Grajaú. Agora foram versionados dois extratos OSM adicionais, **sem inventar ruas ou alterar o traçado real**:
+
+- **Avenida Dona Belmira Marin**: 55 trechos originais conectados, com 481 coordenadas e cerca de 9,1 km de comprimento **somado** (não confundir com extensão de ponta a ponta ou pistas paralelas).
+- **Estrada Canal de Cocaia**: 16 trechos OSM.
+- **Rua Pedro Escobar**: 9 trechos OSM.
+- **Rua Rubens de Oliveira**: 3 trechos OSM.
+
+A espinha dorsal foi validada automaticamente quanto à topologia conectada. Os novos dados usam coordenadas locais idênticas às do recorte inicial, removendo IDs de rua duplicados na mesclagem. O motor amplia o solo e aceita deslocamento por um corredor em torno das vias nomeadas sem carregar uma megacidade inteira.
+
+**Decisão de performance:** fora da região original do Grajaú, a expansão atual inclui principalmente **vias 3D, não fachadas e quarteirões completos**. Um sistema posterior de setores carregáveis adicionará edifícios reais/estilizados nas proximidades. Relevo está expressamente adiado, conforme a ordem desejada pelo criador.
+
+**Pendente de validação visual:** percorrer de carro os extremos da Belmira e os três ramais, conferir ruas/curvas, conexões, trechos que terminam, velocidade de carregamento e FPS no iPhone e desktop. Testes geográficos e de sintaxe não substituem uma volta completa no jogo.
+
 ### 5.3 Pipeline proposto para o motor de mapa
 
 1. Selecionar pequena área geográfica de origem.
@@ -365,7 +380,7 @@ Jogo visualmente fluido em PC intermediário, com meta inicial de **30 FPS está
 | F8 — Mundo vivo | Tráfego, sinalização, eventos e clima gradual | F7 | Futura |
 | F9 — Ônibus | Veículos coletivos, linhas/pontos, rodoviários | F8 ou trilha paralela | Futura |
 | F10 — Empresas | Frota, contratos, funcionários e gestão financeira | F7/F9 | Futura |
-| F11 — Expansão | Setores, bairros/cidades, passeio sofisticado e corridas | Após estabilidade | Futura |
+| F11 — Expansão | Belmira Marin + Canal de Cocaia + Pedro Escobar + Rubens de Oliveira como esqueleto; depois quarteirões/setores/cidades | Após estabilidade | Quatro corredores implementados; bairros e validação visual pendentes |
 | F12 — Editor de mundo | Selecionar prédios, identificar fachadas/locais, ajustar modelos low poly e salvar alterações persistentes | Após protótipo dirigível e base de edifícios | Futura |
 
 O roadmap é **orientado por marcos**, não por prazo inventado. Concluir uma fase significa entregar algo executável ou observável, não apenas escrever código.
@@ -423,6 +438,7 @@ Criar a base do projeto e entregar **uma cena 3D com ruas reais do entorno do Te
 
 ## 20. Histórico
 
+- **v1.4 (2026-10-19):** Belmira Marin completa no OSM (55 trechos conectados) e ramais Canal de Cocaia, Pedro Escobar e Rubens de Oliveira (28 trechos); motor ampliado para percursos longos e construção de bairros postergada até validação no celular. Relevo segue depois da malha viária.
 - **v1.4 (2026-10-19):** Belmira Marin ampliada por 55 vias OSM e conectada ao Canal de Cocaia, Pedro Escobar e Rubens de Oliveira (mais 28 vias); terreno plano preservado, validação visual da expansão pendente.
 - **v1.3 (2026-10-19):** adicionado HUD mobile com setas e pedais multitoque no código; proposta técnica de relevo real via DEM (ainda não implementada), com dependências de malha, edifícios e dinâmica do carro; testes em dispositivo real pendentes.
 - **v1.2 (2026-10-19):** primeira base estática WebGL implementada no repositório; extração real de ruas e construções do Grajaú; testes Node/GitHub Actions aprovados. Execução visual, gamepad, FPS e publicação hospedada continuam **não validados**. Registro de tarefas em ROADMAP.csv. Stack inicial efetiva: ES modules + Three.js via CDN, sem Vite obrigatório.
