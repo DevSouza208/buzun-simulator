@@ -1,6 +1,7 @@
 import {sampleHeight} from "./terrain.js";
 import {coordinateKey} from "./draped-road.js";
 import {buildIntersectionGradeModels} from "./intersection-grade.js";
+import {buildSmoothRoadConnectors} from "./worldgen-road-connectors.js";
 import {createRoadScene,createRoadSceneSteps,getJunctions}
   from "./city-road-mesh.js";
 import {createCooperativeRunner} from "./worldgen-cooperative.js";
@@ -96,7 +97,11 @@ export function createStreamingCityWorld(scene,map){
   const spawn={x:origin.x,z:origin.z,
     angle:Math.atan2(next[0]-routeStart[0],
       -(next[1]-routeStart[1]))};
-  const regionIndex=createRegionRoadIndex(map.roads);
+  // Fill only small, safely aligned endpoint gaps of the same named street.
+  // OSM source, routing graph and full-road IDs stay immutable.
+  const joinPlan=buildSmoothRoadConnectors(map.roads,sampleHeight);
+  const renderRoads=[...map.roads,...joinPlan.connectors];
+  const regionIndex=createRegionRoadIndex(renderRoads);
   // Model the city once, render it in parts. Global OSM junction planes and
   // fixed height anchors keep a road's source profile identical for EVERY
   // region, even when the compositor clips triangles into separate meshes.
@@ -125,6 +130,7 @@ export function createStreamingCityWorld(scene,map){
   // and can send hundreds of draw calls to WebGL (measured 1.8 FPS).
   let visibilityFocus={x:spawn.x,z:spawn.z};
   const counters={mode:"experimental",regionMetres:REGION_METRES,
+    repairedRoadGaps:joinPlan.stats.connected,
     totalRoads:map.roads.length,loadedRegions:0,readyRegions:0,
     unloadedRegions:0,building:null,queuedRegions:0,
     totalRegionBuildMs:0,initialRegionMs:0,
@@ -191,7 +197,7 @@ export function createStreamingCityWorld(scene,map){
   counters.initialRegionMs=counters.totalRegionBuildMs;
   // Use the same full source for terrain cutouts, regardless of whether
   // region meshes happen to be present in the GPU at that instant.
-  const corridors=createRoadCorridors(map.roads);
+  const corridors=createRoadCorridors(renderRoads);
   const regionScenery=(rx,rz)=>{
     const key=regionKey(rx,rz);
     return loaded.get(key)?.scenery||cache.peek(key)?.scenery||null;

@@ -70,3 +70,8 @@ WG520-02,WorldGen 5.20,Altura canônica da cidade compartilhada entre geradores 
 WG520-03,WorldGen 5.20,Terreno sobreposto sob calçadas sem frestas vazias,Implementado,Verificar bordas em rampas e cruzamentos com câmera baixa
 WG520-04,WorldGen 5.20,Testar FPS e cruzamentos da Belmira Marin no navegador,Pendente,Conferir FPS inicial e desempenho depois de preencher regiões
 WG520-05,WorldGen 5.20,Unificação global topológica de polígonos anterior ao recorte em chunks,Planejado,Avaliar compositor incremental mantendo orçamento de memória
+WG521-01,WorldGen 5.21,Detectar pontas próximas de trechos da mesma rua e nível,Implementado,Testar conector no mapa e evitar cruzamentos falsos
+WG521-02,WorldGen 5.21,Criar rampa interpolada C1 com sobreposição lateral e vértices curtos,Implementado,Validar declives reais e comparar desníveis no jogo
+WG521-03,WorldGen 5.21,Integrar conectores aos chunks e à máscara do terreno,Implementado,Testar bordas e retomada do cache após deslocamento
+WG521-04,WorldGen 5.21,Revisão visual de cruzamentos ainda desconectados,Pendente,Determinar se a lacuna é OSM ou falha da união poligonal
+WG521-05,WorldGen futuro,União topológica global do asfalto antes do streaming,Planejado,Medições de RAM CPU e geometria no navegador
