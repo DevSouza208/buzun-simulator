@@ -47,8 +47,18 @@ export function waysFromOverpass(payload,origin=ORIGIN) {
     if(way.type!=="way"||!ALLOWED.has(way.tags?.highway)||!Array.isArray(way.geometry))continue;
     if(["private","no"].includes(way.tags.access)||way.tags.area==="yes")continue;
     if(["parking_aisle","driveway"].includes(way.tags.service))continue;
+    // Overpass returns entire ways even if one vertex touches the bbox.
+    // Keep the city-sized section only; otherwise a single long highway way
+    // can extend the render scene dozens of kilometres outside the pilot.
     const points=way.geometry.map(p=>projectOSM(p.lat,p.lon,origin));
-    const {p,n}=cleanNodes(points,way.nodes);
+    const sw=projectOSM(GRAJAU_BBOX.south,GRAJAU_BBOX.west,origin);
+    const ne=projectOSM(GRAJAU_BBOX.north,GRAJAU_BBOX.east,origin);
+    const minX=sw[0]-350,maxX=ne[0]+350,minZ=ne[1]-350,maxZ=sw[1]+350;
+    const inBounds=p=>p[0]>=minX&&p[0]<=maxX&&p[1]>=minZ&&p[1]<=maxZ;
+    const indexes=points.map((p,i)=>inBounds(p)?i:-1).filter(i=>i>=0);
+    if(!indexes.length)continue;
+    const lo=Math.max(0,indexes[0]-1),hi=Math.min(points.length,indexes.at(-1)+2);
+    const {p,n}=cleanNodes(points.slice(lo,hi),way.nodes?.slice(lo,hi));
     if(p.length<2)continue;
     const type=way.tags.highway;
     const {width,source}=widthFor(way.tags,type);
