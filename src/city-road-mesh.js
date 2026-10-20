@@ -583,8 +583,8 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
     // Only 3D VISUAL detail is culled; physics, lane metadata, terrain,
     // minimap and OSM geometry are unaffected. Recompute when the camera
     // moves enough to matter, not 60 times per second.
-    updateVisibility(x,z,radius=detail.visualRadiusMetres) {
-      if(lastVisibility&&lastVisibility.radius===radius&&
+    updateVisibility(x,z,radius=detail.visualRadiusMetres,force=false) {
+      if(!force&&lastVisibility&&lastVisibility.radius===radius&&
         Math.hypot(x-lastVisibility.x,z-lastVisibility.z)<10)return;
       applyRoadTileLOD(tiles,x,z,{radius,stats:lodStatistics});
       lastVisibility={x,z,radius};
