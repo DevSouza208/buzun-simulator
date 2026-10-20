@@ -1,331 +1,330 @@
-import {
-  emptyEdits,readSavedEdits,saveEdits,normalizeEdits,applyRoadEdits,
-  withWidth,withNode,withoutWayEdits,editStats
-} from "./road-editor-model.js";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+import {emptyEdits,readSavedEdits,saveEdits,normalizeEdits,applyRoadEdits,
+  withWidth,withMeshProfile,withoutWayEdits,meshEditCount} from "./road-editor-model.js";
 import {sidewalkWidth} from "./road-corridor.js";
+import {buildRoadModelPreview,disposePreview} from "./road-model-preview.js";
 
 const $=id=>document.getElementById(id);
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
-const segmentDistance=(p,a,b)=>{
-  const dx=b[0]-a[0],dz=b[1]-a[1],len=dx*dx+dz*dz;
-  const t=len?clamp(((p[0]-a[0])*dx+(p[1]-a[1])*dz)/len,0,1):0;
-  return Math.hypot(p[0]-a[0]-dx*t,p[1]-a[1]-dz*t);
+const distanceToSegment=(p,a,b)=>{
+  const dx=b[0]-a[0],dz=b[1]-a[1],l=dx*dx+dz*dz;
+  const t=l>1e-8?clamp(((p[0]-a[0])*dx+(p[1]-a[1])*dz)/l,0,1):0;
+  return {distance:Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dz),
+    nearest:[a[0]+t*dx,a[1]+t*dz]};
 };
 function downloadEdits(edits){
-  const blob=new Blob([JSON.stringify({
-    ...edits,metadata:{creator:"Buzun Editor",format:"local worldgen overrides",
-      notice:"Não altera OpenStreetMap",exportedAt:new Date().toISOString()}
-  },null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;a.download="buzun-grajau-edicoes.json";
+  const data={...edits,metadata:{
+    editor:"Buzun Create / Modelagem viária 3D",
+    description:"Correções locais do gerador; OSM original intacto",
+    exportedAt:new Date().toISOString()}};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="buzun-correcao-modelagem.json";
   document.body.append(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export function mountRoadAdmin({getRoads,getPosition,whenOpen,whenClose,notify}){
-  const overlay=$("admin-editor"),login=$("admin-login"),
-    canvas=$("admin-map"),ctx=canvas.getContext("2d");
-  let session=false,visible=false,edits=emptyEdits(),roads=[],baseRoads=[];
-  let selectedId=null,tool="select",center={x:0,z:0},scale=.38,
-    isDragging=false,dragMode="",origin=null,lastPointer=null,
-    moving=null,history=[],scheduled=false;
-  const roadSelected=()=>roads.find(r=>String(r.id)===String(selectedId));
-  const baseSelected=()=>baseRoads.find(r=>String(r.id)===String(selectedId));
-  const mapStatus=text=>{$("admin-map-status").textContent=text;};
-  const notifyStatus=text=>{mapStatus(text);notify?.(text);};
-  const pointAt=(x,y)=>{
-    const box=canvas.getBoundingClientRect();
-    return [center.x+(x-box.left-box.width/2)/scale,
-      center.z+(y-box.top-box.height/2)/scale];
+
+/** The admin sees the REAL 3D world, not the schematic centreline editor.
+ * Gameplay's renderer and canvas are moved into the editor viewport, and
+ * an OrthographicCamera looks straight down. No duplicate WebGL context.
+ */
+export function mountRoadAdmin({
+  getRoads,getPosition,getScene,getGameCanvas,getHeightAt,
+  whenOpen,whenClose,onResize,notify
+}){
+  const login=$("admin-login"),panel=$("admin-editor"),
+    stage=$("admin-map-stage"),canvas=getGameCanvas();
+  const camera=new THREE.OrthographicCamera(-100,100,100,-100,.1,2400);
+  const scene=()=>getScene?.();
+  let session=false,visible=false,active=false,
+    edits=emptyEdits(),roads=[],baseRoads=[],selectedId=null,tool="select",
+    center={x:0,z:0},viewHeight=240,drag=null,history=[],preview=null,
+    originalFog=null,originalFogSaved=false;
+  const selected=()=>roads.find(r=>String(r.id)===String(selectedId));
+  const sourceSelected=()=>baseRoads.find(r=>String(r.id)===String(selectedId));
+  const status=s=>{$("admin-map-status").textContent=s;};
+  const bounds=()=>stage.getBoundingClientRect();
+  const unitsPerPixel=()=>viewHeight/Math.max(1,bounds().height);
+  const worldPoint=(x,y)=>{
+    const box=bounds(),units=unitsPerPixel();
+    return [center.x+(x-box.left-box.width/2)*units,
+      center.z+(y-box.top-box.height/2)*units];
   };
-  const screenPoint=p=>{
-    const box=canvas.getBoundingClientRect();
-    return [(p[0]-center.x)*scale+box.width/2,
-      (p[1]-center.z)*scale+box.height/2];
-  };
-  const resize=()=>{
+  function alignCamera(){
     if(!visible)return;
-    const rect=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);
-    const width=Math.round(rect.width*dpr),height=Math.round(rect.height*dpr);
-    if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
-    requestDraw();
-  };
-  function requestDraw(){
-    if(!visible||scheduled)return;
-    scheduled=true;requestAnimationFrame(()=>{scheduled=false;draw();});
+    const box=bounds(),aspect=box.width/Math.max(1,box.height),half=viewHeight/2;
+    camera.left=-half*aspect;camera.right=half*aspect;
+    camera.top=half;camera.bottom=-half;camera.updateProjectionMatrix();
+    const level=getHeightAt?.(center.x,center.z)||0;
+    camera.position.set(center.x,level+800,center.z);
+    camera.up.set(0,0,-1);
+    camera.lookAt(center.x,level,center.z);
+    camera.updateMatrixWorld();
   }
-  function draw(){
-    if(!visible)return;
-    const box=canvas.getBoundingClientRect(),w=box.width,h=box.height;
-    const dpr=canvas.width/(w||1),minX=center.x-w/(2*scale),
-      maxX=center.x+w/(2*scale),minZ=center.z-h/(2*scale),
-      maxZ=center.z+h/(2*scale);
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle="#142e38";ctx.fillRect(0,0,w,h);
-    ctx.strokeStyle="#24434a";ctx.lineWidth=1;
-    const step=scale<.12?1000:scale<.45?250:scale<1?100:25;
-    for(let x=Math.ceil(minX/step)*step;x<=maxX;x+=step){
-      const p=(x-center.x)*scale+w/2;
-      ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,h);ctx.stroke();
-    }
-    for(let z=Math.ceil(minZ/step)*step;z<=maxZ;z+=step){
-      const p=(z-center.z)*scale+h/2;
-      ctx.beginPath();ctx.moveTo(0,p);ctx.lineTo(w,p);ctx.stroke();
-    }
-    ctx.lineJoin="round";ctx.lineCap="round";
-    let visibleWays=0;
-    for(const road of roads){
-      if(!road.p||road.p.length<2)continue;
-      let inRange=false;
-      for(const [x,z] of road.p){
-        if(x>minX-60&&x<maxX+60&&z>minZ-60&&z<maxZ+60){inRange=true;break;}
-      }
-      if(!inRange)continue;
-      visibleWays++;
-      const active=String(road.id)===String(selectedId);
-      ctx.strokeStyle=active?"#d3fb7c":
-        road.widthSource==="buzun:editor"?"#91dce4":
-        ["primary","secondary","trunk"].includes(road.t)?"#a1b9b7":"#6d9697";
-      ctx.lineWidth=Math.max(active?3.7:1.1,
-        (road.widthMeters||7)*scale*(active?1.12:.8));
-      ctx.beginPath();
-      let i=0;for(const point of road.p){
-        const x=(point[0]-center.x)*scale+w/2,
-          y=(point[1]-center.z)*scale+h/2;
-        i++===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
-      }
-      ctx.stroke();
-    }
-    const road=roadSelected();
-    if(road){
-      ctx.fillStyle="#d7ff85";
-      for(let i=0;i<road.p.length;i++){
-        const p=(moving&&moving.index===i)?moving.point:road.p[i];
-        const [x,y]=screenPoint(p);
-        if(x<-10||x>w+10||y<-10||y>h+10)continue;
-        ctx.beginPath();ctx.arc(x,y,tool==="node"?5:2.5,0,Math.PI*2);ctx.fill();
+  function resize(){if(!visible)return;alignCamera();onResize?.();}
+  function nearestRoad(point,maxPixels=24){
+    const tolerance=maxPixels*unitsPerPixel();
+    let road=null,best=tolerance,hit=null;
+    for(const r of roads) {
+      const pts=r.p;
+      for(let i=1;i<pts.length;i++){
+        const a=pts[i-1],b=pts[i];
+        if(Math.max(a[0],b[0])+best<point[0] ||
+          Math.min(a[0],b[0])-best>point[0] ||
+          Math.max(a[1],b[1])+best<point[1] ||
+          Math.min(a[1],b[1])-best>point[1])continue;
+        const h=distanceToSegment(point,a,b);
+        if(h.distance<best){best=h.distance;road=r;hit=h;}
       }
     }
-    const player=getPosition?.();
-    if(player) {
-      const [x,y]=screenPoint([player.x,player.z]);
-      ctx.save();ctx.translate(x,y);ctx.rotate(player.yaw||0);
-      ctx.fillStyle="#d6fa78";ctx.beginPath();
-      ctx.moveTo(0,-12);ctx.lineTo(-8,9);ctx.lineTo(0,5);
-      ctx.lineTo(8,9);ctx.closePath();ctx.fill();ctx.restore();
-    }
-    ctx.fillStyle="#e0f0dc";ctx.font="700 12px system-ui";
-    ctx.fillText("N ↑",18,28);
-    const metres=100/scale;
-    ctx.strokeStyle="#c4ee84";ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(22,h-30);ctx.lineTo(122,h-30);ctx.stroke();
-    ctx.fillText(Math.round(metres)+" m",22,h-40);
-    $("admin-visible-count").textContent=visibleWays+" vias visíveis";
+    return road?{road,hit}:null;
   }
-  function nearestWay(point,pixelTolerance=14){
-    let best=null,d=pixelTolerance/scale;
-    for(const road of roads){
-      for(let i=1;i<road.p.length;i++){
-        const distance=segmentDistance(point,road.p[i-1],road.p[i]);
-        if(distance<d){best=road;d=distance;}
-      }
+  function nearestOnSelected(point){
+    const road=selected();if(!road)return null;
+    let best={distance:Infinity};
+    for(let i=1;i<road.p.length;i++){
+      const hit=distanceToSegment(point,road.p[i-1],road.p[i]);
+      if(hit.distance<best.distance)best=hit;
     }
     return best;
   }
-  function nearestNode(road,point,tolerance=16){
-    if(!road)return -1;
-    let closest=-1,best=tolerance/scale;
-    for(let i=0;i<road.p.length;i++){
-      const d=Math.hypot(point[0]-road.p[i][0],point[1]-road.p[i][1]);
-      if(d<best){best=d;closest=i;}
-    }
-    return closest;
+  function refreshPreview(){
+    disposePreview(preview);preview=null;
+    const road=selected(),current=scene();
+    if(!road||!current)return;
+    const n=id=>Number($(id).value);
+    preview=buildRoadModelPreview(road,(x,z)=>getHeightAt(x,z),{
+      asphalt:clamp(Number.isFinite(n("admin-width"))?n("admin-width"):road.widthMeters,2,45),
+      walk:clamp(Number.isFinite(n("admin-walk"))?n("admin-walk"):sidewalkWidth(road),.6,5),
+      curb:clamp(Number.isFinite(n("admin-curb"))?n("admin-curb"):.14,0,.4),
+      corner:clamp(Number.isFinite(n("admin-corner"))?n("admin-corner"):0,0,4)
+    });
+    current.add(preview);
   }
   function updateInfo(){
-    const road=roadSelected();
-    $("admin-road-name").textContent=road?(road.n||"Rua sem nome"):"Selecione uma rua";
-    $("admin-road-meta").textContent=road?
-      "OSM #"+road.id+" · "+road.t+" · "+road.p.length+" vértices":
-      "Clique em uma via no mapa para editar.";
-    const enabled=!!road;
-    for(const id of ["admin-width","admin-walk","admin-width-save","admin-road-reset"])
-      $(id).disabled=!enabled;
-    if(enabled){
-      $("admin-width").value=String(road.widthMeters||7);
-      $("admin-walk").value=String(road.sidewalkMeters??sidewalkWidth(road));
-      $("admin-width-origin").textContent=
-        road.widthSource==="buzun:editor"?"Corrigida localmente":
-        road.widthSource==="osm:width"?"Medida OSM":"Estimativa do gerador";
+    const road=selected(),has=!!road;
+    $("admin-road-name").textContent=has?road.n||"Rua sem nome":"Selecione uma rua";
+    $("admin-road-meta").textContent=has?
+      "Via OSM #"+road.id+" · "+road.t+" · modelo 3D gerado":
+      "Clique diretamente no asfalto do cenário 3D.";
+    for(const id of ["admin-width","admin-walk","admin-curb","admin-corner",
+      "admin-width-save","admin-road-reset"]) $(id).disabled=!has;
+    if(has){
+      $("admin-width").value=road.widthMeters||7;
+      $("admin-walk").value=road.sidewalkMeters??sidewalkWidth(road);
+      $("admin-curb").value=road.curbHeightMeters??.14;
+      $("admin-corner").value=road.cornerClearanceMeters??0;
+      $("admin-width-origin").textContent=road.widthSource==="buzun:editor"?
+        "Modelo corrigido localmente":"Geometria gerada a partir do OSM";
     }else $("admin-width-origin").textContent="Nenhuma via selecionada";
-    const stats=editStats(edits);
-    $("admin-edits-count").textContent=stats.widths+" larguras · "+
-      stats.nodes+" vértices editados";
-    requestDraw();
+    $("admin-edits-count").textContent=meshEditCount(edits)+" ajustes de malha";
+    refreshPreview();
   }
-  function store(previous=true){
-    if(previous)history.push(structuredClone(edits));
-    if(history.length>40)history.shift();
-    edits=saveEdits(edits);
+  function store(){
+    try{edits=saveEdits(edits);}catch(e){status("Falha ao salvar: "+e.message);return;}
     roads=applyRoadEdits(baseRoads,edits);
     updateInfo();
   }
-  function commit(next,label){
-    history.push(structuredClone(edits));if(history.length>40)history.shift();
-    edits=next;
-    store(false);mapStatus(label+" · salvo neste navegador");
+  function commit(next,message){
+    history.push(structuredClone(edits));if(history.length>35)history.shift();
+    edits=next;store();status(message+" · aplicar no jogo para reconstruir.");
+  }
+  function saveParameters(){
+    const road=selected();if(!road)return;
+    try{
+      const base=withWidth(edits,road.id,$("admin-width").value,$("admin-walk").value);
+      commit(withMeshProfile(base,road.id,$("admin-curb").value,
+        $("admin-corner").value),"Modelagem desta rua salva");
+    }catch(error){status(error.message);}
   }
   function setTool(next){
     tool=next;
-    for(const button of document.querySelectorAll("[data-admin-tool]"))
-      button.classList.toggle("active",button.dataset.adminTool===next);
-    mapStatus(next==="node"?"Arraste um ponto amarelo da rua selecionada":
-      next==="pan"?"Arraste o mapa para navegar":
-      "Clique na rua para selecioná-la");
-    requestDraw();
+    for(const b of panel.querySelectorAll("[data-admin-tool]"))
+      b.classList.toggle("active",b.dataset.adminTool===next);
+    status(next==="pan"?"Arraste a cena para navegar":
+      next==="asphalt"?"Selecione uma rua e arraste a borda do asfalto":
+      next==="sidewalk"?"Selecione uma rua e arraste a borda externa da calçada":
+      "Clique na pista do cenário 3D para selecionar");
   }
-  function showMap(){
-    const current=getRoads?.();
-    if(!current?.length){notifyStatus("Aguarde o carregamento do mapa.");return;}
-    baseRoads=current;
-    edits=readSavedEdits();roads=applyRoadEdits(baseRoads,edits);
+  function enter(){
+    const loaded=getRoads?.();
+    if(!loaded?.length){notify?.("Aguarde o mapa terminar de carregar.");return;}
+    baseRoads=loaded;edits=readSavedEdits();
+    roads=applyRoadEdits(baseRoads,edits);selectedId=null;history=[];
     const player=getPosition?.();
-    if(player){center={x:player.x,z:player.z};scale=.38;}
-    selectedId=null;session=true;visible=true;history=[];
+    if(player)center={x:player.x,z:player.z};
+    viewHeight=220;
     login.classList.add("hidden");
-    overlay.classList.remove("hidden");
+    panel.classList.remove("hidden");
+    stage.append(canvas);
+    const current=scene();
+    if(current){originalFog=current.fog;originalFogSaved=true;current.fog=null;}
+    visible=true;active=true;session=true;
     whenOpen?.();setTool("select");updateInfo();resize();
     $("admin-username").value="";$("admin-password").value="";
   }
-  function close(){
-    visible=false;overlay.classList.add("hidden");
-    login.classList.add("hidden");
-    moving=null;isDragging=false;
-    whenClose?.();
+  function leave(){
+    visible=false;active=false;drag=null;
+    disposePreview(preview);preview=null;
+    if(scene()&&originalFogSaved)scene().fog=originalFog;
+    originalFogSaved=false;
+    panel.classList.add("hidden");login.classList.add("hidden");
+    document.body.insertBefore(canvas,document.body.firstChild);
+    onResize?.();whenClose?.();
   }
   $("admin-open").addEventListener("click",()=>{
-    if(!getRoads?.()?.length){notify?.("Aguarde o mapa carregar.");return;}
-    if(session)showMap();else{
-      login.classList.remove("hidden");whenOpen?.();
-      $("admin-username").focus();
-    }
+    if(!getRoads?.()?.length){notify?.("Aguarde o carregamento do Grajaú.");return;}
+    if(session)enter();
+    else{login.classList.remove("hidden");whenOpen?.();$("admin-username").focus();}
   });
   $("admin-login-form").addEventListener("submit",e=>{
     e.preventDefault();
     if($("admin-username").value.trim().toLowerCase()==="admin"&&
        $("admin-password").value==="7334"){
-      $("admin-error").textContent="";showMap();
+      $("admin-error").textContent="";enter();
     }else $("admin-error").textContent="Usuário ou senha incorretos.";
   });
   $("admin-login-close").addEventListener("click",()=>{
     login.classList.add("hidden");whenClose?.();
   });
-  $("admin-close").addEventListener("click",close);
-  $("admin-logout").addEventListener("click",()=>{session=false;close();});
-  for(const button of document.querySelectorAll("[data-admin-tool]"))
+  $("admin-close").addEventListener("click",leave);
+  $("admin-logout").addEventListener("click",()=>{session=false;leave();});
+  for(const button of panel.querySelectorAll("[data-admin-tool]"))
     button.addEventListener("click",()=>setTool(button.dataset.adminTool));
-  function zoom(factor){
-    scale=clamp(scale*factor,.035,4);requestDraw();
+  function zoom(factor,px,py) {
+    const before=px!=null?worldPoint(px,py):null;
+    viewHeight=clamp(viewHeight*factor,18,4000);alignCamera();
+    if(before) {
+      const after=worldPoint(px,py);
+      center.x+=before[0]-after[0];center.z+=before[1]-after[1];
+    }
+    alignCamera();
   }
-  $("admin-zoom-in").addEventListener("click",()=>zoom(1.5));
-  $("admin-zoom-out").addEventListener("click",()=>zoom(1/1.5));
+  $("admin-zoom-in").addEventListener("click",()=>zoom(.7));
+  $("admin-zoom-out").addEventListener("click",()=>zoom(1.4));
   $("admin-center").addEventListener("click",()=>{
-    const p=getPosition?.();if(p)center={x:p.x,z:p.z};scale=.38;requestDraw();
+    const p=getPosition?.();if(p)center={x:p.x,z:p.z};
+    viewHeight=220;alignCamera();
   });
   $("admin-fit").addEventListener("click",()=>{
-    if(!roads.length)return;
-    let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
+    let minX=Infinity,minZ=Infinity,maxX=-Infinity,maxZ=-Infinity;
     for(const road of roads)for(const [x,z] of road.p){
-      minX=Math.min(minX,x);maxX=Math.max(maxX,x);
-      minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);
+      minX=Math.min(x,minX);maxX=Math.max(x,maxX);
+      minZ=Math.min(z,minZ);maxZ=Math.max(z,maxZ);
     }
-    const box=canvas.getBoundingClientRect();
+    if(!Number.isFinite(minX))return;
+    const box=bounds(),ratio=box.width/Math.max(1,box.height);
     center={x:(minX+maxX)/2,z:(minZ+maxZ)/2};
-    scale=clamp(Math.min((box.width-70)/(maxX-minX||1),
-      (box.height-70)/(maxZ-minZ||1)),.025,4);
-    requestDraw();
+    viewHeight=clamp(Math.max((maxZ-minZ)*1.06,(maxX-minX)*1.06/ratio),
+      18,4000);alignCamera();
+    status("Vista geral: aproxime para ver as ruas renderizadas por setores.");
   });
   canvas.addEventListener("wheel",e=>{
-    e.preventDefault();const before=pointAt(e.clientX,e.clientY);
-    zoom(e.deltaY<0?1.25:.8);
-    const after=pointAt(e.clientX,e.clientY);
-    center.x+=before[0]-after[0];center.z+=before[1]-after[1];requestDraw();
+    if(!visible)return;
+    e.preventDefault();zoom(e.deltaY<0?.78:1.28,e.clientX,e.clientY);
   },{passive:false});
   canvas.addEventListener("pointerdown",e=>{
     if(!visible)return;
-    const point=pointAt(e.clientX,e.clientY);
-    isDragging=true;dragMode="";origin=point;
-    lastPointer=[e.clientX,e.clientY];
-    canvas.setPointerCapture(e.pointerId);
-    if(tool==="pan"||e.button===1){dragMode="pan";return;}
-    if(tool==="node"){
-      let road=roadSelected(),index=nearestNode(road,point);
-      if(index<0){road=nearestWay(point);if(road){selectedId=road.id;index=nearestNode(road,point);} }
-      if(road&&index>=0){moving={index,point:[...road.p[index]],road};dragMode="node";}
-      else mapStatus("Aproxime o zoom e selecione um ponto da rua.");
-      updateInfo();return;
+    if(e.button!==0&&e.button!==1)return;
+    const point=worldPoint(e.clientX,e.clientY);
+    if(tool==="pan"||e.button===1){
+      drag={type:"pan",x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);return;
     }
-    const road=nearestWay(point);
-    selectedId=road?.id??null;updateInfo();
+    const hit=nearestRoad(point);
+    if(tool==="select"||!selected()){
+      selectedId=hit?.road.id??null;updateInfo();
+      if(hit)status("Rua selecionada. Ajuste a malha pela lateral direita.");
+      return;
+    }
+    const nearest=nearestOnSelected(point);
+    if(!nearest||nearest.distance>45*unitsPerPixel()+sidewalkWidth(selected())+selected().widthMeters/2){
+      selectedId=hit?.road.id??null;updateInfo();return;
+    }
+    if(tool==="asphalt"||tool==="sidewalk"){
+      drag={type:tool};
+      canvas.setPointerCapture(e.pointerId);
+      updateDrag(point);
+    }
   });
-  canvas.addEventListener("pointermove",e=>{
-    if(!isDragging)return;
-    if(dragMode==="pan"){
-      center.x-=(e.clientX-lastPointer[0])/scale;
-      center.z-=(e.clientY-lastPointer[1])/scale;requestDraw();
-    }else if(dragMode==="node"&&moving){
-      moving.point=pointAt(e.clientX,e.clientY).map(v=>Math.round(v*10)/10);
-      requestDraw();
+  function updateDrag(point){
+    const road=selected(),hit=nearestOnSelected(point);
+    if(!road||!hit)return;
+    if(drag?.type==="asphalt"){
+      $("admin-width").value=clamp(Math.round(hit.distance*20)/10,2,45);
+    }else if(drag?.type==="sidewalk"){
+      const outer=hit.distance-Number($("admin-width").value)/2;
+      $("admin-walk").value=clamp(Math.round(outer*10)/10,.6,5);
     }
-    lastPointer=[e.clientX,e.clientY];
-  });
-  function endPointer(){
-    if(dragMode==="node"&&moving){
-      const road=baseRoads.find(r=>String(r.id)===String(moving.road.id));
-      const next=withNode(edits,road,moving.index,moving.point);
-      commit(next,"Vértice reposicionado");
-    }
-    isDragging=false;dragMode="";moving=null;
+    refreshPreview();
+    status("Prévia 3D · solte e clique em salvar ou aplique a modelagem.");
   }
-  canvas.addEventListener("pointerup",endPointer);
-  canvas.addEventListener("pointercancel",()=>{isDragging=false;dragMode="";moving=null;requestDraw();});
-  $("admin-width-save").addEventListener("click",()=>{
-    const road=roadSelected();if(!road)return;
-    try{commit(withWidth(edits,road.id,$("admin-width").value,
-      $("admin-walk").value),"Largura e calçada ajustadas");}
-    catch(e){mapStatus(e.message);}
+  canvas.addEventListener("pointermove",e=>{
+    if(!visible||!drag)return;
+    if(drag.type==="pan"){
+      const factor=unitsPerPixel();
+      center.x-=(e.clientX-drag.x)*factor;
+      center.z-=(e.clientY-drag.y)*factor;
+      drag.x=e.clientX;drag.y=e.clientY;alignCamera();
+    }else updateDrag(worldPoint(e.clientX,e.clientY));
   });
+  canvas.addEventListener("pointerup",()=>{drag=null;});
+  canvas.addEventListener("pointercancel",()=>{drag=null;});
+  for(const id of ["admin-width","admin-walk","admin-curb","admin-corner"])
+    $(id).addEventListener("input",()=>{
+      if(selected()) {
+        refreshPreview();status("Prévia da modelagem · clique Salvar medidas para guardar.");
+      }
+    });
+  $("admin-width-save").addEventListener("click",saveParameters);
   $("admin-road-reset").addEventListener("click",()=>{
-    const road=baseSelected();if(road)commit(withoutWayEdits(edits,road),
-      "Correções desta via revertidas");
+    const source=sourceSelected();
+    if(source)commit(withoutWayEdits(edits,source),"Modelo original desta rua restaurado");
   });
   $("admin-undo").addEventListener("click",()=>{
-    if(!history.length){mapStatus("Nenhuma alteração para desfazer.");return;}
-    edits=history.pop();store(false);mapStatus("Última mudança desfeita");
+    if(!history.length){status("Nada para desfazer.");return;}
+    edits=history.pop();store();status("Última modelagem desfeita");
   });
   $("admin-export").addEventListener("click",()=>downloadEdits(edits));
   $("admin-import").addEventListener("change",async e=>{
     const file=e.target.files?.[0];e.target.value="";if(!file)return;
     try{
-      if(file.size>3000000)throw Error("JSON muito grande (máximo 3 MB).");
-      const next=normalizeEdits(JSON.parse(await file.text()));
-      commit(next,"Correções importadas");
-    }catch(error){mapStatus("Erro de importação: "+error.message);}
+      if(file.size>3_000_000)throw Error("Limite de 3 MB.");
+      commit(normalizeEdits(JSON.parse(await file.text())),"Modelagem importada");
+    }catch(err){status("JSON inválido: "+err.message);}
   });
   $("admin-clear").addEventListener("click",()=>{
-    if(!confirm("Apagar TODAS as correções locais deste navegador?"))return;
-    commit(emptyEdits(),"Edições locais zeradas");
+    if(confirm("Limpar todas as correções locais de modelagem?"))
+      commit(emptyEdits(),"Modelagem local restaurada");
   });
   $("admin-apply").addEventListener("click",()=>{
-    saveEdits(edits);
+    // Pending form values are committed too, so users do not lose the preview.
+    if(selected()) {
+      try{
+        let next=withWidth(edits,selected().id,
+          $("admin-width").value,$("admin-walk").value);
+        next=withMeshProfile(next,selected().id,$("admin-curb").value,
+          $("admin-corner").value);
+        saveEdits(next);
+      }catch(e){status(e.message);return;}
+    }else saveEdits(edits);
     location.reload();
   });
   document.addEventListener("keydown",e=>{
     if(e.key!=="Escape")return;
     if(!login.classList.contains("hidden")){
       login.classList.add("hidden");whenClose?.();
-    }else if(visible)close();
+    }else if(visible)leave();
   });
-  new ResizeObserver(resize).observe(canvas);
-  return {isOpen:()=>visible||!login.classList.contains("hidden")};
+  new ResizeObserver(()=>{if(visible)resize();}).observe(stage);
+  return {
+    isOpen:()=>visible||!login.classList.contains("hidden"),
+    isEditing:()=>active,
+    focus:()=>center,
+    getCamera:()=>{alignCamera();return camera;},
+    viewport:()=>{
+      if(!visible)return null;
+      const b=bounds();return {w:Math.max(1,Math.floor(b.width)),
+        h:Math.max(1,Math.floor(b.height))};
+    }
+  };
 }
