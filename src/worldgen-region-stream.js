@@ -116,3 +116,14 @@ export function clipMeshBufferToRegion(buffer,bounds){
   }
   return out;
 }
+
+/** New region chunks are visible=true by default in Three.js. Hide
+ * offscreen material groups synchronously at creation time — do not wait
+ * for the next player movement, as initial loading happens while parked.
+ */
+export function activateLoadedRoadRegion(scenery,focusX,focusZ){
+  if(typeof scenery?.updateVisibility!=="function")
+    throw Error("Região 3D sem atualização de visibilidade");
+  scenery.updateVisibility(focusX,focusZ);
+  return scenery.lodStatistics;
+}
