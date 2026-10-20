@@ -22,7 +22,8 @@ const result=makeBelmiraSelection([...unique.values()],spine.roads,anchors,base.
 if(result.selection.lengthMeters<900||result.selection.lengthMeters>2000)
   throw Error("Unexpected route length "+result.selection.lengthMeters);
 if(result.sideEntrances.length<5)throw Error("Too few OSM side streets for the selected corridor");
-const output=new URL("../public/data/belmira-corridor.json",import.meta.url);
+// Keep enriched, original public/data/belmira-corridor.json immutable.
+const output=new URL("../public/data/belmira-selection.json",import.meta.url);
 writeFileSync(output,JSON.stringify(result,null,2)+"\n");
 console.log("Buzun corridor:",result.selection.lengthMeters+"m",
   "route vertices:",result.selection.routePoints.length,
