@@ -1,4 +1,7 @@
 import {subtractConvex,physicalLayer,asphaltPriority} from "./asphalt-union.js";
+import {buildCurbRampZones,createRampIndex,intersectConvex,
+  rampTopOffset,rampCoordinates,splitCurbEdge,curbHeightAt}
+  from "./curb-ramps.js";
 
 /**
  * Polygonal sidewalk compositor.
@@ -119,8 +122,20 @@ export function retreatCurbAtJunctions(a,b,junctions,retreat=0){
  * by unionAsphaltPatches, not raw unsampled OSM ways.
  */
 export function composeRoadsideMeshes(asphaltPatches,walkPatches,
-  onSidewalk,onCurb,{cellSize=28,junctions=[],bevelCurbs=false}={}){
+  onSidewalk,onCurb,{cellSize=28,junctions=[],bevelCurbs=false,
+    rampSites=[]}={}){
   const asphalt=new PlanarIndex(cellSize),sidewalks=new PlanarIndex(cellSize);
+  const ramps=buildCurbRampZones(rampSites);
+  const rampIndex=createRampIndex(ramps.zones,{cellSize});
+  let rampTriangles=0,rampCells=0,loweredCurbSegments=0;
+  const emitTop=(poly,patch,zone=null)=>{
+    const up=patch.curbTop??.18;
+    for(let i=1;i<poly.length-1;i++){
+      const v=p=>lift(patch,p,zone?rampTopOffset(zone,p,up):up);
+      onSidewalk([v(poly[0]),v(poly[i]),v(poly[i+1])],patch);
+      if(zone)rampTriangles++;
+    }
+  };
   for(const patch of asphaltPatches){
     const layer=physicalLayer(patch);
     for(const poly of triangles(patch))
@@ -168,10 +183,31 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
       for(const poly of pieces){
         if(poly.length<3||absArea(poly)<1e-4)continue;
         sidewalks.add(poly,{layer,source:patch});
-        const top=patch.curbTop??.18;
-        for(let i=1;i<poly.length-1;i++)
-          onSidewalk([lift(patch,poly[0],top),
-            lift(patch,poly[i],top),lift(patch,poly[i+1],top)],patch);
+        // Remove the original *flat* sidewalk within each verified ramp,
+        // then replace it with spatially split sloped polygons. No overlays
+        // or fake ramps hovering above the existing sidewalk plane.
+        let uncut=[poly];
+        if(!patch.isMedian){
+          for(const zone of rampIndex.query(poly,patch.id)){
+            const remaining=[];
+            for(const part of uncut){
+              const intersection=intersectConvex(part,zone.polygon);
+              if(intersection.length>=3){
+                for(const cell of zone.cells){
+                  const cut=intersectConvex(intersection,cell.polygon);
+                  if(cut.length>=3){
+                    emitTop(cut,patch,zone);
+                    rampCells++;
+                  }
+                }
+                remaining.push(...subtractConvex(part,zone.polygon));
+              }else remaining.push(part);
+            }
+            uncut=remaining;
+            if(!uncut.length)break;
+          }
+        }
+        for(const part of uncut)emitTop(part,patch);
         groundPieces++;
       }
     }
@@ -212,37 +248,55 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
       for(const [start,end] of retreatCurbAtJunctions(a,b,
         junctionsByWay.get(String(patch.id)),
         patch.cornerClearanceMeters||0)){
-        if(!softened || h<=.08){
-          onCurb([lift(patch,start,.04),lift(patch,end,.04),
-            lift(patch,end,h),lift(patch,start,h)],patch);
-          curbFaces++;
-        }else{
-          // Concave rounded bevel approx. 3 continuous longitudinal strips.
-          // At m=0 the curb meets the real asphalt boundary exactly; at
-          // m=.08 it fades into the existing sidewalk top. This creates no
-          // additional asphalt, calçada, or independent corner caps.
-          const shoulder=Math.min(.045,(h-.04)*.33);
-          const profile=[
-            {m:0,y:.04},
-            {m:0,y:h-shoulder},
-            {m:.035,y:h-.011},
-            {m:.08,y:h+.002}
-          ];
-          for(let k=1;k<profile.length;k++){
-            const first=profile[k-1],last=profile[k];
-            onCurb([
-              lift(patch,inset(start,first.m),first.y),
-              lift(patch,inset(end,first.m),first.y),
-              lift(patch,inset(end,last.m),last.y),
-              lift(patch,inset(start,last.m),last.y)
-            ],patch);
+        const margin=.4;
+        const low=[Math.min(start[0],end[0])-margin,
+          Math.min(start[1],end[1])-margin];
+        const high=[Math.max(start[0],end[0])+margin,
+          Math.max(start[1],end[1])+margin];
+        const zones=patch.isMedian?[]:rampIndex.query(
+          [low,[high[0],low[1]],high,[low[0],high[1]]],patch.id);
+        let portions=[[start,end]];
+        for(const zone of zones)
+          portions=portions.flatMap(([p,q])=>splitCurbEdge(p,q,zone));
+        for(const [p,q] of portions){
+          const middle=[(p[0]+q[0])/2,(p[1]+q[1])/2];
+          const hasRamp=zones.some(zone=>{
+            const loc=rampCoordinates(zone,middle);
+            return Math.abs(loc.along)<zone.outerHalf-.001&&
+              loc.into>=-.22&&loc.into<=.28;
+          });
+          if(hasRamp||!softened||h<=.08){
+            const hp=curbHeightAt(p,h,zones),
+              hq=curbHeightAt(q,h,zones);
+            onCurb([lift(patch,p,.04),lift(patch,q,.04),
+              lift(patch,q,hq),lift(patch,p,hp)],patch);
+            if(hasRamp)loweredCurbSegments++;
             curbFaces++;
+          }else{
+            // The original three-strip bevel remains only on intact curb.
+            const shoulder=Math.min(.045,(h-.04)*.33);
+            const profile=[
+              {m:0,y:.04},{m:0,y:h-shoulder},
+              {m:.035,y:h-.011},{m:.08,y:h+.002}
+            ];
+            for(let k=1;k<profile.length;k++){
+              const first=profile[k-1],last=profile[k];
+              onCurb([
+                lift(patch,inset(p,first.m),first.y),
+                lift(patch,inset(q,first.m),first.y),
+                lift(patch,inset(q,last.m),last.y),
+                lift(patch,inset(p,last.m),last.y)
+              ],patch);
+              curbFaces++;
+            }
           }
+          curbSegments++;
         }
-        curbSegments++;
       }
     }
   }
   return {sidewalkPolygons:groundPieces,curbSegments,curbFaces,
-    droppedAgainstAsphalt:discarded,clipOperations};
+    droppedAgainstAsphalt:discarded,clipOperations,
+    rampSites:rampSites.length,rampSides:ramps.stats.rampSides,
+    rampCells,rampTriangles,loweredCurbSegments};
 }
