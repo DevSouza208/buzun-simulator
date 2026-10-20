@@ -265,7 +265,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
       const mid=[(wall[0][0]+wall[1][0])/2,
         (wall[0][2]+wall[1][2])/2];
       addQuad(chunkFor(mid).curb,...wall);
-    });
+    },{junctions:joints});
   const surface=createRoadSurfaceIndex(surfaceSegments);
   const tiles=[];
   const hues=[
