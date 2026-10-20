@@ -373,7 +373,15 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
     startAsphaltWorkerJob(asphaltPatches):null;
   try{
     if(job){
+      const workerStarted=performance.now();
       while(job.status==="pending"){
+        // Some content blockers silently suppress worker messages. Never
+        // wait indefinitely: rerun the exact same union on the main thread.
+        if(performance.now()-workerStarted>12000){
+          asphaltWorkerStats.error="Tempo limite do Worker (12 s)";
+          job.cancel();
+          break;
+        }
         profiler.pause();
         yield {stage:"asphalt_worker_wait",waiting:true};
         profiler.resume();
@@ -386,7 +394,8 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
           job.positions,emitAsphalt),profiler);
       }else{
         asphaltWorkerStats.fallback=true;
-        asphaltWorkerStats.error=job.error||"Worker cancelado";
+        asphaltWorkerStats.error=asphaltWorkerStats.error||
+          job.error||"Worker cancelado";
       }
     }else if(backgroundAsphalt) {
       asphaltWorkerStats.fallback=true;
