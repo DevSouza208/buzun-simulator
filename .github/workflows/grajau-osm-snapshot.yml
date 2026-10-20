@@ -1,0 +1,38 @@
+name: Refresh Grajau OSM snapshot
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/snapshot-grajau-osm.mjs'
+      - '.github/workflows/grajau-osm-snapshot.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grajau-osm-snapshot
+  cancel-in-progress: false
+
+jobs:
+  import-roads:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch Grajaú road network (one public Overpass query)
+        run: node scripts/snapshot-grajau-osm.mjs
+      - name: Commit audited snapshot if updated
+        run: |
+          git config user.name "buzun-map-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/grajau-city-roads.json
+          if ! git diff --cached --quiet; then
+            git commit -m "data: snapshot completo de vias do Grajaú via OSM"
+            git push
+          fi

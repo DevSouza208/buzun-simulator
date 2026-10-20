@@ -11,7 +11,7 @@ O Buzun constrói, nesta fase, **somente ruas, calçadas, meio-fios, terreno, ma
 - O retorno do Overpass preserva IDs de vias, IDs de nós, `oneway`, largura `width` quando presente, categoria e geometria.
 - Origem local: `-23.7368,-46.697`, eixos X=leste, Z=sul, escala nominal **1 unidade = 1 metro**, sem redimensionar a cena.
 - Coordenadas WGS84 são projetadas localmente; valores e larguras representam a precisão do OSM e **não são um levantamento cadastral/topográfico**.
-- O primeiro acesso consulta Overpass, salva o recorte em IndexedDB por até 72 horas e usa os extratos reais OSM já versionados se houver falha/timeout, com intervalo de espera para evitar insistência na API. O fallback local cobre **uma região menor**, e o status do mapa informa isso.
+- O modo preferencial carrega `public/data/grajau-city-roads.json`, gerado no GitHub Actions por `node scripts/snapshot-grajau-osm.mjs` (uma consulta de manutenção à API, não uma consulta por visitante). Se o snapshot ainda não foi publicado, o navegador tenta Overpass e salva em IndexedDB por até 72 horas; último recurso: os recortes locais menores (o status identifica o modo).
 - Não enviar consultas Overpass a cada frame, em massa ou a cada recarga.
 
 ## Malha dirigível

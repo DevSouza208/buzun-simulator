@@ -396,10 +396,27 @@ async function start() {
       throw Error("Origem do relevo não coincide com a rota");
     configureTerrain(elevation);
     const fallback=combineLegacyRoads(local,spine,cocaia,corridor);
-    const [imported,tiles]=await Promise.all([
-      fetchGrajauRoads({
+    // Prefer a single audited, server-generated snapshot distributed by
+    // GitHub Pages. Public Overpass is queried by the importer workflow, not
+    // repeatedly by every visiting player.
+    const importStreets=async()=>{
+      try {
+        const response=await fetch("./public/data/grajau-city-roads.json");
+        if(response.ok){
+          const snapshot=await response.json();
+          if(snapshot.roads?.length>=500 &&
+             snapshot.origin?.lat===corridor.origin.lat &&
+             snapshot.origin?.lon===corridor.origin.lon)
+            return {roads:snapshot.roads,source:"OSM Grajaú completo · snapshot",
+              upToDate:true};
+        }
+      }catch(error){console.warn("Snapshot not yet published:",error);}
+      return fetchGrajauRoads({
         fallback,onStatus:message=>{status.textContent=message;}
-      }),
+      });
+    };
+    const [imported,tiles]=await Promise.all([
+      importStreets(),
       loadCityElevations(GRAJAU_BBOX).catch(error=>{
         console.warn("Relief outside saved SRTM was unavailable:",error);
         return null;
