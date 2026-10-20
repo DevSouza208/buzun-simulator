@@ -3,6 +3,7 @@ import { sidewalkWidth, createRoadCorridors,
   clipSidewalkPolygon, visibleCurbIntervals } from "./road-corridor.js";
 import { drapedSections, createRoadSurfaceIndex, coordinateKey }
   from "./draped-road.js";
+import { unionAsphaltPatches } from "./asphalt-union.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -146,7 +147,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
     }
     return chunks.get(key);
   };
-  const segments=[],surfaceSegments=[];
+  const segments=[],surfaceSegments=[],asphaltPatches=[];
   const corridors=createRoadCorridors(roads);
   const joints=getJunctions(roads);
   const fixedJunctions=new Set(joints.map(j=>coordinateKey(j.point)));
@@ -182,9 +183,19 @@ export function createRoadScene(scene,roads,sampleHeight) {
       const a=sections[i-1],b=sections[i],buffer=chunkFor([
         (a.p[0]+b.p[0])/2,(a.p[1]+b.p[1])/2
       ]);
-      addQuad(buffer.asphalt,point(a,-half,.072,sampleHeight),
-        point(b,-half,.072,sampleHeight),point(b,half,.072,sampleHeight),
-        point(a,half,.072,sampleHeight));
+      // Do NOT push each road ribbon directly into the scene. All asphalt
+      // polygons first pass through the planar worldgen union, so a side
+      // street is geometrically CUT by the major road at a T-junction.
+      // The same draped height profile is retained at all new vertices.
+      asphaltPatches.push({
+        id:road.id,t:road.t,widthMeters:width,layer:road.layer||0,
+        bridge:road.bridge,tunnel:road.tunnel,
+        a:a.p,b:b.p,h0:a.base,h1:b.base,
+        quad:[point(a,-half,.072,sampleHeight),
+          point(b,-half,.072,sampleHeight),
+          point(b,half,.072,sampleHeight),
+          point(a,half,.072,sampleHeight)]
+      });
       surfaceSegments.push({a:a.p,b:b.p,h0:a.base,h1:b.base,
         halfWidth:half,walk:foot,curbTop});
       const middle=[(a.p[0]+b.p[0])/2,(a.p[1]+b.p[1])/2];
@@ -275,23 +286,16 @@ export function createRoadScene(scene,roads,sampleHeight) {
           oneway:road.o,widthSource:road.widthSource});
     }
   }
-  // Junction caps reference the same draped grade as the asphalt.
-  // Never put an independent DEM-sampled triangular mountain on the road.
+  // Union all asphalt sheets in 2D before sending triangles to WebGL.
+  // Junction circles formerly covered seams but produced extra overlap and
+  // white/green islands at T-junctions; resolved road ribbons now own the
+  // entire common footprint without arbitrary discs.
+  const asphaltUnion=unionAsphaltPatches(asphaltPatches,(triangle)=>{
+    const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
+      (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
+    addTri(chunkFor(mid).asphalt,...triangle);
+  });
   const surface=createRoadSurfaceIndex(surfaceSegments);
-  for(const j of joints) {
-    const center=j.point,r=Math.max(2.8,j.maxWidth/2+.38),
-      b=chunkFor(center);
-    const heightAt=p=>surface.sample(...p)?.height??sampleHeight(...p);
-    const c=[center[0],heightAt(center)+.065,center[1]];
-    const count=12;
-    for(let i=0;i<count;i++){
-      const t1=i*Math.PI*2/count,t2=(i+1)*Math.PI*2/count;
-      const a=[center[0]+r*Math.cos(t1),center[1]+r*Math.sin(t1)];
-      const d=[center[0]+r*Math.cos(t2),center[1]+r*Math.sin(t2)];
-      addTri(b.caps,c,[a[0],heightAt(a)+.065,a[1]],
-        [d[0],heightAt(d)+.065,d[1]]);
-    }
-  }
   const tiles=[];
   const hues=[
     ["asphalt",STREET_PALETTE.asphalt],
@@ -315,7 +319,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
   }
   return {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
-    surface,
+    surface,asphaltUnion,
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
       for(const tile of tiles)
