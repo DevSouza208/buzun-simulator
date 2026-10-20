@@ -71,6 +71,13 @@ export function mountWorldgenOverlay({
             (r.streaming.cachedGeometryMiB||0).toFixed(1)+" MiB)",
           "Retornos sem reconstrução: "+(r.streaming.cachedRestores||0)+
             " · descartes: "+(r.streaming.cacheDiscards||0),
+          "Próxima divisa: "+(r.streaming.boundaryPrefetches||0)+
+            " pré-carregamentos",
+          "Altura na divisa: "+(r.streaming.boundaryHeightBlends||0)+
+            " suavizações / "+(r.streaming.boundaryNeighborSamples||0)+
+            " leituras vizinhas",
+          "Carregamentos urgentes: "+
+            (r.streaming.boundaryUrgentLoads||0),
           "Asfalto Worker: "+(r.streaming.asphaltWorkerRegions||0)+
             " concluídas / "+(r.streaming.asphaltWorkerFallbacks||0)+
             " fallback",

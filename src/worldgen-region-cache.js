@@ -41,6 +41,9 @@ export function createRegionGeometryCache({
   };
   return {
     has:key=>lru.has(key),
+    // Read-only index use at a terrain boundary: checking height should
+    // not mark a detached region as recently visited or reattach its mesh.
+    peek:key=>lru.get(key)?.record??null,
     keys:()=>[...lru.keys()],
     get stats(){
       return {...counters,entries:lru.size,estimatedBytes:bytes,
