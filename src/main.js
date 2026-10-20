@@ -12,6 +12,7 @@ import { loadCityElevations } from "./terrain-tiles.js";
 import { applyRoadEdits, readSavedEdits } from "./road-editor-model.js";
 import { mountRoadAdmin } from "./road-admin.js";
 import { mountWorldgenOverlay } from "./worldgen-overlay.js";
+import { resolveWorldgenMode } from "./worldgen-mode.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -486,15 +487,10 @@ async function start() {
     renderer.toneMappingExposure = 1.55;
     camera = new THREE.PerspectiveCamera(60, 1, .1, 1550);
     resize();
-    const search=new URLSearchParams(location.search);
-    const progressive=search.get("worldgen")==="stream"||
-      search.get("stream")==="1";
+    // Load only the initial region before the player enters. The full-city
+    // compositor can still be tested explicitly with ?worldgen=legacy.
+    const {progressive,showWorldgen}=resolveWorldgenMode(location.search);
     world = createWorld(scene,roadData,{cityRoads:true,progressive});
-    // Keep stable full-city worldgen as default until real browser
-    // validation demonstrates that streaming preserves all intersections.
-    const showWorldgen=search.get("worldgen")==="debug"||
-      search.get("debug")==="worldgen"||
-      (progressive&&search.get("debug")!=="off");
     worldgenOverlay?.dispose();
     worldgenOverlay=mountWorldgenOverlay({enabled:showWorldgen});
     if(worldgenOverlay)window.buzunWorldgenReport=

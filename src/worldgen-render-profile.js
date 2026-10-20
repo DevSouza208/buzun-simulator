@@ -11,7 +11,10 @@ export const ROAD_RENDER_PROFILE=Object.freeze({
     cameraFrustumCulling:false
   }),
   streaming:Object.freeze({
-    sampleMetres:9,tactileColumns:3,tactileRows:1,
+    // Keep straight roads light; selectively add 3–5m sections on bends
+    // and steep/irregular DEM terrain. This never moves original OSM nodes.
+    sampleMetres:9,adaptiveSampling:true,gradeSmoothMetres:18,
+    maxRoadSlope:.24,tactileColumns:3,tactileRows:1,
     mergeByRegion:true,visualRadiusMetres:670,
     cameraFrustumCulling:true
   })
