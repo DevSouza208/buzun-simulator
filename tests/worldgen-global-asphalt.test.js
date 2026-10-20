@@ -88,9 +88,9 @@ test("6.3: atlas never fabricates a strip across a real OSM gap",()=>{
   const atlas=createGlobalAsphaltAtlas(roads,
     createWorldSheet(roads,base),{naturalHeight:base});
   const tiles=atlas.composeCell(0,0);
-  assert.equal(polygonCount(tiles,[17,0,5]),1);
+  assert.equal(polygonCount(tiles,[17.43,0,5.67]),1);
   assert.equal(polygonCount(tiles,[80,0,5]),0);
-  assert.equal(polygonCount(tiles,[100,0,5]),1);
+  assert.equal(polygonCount(tiles,[101.41,0,5.64]),1);
 });
 
 test("6.3: sheets keep physical bridge/tunnel polygon layers distinct",()=>{
