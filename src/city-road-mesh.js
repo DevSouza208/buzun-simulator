@@ -20,6 +20,8 @@ import {renderProfile,renderBatchForPoint}
   from "./worldgen-render-profile.js";
 import {startAsphaltWorkerJob} from "./worldgen-asphalt-client.js";
 import {replayAsphaltTriangles} from "./worldgen-asphalt-job.js";
+import {startRoadsideWorkerJob} from "./worldgen-roadside-client.js";
+import {replayRoadsideGeometry} from "./worldgen-roadside-job.js";
 import {makeWorldgenProfiler,geometryBudget,summarizeRoadSectors,
   newRoadVisibilityStats,applyRoadTileLOD} from "./worldgen-diagnostics.js";
 
@@ -193,7 +195,8 @@ export function getJunctions(roads){
  * below runs the SAME generator to completion, synchronously.
  */
 export function* createRoadSceneSteps(scene,roads,sampleHeight,{
-  renderBounds=null,roadBatchSize=4,backgroundAsphalt=false
+  renderBounds=null,roadBatchSize=4,backgroundAsphalt=false,
+  backgroundRoadside=backgroundAsphalt
 }={}) {
   const profiler=makeWorldgenProfiler();
   const detail=renderProfile(renderBounds);
@@ -428,25 +431,69 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   const rampSurface=createRampIndex(rampGeometry.zones);
   // Use the same accepted sidewalk polygon union. The ramp cutter removes
   // the old flat sidewalk, emits graded cells, and opens the real curb wall.
-  const roadsideStats=yield* paceGeometry(composeRoadsideSteps(asphaltPatches,
-    [...walkPatches,...medians.patches],
-    (triangle,patch)=>{
-      const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
-        (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
-      addTri(chunkFor(mid)[patch.isMedian?"median":"walk"],...triangle);
-    },
-    (wall)=>{
-      const mid=[(wall[0][0]+wall[1][0])/2,
-        (wall[0][2]+wall[1][2])/2];
-      addQuad(chunkFor(mid).curb,...wall);
-    },{junctions:joints,bevelCurbs:true,rampSites:verifiedRampSites,
-      tactileOptions:{countAcross:detail.tactileColumns,
-        rows:detail.tactileRows},
-      onTactile:(triangle)=>{
-        const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
-          (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
-        addTri(chunkFor(mid).tactile,...triangle);
-      }}),profiler);
+  const roadsideInput=[...walkPatches,...medians.patches];
+  const roadsideOptions={junctions:joints,bevelCurbs:true,
+    rampSites:verifiedRampSites,tactileOptions:{
+      countAcross:detail.tactileColumns,
+      rows:detail.tactileRows
+    }};
+  // One buffer per material. The union's polygon precedence, road IDs,
+  // curb orientation and ramp heights are computed by the SAME pure
+  // composer in both the background Worker and fallback path.
+  const emitRoadside=(kind,vertices)=>{
+    const mid=[vertices.reduce((n,v)=>n+v[0],0)/vertices.length,
+      vertices.reduce((n,v)=>n+v[2],0)/vertices.length];
+    const buffer=chunkFor(mid)[kind];
+    if(kind==="curb")addQuad(buffer,...vertices);
+    else addTri(buffer,...vertices);
+  };
+  const roadsideWorkerStats={requested:backgroundRoadside,
+    used:false,fallback:false,primitives:0,error:null};
+  let roadsideStats=null;
+  const roadsideJob=backgroundRoadside&&renderBounds?
+    startRoadsideWorkerJob(asphaltPatches,roadsideInput,
+      roadsideOptions):null;
+  try{
+    if(roadsideJob){
+      const started=performance.now();
+      while(roadsideJob.status==="pending"){
+        if(performance.now()-started>12000){
+          roadsideWorkerStats.error="Tempo limite do Worker de calçadas (12 s)";
+          roadsideJob.cancel();
+          break;
+        }
+        profiler.pause();
+        yield {stage:"roadside_worker_wait",waiting:true};
+        profiler.resume();
+      }
+      if(roadsideJob.status==="complete"){
+        roadsideWorkerStats.used=true;
+        roadsideStats=roadsideJob.stats;
+        roadsideWorkerStats.primitives=yield* paceGeometry(
+          replayRoadsideGeometry(roadsideJob.geometry,
+            emitRoadside),profiler);
+      }else{
+        roadsideWorkerStats.fallback=true;
+        roadsideWorkerStats.error=roadsideWorkerStats.error||
+          roadsideJob.error||"Worker de calçadas cancelado";
+      }
+    }else if(backgroundRoadside){
+      roadsideWorkerStats.fallback=true;
+      roadsideWorkerStats.error="Worker de calçadas indisponível";
+    }
+    if(!roadsideStats){
+      roadsideStats=yield* paceGeometry(composeRoadsideSteps(
+        asphaltPatches,roadsideInput,
+        (triangle,patch)=>emitRoadside(
+          patch.isMedian?"median":"walk",triangle),
+        wall=>emitRoadside("curb",wall),
+        {...roadsideOptions,
+          onTactile:triangle=>emitRoadside("tactile",triangle)}
+      ),profiler);
+    }
+  }finally{
+    roadsideJob?.cancel();
+  }
   profiler.mark("uniao_calcadas_guias_rampas");
   const tiles=[];
   const seamStats={sharedVertices:0,snappedVertices:0,
@@ -531,7 +578,7 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
     },
     gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
     buildProfile,geometryStatistics,lodStatistics,
-    renderProfile:detail,asphaltWorkerStats,
+    renderProfile:detail,asphaltWorkerStats,roadsideWorkerStats,
     // Only 3D VISUAL detail is culled; physics, lane metadata, terrain,
     // minimap and OSM geometry are unaffected. Recompute when the camera
     // moves enough to matter, not 60 times per second.
