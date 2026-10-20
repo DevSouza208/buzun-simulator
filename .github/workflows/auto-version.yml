@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   increment:
-    if: github.actor != 'github-actions[bot]' && !startsWith(github.event.head_commit.message, 'chore: auto-bump game version')
+    if: "${{ github.actor != 'github-actions[bot]' && !startsWith(github.event.head_commit.message, 'chore: auto-bump game version') }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
