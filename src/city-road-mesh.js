@@ -16,6 +16,8 @@ import { planPedestrianCrossings,buildZebraBars }
 import { buildCurbRampZones,createRampIndex } from "./curb-ramps.js";
 import { streetTexturePixels,streetUv } from "./street-materials.js";
 import {clipMeshBufferToRegion} from "./worldgen-region-stream.js";
+import {renderProfile,renderBatchForPoint}
+  from "./worldgen-render-profile.js";
 import {makeWorldgenProfiler,geometryBudget,summarizeRoadSectors,
   newRoadVisibilityStats,applyRoadTileLOD} from "./worldgen-diagnostics.js";
 
@@ -184,13 +186,14 @@ export function createRoadScene(scene,roads,sampleHeight,{
   renderBounds=null
 }={}) {
   const profiler=makeWorldgenProfiler();
+  const detail=renderProfile(renderBounds);
   const chunks=new Map();
   const chunkFor=p=>{
-    const key=chunkKey(p);
-    if(!chunks.has(key)){
-      const [x,z]=key.split(":").map(Number);
-      chunks.set(key,emptyChunk(x,z));
-    }
+    const batch=renderBatchForPoint(p,renderBounds);
+    const key=batch.x+":"+batch.z;
+    if(!chunks.has(key))
+      chunks.set(key,{...emptyChunk(batch.x,batch.z),
+        bounds:batch.bounds});
     return chunks.get(key);
   };
   const segments=[],surfaceSegments=[],asphaltPatches=[],walkPatches=[];
@@ -258,7 +261,8 @@ export function createRoadScene(scene,roads,sampleHeight,{
     // short draped sections. Both asphalt edges, curbs and lane markings
     // share EXACTLY the same sampled road heights.
     const sectionGrades=reconcileRoadGrade(
-      drapedSections(road.p,sampleHeight,{fixedJunctions}),
+      drapedSections(road.p,sampleHeight,{
+        fixedJunctions,step:detail.sampleMetres}),
       gradeModels.byWay.get(String(road.id)));
     const sections=getSections(sectionGrades,sampleHeight);
     if(sections.length<2)continue;
@@ -375,6 +379,8 @@ export function createRoadScene(scene,roads,sampleHeight,{
         (wall[0][2]+wall[1][2])/2];
       addQuad(chunkFor(mid).curb,...wall);
     },{junctions:joints,bevelCurbs:true,rampSites:verifiedRampSites,
+      tactileOptions:{countAcross:detail.tactileColumns,
+        rows:detail.tactileRows},
       onTactile:(triangle)=>{
         const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
           (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
@@ -424,7 +430,8 @@ export function createRoadScene(scene,roads,sampleHeight,{
       ch[key].length=0;
     }
     scene.add(group);
-    tiles.push({x:ch.x,z:ch.z,group,meshes,budget});
+    tiles.push({x:ch.x,z:ch.z,bounds:ch.bounds,
+      group,meshes,budget});
   }
   profiler.mark("costura_e_alocacao_mesh");
   const geometryStatistics=summarizeRoadSectors(tiles);
@@ -451,6 +458,7 @@ export function createRoadScene(scene,roads,sampleHeight,{
     },
     gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
     buildProfile,geometryStatistics,lodStatistics,
+    renderProfile:detail,
     // Only 3D VISUAL detail is culled; physics, lane metadata, terrain,
     // minimap and OSM geometry are unaffected. Recompute when the camera
     // moves enough to matter, not 60 times per second.
