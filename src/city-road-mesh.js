@@ -147,6 +147,21 @@ export function createRoadScene(scene,roads,sampleHeight) {
     return chunks.get(key);
   };
   const segments=[];
+  const joints=getJunctions(roads);
+  const junctionCells=new Map();
+  const cellSize=40;
+  const put=(x,z,item)=>{
+    const key=x+":"+z;if(!junctionCells.has(key))junctionCells.set(key,[]);
+    junctionCells.get(key).push(item);
+  };
+  for(const j of joints)put(Math.floor(j.point[0]/cellSize),Math.floor(j.point[1]/cellSize),j);
+  const nearJunction=(p,clearance=0)=>{
+    const cx=Math.floor(p[0]/cellSize),cz=Math.floor(p[1]/cellSize);
+    for(let x=cx-1;x<=cx+1;x++)for(let z=cz-1;z<=cz+1;z++)
+      for(const j of junctionCells.get(x+":"+z)||[])
+        if(Math.hypot(j.point[0]-p[0],j.point[1]-p[1])<j.maxWidth/2+1.1+clearance)return true;
+    return false;
+  };
   for(const road of roads){
     if(!road.p?.length)continue;
     const width=road.widthMeters||7,half=width/2,
@@ -161,7 +176,11 @@ export function createRoadScene(scene,roads,sampleHeight) {
       addQuad(buffer.asphalt,point(a,-half,.042,sampleHeight),
         point(b,-half,.042,sampleHeight),point(b,half,.042,sampleHeight),
         point(a,half,.042,sampleHeight));
-      for(const side of [-1,1]) if(foot>0){
+      const middle=[(a.p[0]+b.p[0])/2,(a.p[1]+b.p[1])/2];
+      // A sidewalk must end at a junction; never extend as a raised strip
+      // through an intersecting asphalt carriageway.
+      const intersection=nearJunction(middle);
+      for(const side of [-1,1]) if(foot>0&&!intersection){
         const inner=side*half,outer=side*(half+foot);
         addQuad(buffer.walk,point(a,inner,.17,sampleHeight),
           point(b,inner,.17,sampleHeight),point(b,outer,.17,sampleHeight),
@@ -173,9 +192,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
       // Painting is topology-aware: no invented centre double yellow on
       // one-way carriageways or residential side streets.
       const isAvenue=["primary","secondary","tertiary"].includes(road.t);
-      if(isAvenue) {
-        const midpoint={p:[(a.p[0]+b.p[0])/2,(a.p[1]+b.p[1])/2],
-          normal:[(a.normal[0]+b.normal[0])/2,(a.normal[1]+b.normal[1])/2]};
+      if(isAvenue && !intersection) {
         for(const side of [-1,1]){
           const off=side*(half-.24);
           addQuad(buffer.white,point(a,off-.06,.09,sampleHeight),
@@ -188,7 +205,6 @@ export function createRoadScene(scene,roads,sampleHeight) {
               point(b,off-.055,.09,sampleHeight),point(b,off+.055,.09,sampleHeight),
               point(a,off+.055,.09,sampleHeight));
         }
-        void midpoint;
       }
     }
     for(let i=1;i<road.p.length;i++){
@@ -200,18 +216,17 @@ export function createRoadScene(scene,roads,sampleHeight) {
   }
   // Junction caps: cover overlaps between asphalt ribbons and continuous
   // sidewalk strips. Caps only at true shared OSM nodes, not false crossings.
-  const joints=getJunctions(roads);
   for(const j of joints) {
     const center=j.point,r=Math.max(2.8,j.maxWidth/2+.38),
       b=chunkFor(center);
-    const c=[center[0],sampleHeight(...center)+.195,center[1]];
+    const c=[center[0],sampleHeight(...center)+.065,center[1]];
     const count=12;
     for(let i=0;i<count;i++){
       const t1=i*Math.PI*2/count,t2=(i+1)*Math.PI*2/count;
       const a=[center[0]+r*Math.cos(t1),center[1]+r*Math.sin(t1)];
       const d=[center[0]+r*Math.cos(t2),center[1]+r*Math.sin(t2)];
-      addTri(b.caps,c,[a[0],sampleHeight(...a)+.195,a[1]],
-        [d[0],sampleHeight(...d)+.195,d[1]]);
+      addTri(b.caps,c,[a[0],sampleHeight(...a)+.065,a[1]],
+        [d[0],sampleHeight(...d)+.065,d[1]]);
     }
   }
   const tiles=[];
