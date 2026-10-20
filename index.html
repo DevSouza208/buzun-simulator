@@ -15,14 +15,15 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-icon" aria-hidden="true">B<span class="brand-dot">.</span></span>
-      <span class="brand-name"><strong>BUZUN</strong><small>SIMULATOR <span class="mono">/ 0.1</span></small></span>
+      <span class="brand-name"><strong>BUZUN</strong><small>SIMULATOR <span class="mono" id="brand-version">/ v0.1.0</span></small></span>
     </div>
     <div class="region">
       <span class="region-kicker"><span class="live-dot"></span> MUNDO REAL • SÃO PAULO</span>
       <span id="road-name" class="region-name">Terminal Grajaú</span>
     </div>
     <div class="top-actions">
-      <span class="version">LOW POLY / EARLY BUILD</span>
+      <span class="version" id="header-version">LOW POLY · v0.1.0</span>
+      <button id="next-facade" class="icon-button" title="Visitar próxima fachada modelada" aria-label="Ir para a próxima fachada modelada">⌂</button>
       <button id="reset-button" class="icon-button" title="Reposicionar veículo (R)" aria-label="Reposicionar veículo">↺</button>
       <button id="help-button" class="icon-button" title="Ajuda" aria-label="Abrir controles">?</button>
     </div>
@@ -69,11 +70,19 @@
   </nav>
   <div id="landing" class="overlay">
     <section class="welcome">
-      <div class="welcome-badge"><span class="live-dot"></span> PRIMEIRA VERSÃO JOGÁVEL · V0.1</div>
+      <div class="welcome-badge"><span class="live-dot"></span> PRIMEIRA VERSÃO JOGÁVEL · <span id="landing-version">v0.1.0</span></div>
       <div class="welcome-logo">BUZUN<span>.</span></div>
       <h1>O mundo real.<br/><i>Uma nova estrada.</i></h1>
       <p>Agora você pode seguir pela <b>Av. Dona Belmira Marin</b> e explorar os eixos do <b>Canal de Cocaia, Pedro Escobar e Rubens de Oliveira</b>. Ruas reais do OpenStreetMap em um mundo low poly.</p>
       <div class="welcome-facts"><span><b>01</b> CARRO</span><span><b>04</b> VIAS PRINCIPAIS</span><span><b>3D</b> LOW POLY</span></div>
+      <div class="spawn-pick">
+        <label for="facade-choice">COMEÇAR EM FRENTE A:</label>
+        <select id="facade-choice" aria-label="Escolher fachada de início">
+          <option value="619054952">01 — Casa com portão</option>
+          <option value="618875333">02 — Comércio estilizado</option>
+          <option value="618869167">03 — Sobrado estilizado</option>
+        </select>
+      </div>
       <div id="load-status" class="load-status">Preparando a cidade...</div>
       <button id="start-button" disabled>CARREGANDO MAPA…</button>
       <small>Protótipo técnico • Sem corridas, passageiros ou progressão ainda.</small>
@@ -102,7 +111,7 @@
     </section>
   </div>
 
-  <footer class="credits">© OpenStreetMap contributors · ODbL <span>BUZUN SIMULATOR — EXPERIMENTO 0.1</span></footer>
+  <footer class="credits">© OpenStreetMap contributors · ODbL <span>BUZUN SIMULATOR — <b id="footer-version">v0.1.0</b></span></footer>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
