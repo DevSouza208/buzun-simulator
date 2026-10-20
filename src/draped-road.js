@@ -72,9 +72,26 @@ export function createRoadSurfaceIndex(surfaceSegments,cellSize=75){
       const t=len>1e-9?Math.max(0,Math.min(1,
         ((x-s.a[0])*dx+(z-s.a[1])*dz)/len)):0;
       const distance=Math.hypot(x-s.a[0]-dx*t,z-s.a[1]-dz*t);
-      if(best===null||distance<best.distance)
-        best={distance,height:lerp(s.h0,s.h1,t),
-          halfWidth:s.halfWidth,walk:s.walk,curbTop:s.curbTop??.18};
+      // At a T/X intersection, the same primary asphalt sheet that
+      // survived planar union must also own the physical road height.
+      // Only same-elevation layers compete (ground wins if overlapping a
+      // speculative bridge layer). Outside pavement, choose nearest.
+      const inside=distance<=s.halfWidth+.01;
+      const bestInside=best&&best.distance<=best.halfWidth+.01;
+      const layer=s.layer||0,bestLayer=best?.layer||0;
+      const chosen=best===null ||
+        (inside&&!bestInside) ||
+        (inside&&bestInside&&(
+          Math.abs(layer)<Math.abs(bestLayer) ||
+          (layer===bestLayer&&(
+            (s.priority||0)>(best.priority||0) ||
+            ((s.priority||0)===(best.priority||0)&&distance<best.distance)
+          ))
+        )) ||
+        (!inside&&!bestInside&&distance<best.distance);
+      if(chosen)best={distance,height:lerp(s.h0,s.h1,t),
+        halfWidth:s.halfWidth,walk:s.walk,curbTop:s.curbTop??.18,
+        roadId:s.roadId,priority:s.priority||0,layer};
     }
     return best;
   }

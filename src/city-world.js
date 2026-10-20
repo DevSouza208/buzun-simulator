@@ -89,8 +89,10 @@ export function createCityWorld(scene,map) {
     landmarks:corridorLandmarks.length,fictionalStores:0,utilityPoles:0,
     nodes:graph.nodes.length,edges:graph.edges.length,
     components:graph.components,junctions:scenery.junctions,
-    knownWidths:map.roads.filter(r=>r.widthSource==="osm:width").length
+    knownWidths:map.roads.filter(r=>r.widthSource==="osm:width").length,
+    asphaltUnion:scenery.asphaltUnion
   };
+  console.info("[Buzun WorldGen] Asfalto unificado:",scenery.asphaltUnion);
   scenery.updateVisibility(spawn.x,spawn.z);
   ground.update(spawn.x,spawn.z,12);
   return {
