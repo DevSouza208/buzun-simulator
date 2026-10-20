@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {buildSmoothRoadConnectors,MAX_ROAD_JOIN_METRES}
   from "../src/worldgen-road-connectors.js";
 import {regionBounds,createRegionRoadIndex}
@@ -79,7 +80,6 @@ test("5.21: closest eligible pair wins and each terminal is used once",()=>{
   assert.equal(MAX_ROAD_JOIN_METRES,8);
 });
 test("5.21: runtime uses connectors for BOTH mesh and the underlying terrain mask",()=>{
-  const {readFileSync}=await import("node:fs");
   const content=readFileSync(new URL(
     "../src/city-world-stream.js",import.meta.url),"utf8");
   assert.match(content,/const renderRoads=\[\.\.\.map.roads,\.\.\.joinPlan.connectors\]/);
