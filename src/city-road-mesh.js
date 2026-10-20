@@ -39,7 +39,7 @@ function normalAt(points,i) {
   const nx=-tz,nz=tx;
   const mx=-(tz+uz),mz=tx+ux,ml=Math.hypot(mx,mz);
   if(ml<.25)return [nx,nz];
-  const mX=mx/ml,mZ=mz/ml,dot=Math.max(.55,mX*nx+mZ*nz);
+  const mX=mx/ml,mZ=mz/ml,dot=Math.max(.86,mX*nx+mZ*nz);
   return [mX/dot,mZ/dot];
 }
 function getSections(path,sampleHeight){
