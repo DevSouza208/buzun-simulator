@@ -1,6 +1,6 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 import { sidewalkWidth, createRoadCorridors,
-  clipSidewalkPolygon } from "./road-corridor.js";
+  clipSidewalkPolygon, visibleCurbIntervals } from "./road-corridor.js";
 import { drapedSections, createRoadSurfaceIndex, coordinateKey }
   from "./draped-road.js";
 
@@ -188,6 +188,13 @@ export function createRoadScene(scene,roads,sampleHeight) {
       // A sidewalk must end at a junction; never extend as a raised strip
       // through an intersecting asphalt carriageway.
       const intersection=nearJunction(middle);
+      const jx=Math.floor(middle[0]/cellSize),jz=Math.floor(middle[1]/cellSize);
+      const crossingJunctions=[];
+      for(let gx=jx-1;gx<=jx+1;gx++)for(let gz=jz-1;gz<=jz+1;gz++)
+        for(const j of junctionCells.get(gx+":"+gz)||[])
+          if(Math.hypot(middle[0]-j.point[0],middle[1]-j.point[1])<
+             j.maxWidth/2+foot+6)
+            crossingJunctions.push(j);
       for(const side of [-1,1]) {
         const inner=side*half,outer=side*(half+foot);
         const square=[
@@ -201,7 +208,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
         // never erase a full sidewalk strip because its midpoint is nearby.
         const x0=Math.min(...square.map(p=>p[0])),x1=Math.max(...square.map(p=>p[0]));
         const z0=Math.min(...square.map(p=>p[1])),z1=Math.max(...square.map(p=>p[1]));
-        const near=intersection||nearJunction(middle,foot+2)
+        const near=intersection||crossingJunctions.length
           ? corridors.query(x0-.3,z0-.3,x1+.3,z1+.3) : [];
         const pieces=near.length?clipSidewalkPolygon(square,road,near):[square];
         const ddx=b.p[0]-a.p[0],ddz=b.p[1]-a.p[1],ll=ddx*ddx+ddz*ddz;
@@ -218,21 +225,24 @@ export function createRoadScene(scene,roads,sampleHeight) {
               [q[0],atHeight(...q)+.18,q[1]]);
           }
         }
-        // Break curbs where the intersection actually crosses this
-        // pavement edge. Sidewalk polygons on the corners remain closed.
-        const edgeMid=[(square[0][0]+square[1][0])/2,
-          (square[0][1]+square[1][1])/2];
-        const crossed=near.some(s=>String(s.id)!==String(road.id) &&
-          (s.layer||0)===(road.layer||0) &&
-          (()=>{const dx=s.b[0]-s.a[0],dz=s.b[1]-s.a[1],len=dx*dx+dz*dz;
-            if(len<.01)return false;
-            const t=Math.max(0,Math.min(1,
-              ((edgeMid[0]-s.a[0])*dx+(edgeMid[1]-s.a[1])*dz)/(len*len)));
-            return Math.hypot(edgeMid[0]-s.a[0]-dx*t,
-              edgeMid[1]-s.a[1]-dz*t)<s.halfWidth+.1;})());
-        if(!crossed) addQuad(buffer.curb,point(a,inner,.04,sampleHeight),
-          point(b,inner,.04,sampleHeight),point(b,inner,.18,sampleHeight),
-          point(a,inner,.18,sampleHeight));
+        // Clip the actual curb EDGE to road polygons and the circular
+        // intersection asphalt. Do not decide from one midpoint: a junction
+        // can cut across only the first or last 30cm of this wall.
+        const visible=visibleCurbIntervals(square[0],square[1],
+          road,near,crossingJunctions);
+        const curbSection=t=>({
+          p:[lerp(a.p[0],b.p[0],t),lerp(a.p[1],b.p[1],t)],
+          normal:[lerp(a.normal[0],b.normal[0],t),
+            lerp(a.normal[1],b.normal[1],t)],
+          base:lerp(a.base,b.base,t)
+        });
+        for(const [from,to] of visible) {
+          const ca=curbSection(from),cb=curbSection(to);
+          addQuad(buffer.curb,point(ca,inner,.04,sampleHeight),
+            point(cb,inner,.04,sampleHeight),
+            point(cb,inner,.18,sampleHeight),
+            point(ca,inner,.18,sampleHeight));
+        }
         // Do NOT paint terrain-coloured shoulder quads across the road.
         // Their old uncut ribbons caused green strips through intersections.
         // Terrain carving handles the outer sidewalk transition instead.

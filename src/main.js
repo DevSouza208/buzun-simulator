@@ -1,4 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+import { PASSENGER_CAR_VISUAL_SCALE } from "./car-dimensions.js";
 import { createWorld } from "./world.js";
 import { bindTouchControls } from "./touch-controls.js";
 import { modelYawFromHeading } from "./driving.js";
@@ -84,6 +85,9 @@ function createCar() {
   }
   addBlock(shell, [1.80, .19, .08], [0, .72, -2.20], "#273f4a");
   addBlock(shell, [1.86, .22, .08], [0, .71, 2.28], "#3a4950");
+  // A compact hatchback must fit within one neighbourhood traffic lane.
+  // Only the rendered shell is scaled, preserving 1:1 road/physics metres.
+  shell.scale.setScalar(PASSENGER_CAR_VISUAL_SCALE);
   car.userData.shell = shell;
   return car;
 }
