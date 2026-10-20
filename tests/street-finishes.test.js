@@ -119,3 +119,22 @@ test("Tactile zones clip to accepted polygon fragment bounds",()=>{
   const elevation=rampTopOffset(zone,mid,.18)+tile.elevation;
   assert.ok(elevation>.08&&elevation<.2);
 });
+
+test("Browser world materials asphalt/walk/median all resolve to their texture and UV",()=>{
+  // Production city-road-mesh.js uses "walk", while earlier texture tests
+  // checked only the synonym "sidewalk": that mismatch caused a fatal
+  // world initialization error in v0.1.59 and v0.1.60.
+  for(const kind of ["asphalt","walk","median"]){
+    assert.doesNotThrow(()=>streetMaterialSpec(kind));
+    const uv=streetUv(124.5,-382.75,kind);
+    assert.ok(uv.every(Number.isFinite));
+    const tex=streetTexturePixels(kind);
+    assert.equal(tex.data.length,64*64*4);
+  }
+  const a=streetTexturePixels("walk"),b=streetTexturePixels("sidewalk");
+  assert.equal(a.tileMetres,b.tileMetres);
+  assert.equal(a.seamPixels,b.seamPixels);
+  assert.deepEqual([...a.data],[...b.data]);
+  assert.deepEqual(streetUv(1.3,-6.8,"walk"),
+    streetUv(1.3,-6.8,"sidewalk"));
+});
