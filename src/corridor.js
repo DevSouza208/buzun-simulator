@@ -15,7 +15,7 @@ function nearestOnRoad(point,roads) {
   let best=null;
   for(const road of roads) for(let i=1;i<road.p.length;i++) {
     const a=road.p[i-1],b=road.p[i],p=segmentProjection(point[0],point[1],a,b);
-    if(!best||p.distance<best.distance)best={wayId:road.id,a,b,t:p.t,point:[p.x,p.z],error:p.distance};
+    if(!best||p.distance<best.error)best={wayId:road.id,a,b,t:p.t,point:[p.x,p.z],error:p.distance};
   }
   return best;
 }
