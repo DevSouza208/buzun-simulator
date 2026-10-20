@@ -1,6 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 import { clippedLine, closestSegment, pointInPolygon, roadWidth, seeded } from "./geo.js";
 import { sampleHeight, getTerrainBounds } from "./terrain.js";
+import { terrainBandQuads } from "./road-geometry.js";
 import { buildCorridorLandmarks } from "./corridor-landmarks.js";
 import { buildPilotFacades } from "./world-engine.js";
 import { facadeRoadSpawns } from "./spawn.js";
@@ -39,15 +40,12 @@ function materialMesh(buf, { lit = false, opacity = 1 } = {}) {
   return mesh;
 }
 function band(buf, a, b, halfWidth, height, tint) {
-  const dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
-  if (len < .01) return;
-  const nx = (-dz / len) * halfWidth, nz = (dx / len) * halfWidth;
-  // The left/right asphalt edges sample actual terrain independently.
-  // Otherwise measured cross-slopes could bury a road edge in the hillside.
-  const vertex=(p,side)=>[p[0]+nx*side,
-    height+sampleHeight(p[0]+nx*side,p[1]+nz*side),
-    p[1]+nz*side];
-  quad(buf,vertex(a,1),vertex(b,1),vertex(b,-1),vertex(a,-1),tint);
+  // Small, individually sampled quads hug both the longitudinal slope and
+  // crossfall: long single-plane ribbons used to cut through the terrain.
+  for (const [leftStart, leftEnd, rightEnd, rightStart] of
+    terrainBandQuads(a, b, halfWidth, height, sampleHeight)) {
+    quad(buf, leftStart, leftEnd, rightEnd, rightStart, tint);
+  }
 }
 function simpleSign(text, backdrop = "#142b38") {
   const canvas = document.createElement("canvas");
@@ -85,7 +83,7 @@ export function createWorld(scene, map, options = {}) {
   }
   const terrainWidth=bounds.maxX-bounds.minX,terrainDepth=bounds.maxZ-bounds.minZ;
   const terrainGeo=new THREE.PlaneGeometry(terrainWidth,terrainDepth,
-    Math.max(2,Math.ceil(terrainWidth/19)),Math.max(2,Math.ceil(terrainDepth/19)));
+    Math.max(2,Math.ceil(terrainWidth/12)),Math.max(2,Math.ceil(terrainDepth/12)));
   terrainGeo.rotateX(-Math.PI/2);
   const landPosition=terrainGeo.getAttribute("position");
   const terrainCX=(bounds.minX+bounds.maxX)/2,terrainCZ=(bounds.minZ+bounds.maxZ)/2;
