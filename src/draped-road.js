@@ -7,13 +7,69 @@
  * Pure logic, reusable by WebGL meshes, terrain carving and car physics.
  */
 const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 export const ROAD_SAMPLE_METRES=5;
 export const GRADE_SMOOTH_METRES=10;
+export const ADAPTIVE_MIN_STEP_METRES=3;
+
+/** Subdivide steep or winding streets without spending polygons on flat
+ * straight stretches. OSM control points are never displaced or removed. */
+export function adaptiveRoadStep(points,index,heightAt,coarseStep=9){
+  const a=points[index-1],b=points[index];
+  const dx=b[0]-a[0],dz=b[1]-a[1],len=Math.hypot(dx,dz);
+  if(len<.02)return coarseStep;
+  const h0=heightAt(...a),h1=heightAt(...b);
+  const grade=Math.abs(h1-h0)/len;
+  let variation=0;
+  for(const t of [.25,.5,.75]){
+    const measured=heightAt(lerp(a[0],b[0],t),lerp(a[1],b[1],t));
+    variation=Math.max(variation,Math.abs(measured-lerp(h0,h1,t)));
+  }
+  const turn=(u,v)=>{
+    const ul=Math.hypot(...u),vl=Math.hypot(...v);
+    if(ul<.02||vl<.02)return 0;
+    return Math.acos(clamp((u[0]*v[0]+u[1]*v[1])/(ul*vl),-1,1));
+  };
+  const incoming=index>1?turn([
+    a[0]-points[index-2][0],a[1]-points[index-2][1]],[dx,dz]):0;
+  const outgoing=index+1<points.length?turn([dx,dz],[
+    points[index+1][0]-b[0],points[index+1][1]-b[1]]):0;
+  const bend=Math.max(incoming,outgoing);
+  if(grade>.16||variation>.32||bend>.30)
+    return Math.min(coarseStep,ADAPTIVE_MIN_STEP_METRES);
+  if(grade>.085||variation>.12||bend>.14)
+    return Math.min(coarseStep,5);
+  return coarseStep;
+}
+
+/** A DEM pixel is not a 3D survey of the road surface. Suppress abrupt
+ * altitude spikes inside a way, preserving fixed OSM junction anchors. */
+export function stabilizeRoadGrades(samples,maxSlope){
+  if(!Number.isFinite(maxSlope)||maxSlope<=0)return samples;
+  const restrict=(i,j)=>{
+    const a=samples[i],b=samples[j];
+    const ds=Math.abs(b.distance-a.distance);
+    if(ds<.02)return;
+    const allowed=maxSlope*ds+.02;
+    const diff=b.base-a.base;
+    if(Math.abs(diff)<=allowed)return;
+    const corrected=a.base+Math.sign(diff)*allowed;
+    if(!b.fixed)b.base=corrected;
+    else if(!a.fixed)a.base=b.base-Math.sign(diff)*allowed;
+  };
+  // Alternating passes keep original route endpoints and true junctions
+  // stationary; only interpolated grade samples may move.
+  for(let pass=0;pass<3;pass++){
+    for(let i=1;i<samples.length;i++)restrict(i-1,i);
+    for(let i=samples.length-1;i>0;i--)restrict(i,i-1);
+  }
+  return samples;
+}
 export const coordinateKey=point=>point[0].toFixed(3)+":"+point[1].toFixed(3);
 
 export function drapedSections(points,heightAt,{
   step=ROAD_SAMPLE_METRES,radius=GRADE_SMOOTH_METRES,
-  fixedJunctions=new Set()
+  fixedJunctions=new Set(),adaptive=false,maxSlope=null
 }={}) {
   if(!Array.isArray(points)||points.length<2)return [];
   const out=[{p:[...points[0]],distance:0,raw:heightAt(...points[0]),fixed:true}];
@@ -21,7 +77,8 @@ export function drapedSections(points,heightAt,{
   for(let i=1;i<points.length;i++){
     const a=points[i-1],b=points[i],length=Math.hypot(b[0]-a[0],b[1]-a[1]);
     if(length<.02)continue;
-    const count=Math.max(1,Math.ceil(length/step));
+    const localStep=adaptive?adaptiveRoadStep(points,i,heightAt,step):step;
+    const count=Math.max(1,Math.ceil(length/localStep));
     for(let k=1;k<=count;k++){
       const t=k/count,p=[lerp(a[0],b[0],t),lerp(a[1],b[1],t)];
       const anchor=k===count && (i===points.length-1||fixedJunctions.has(coordinateKey(b)));
@@ -48,7 +105,7 @@ export function drapedSections(points,heightAt,{
     // plane or shift the road metres above its measured surroundings.
     a.base=a.raw+Math.max(-1.1,Math.min(1.1,sum/weight-a.raw));
   }
-  return out;
+  return stabilizeRoadGrades(out,maxSlope);
 }
 
 export function createRoadSurfaceIndex(surfaceSegments,cellSize=75){
