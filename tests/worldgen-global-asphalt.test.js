@@ -15,8 +15,9 @@ const inside=(p,t)=>{
     (a[0]-c[0])*(b[2]-c[2])-(b[0]-c[0])*(a[2]-c[2]);
   const [a,b,c]=t;
   const d1=sign(p,a,b),d2=sign(p,b,c),d3=sign(p,c,a);
-  return !(d1< -1e-7||d2< -1e-7||d3< -1e-7)&&
-    !(d1>1e-7||d2>1e-7||d3>1e-7);
+  const hasNegative=d1< -1e-7||d2< -1e-7||d3< -1e-7;
+  const hasPositive=d1>1e-7||d2>1e-7||d3>1e-7;
+  return !(hasNegative&&hasPositive);
 };
 const polygonCount=(result,p)=>{
   let count=0;
