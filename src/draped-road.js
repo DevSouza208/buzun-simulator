@@ -7,7 +7,7 @@
  * Pure logic, reusable by WebGL meshes, terrain carving and car physics.
  */
 const lerp=(a,b,t)=>a+(b-a)*t;
-export const ROAD_SAMPLE_METRES=3.5;
+export const ROAD_SAMPLE_METRES=5;
 export const GRADE_SMOOTH_METRES=10;
 export const coordinateKey=point=>point[0].toFixed(3)+":"+point[1].toFixed(3);
 
