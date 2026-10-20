@@ -108,7 +108,9 @@ export function createStreamingCityWorld(scene,map){
     maxCooperativeSliceMs:0,cooperativeCpuMs:0,
     cancelledBackgroundRegions:0,buildStage:null,
     asphaltWorkerRegions:0,asphaltWorkerFallbacks:0,
-    asphaltWorkerTriangles:0};
+    asphaltWorkerTriangles:0,
+    maxCooperativeStepMs:0,slowestCooperativeStage:null,
+    slowCooperativeSteps:0,asphaltWorkerWaitSlices:0};
   const buildRegion=(rx,rz)=>{
     const key=regionKey(rx,rz);
     if(loaded.has(key)||emptyRegions.has(key))return;
@@ -266,6 +268,16 @@ export function createStreamingCityWorld(scene,map){
           counters.maxCooperativeSliceMs=Math.max(
             counters.maxCooperativeSliceMs,step.elapsed||0);
           counters.cooperativeCpuMs+=step.elapsed||0;
+          if(task.runner.stats.maxStepMs>counters.maxCooperativeStepMs){
+            counters.maxCooperativeStepMs=task.runner.stats.maxStepMs;
+            counters.slowestCooperativeStage=task.runner.stats.slowestStage;
+          }
+          counters.slowCooperativeSteps+=
+            task.runner.stats.slowSteps-(task.reportedSlowSteps||0);
+          task.reportedSlowSteps=task.runner.stats.slowSteps;
+          counters.asphaltWorkerWaitSlices+=
+            task.runner.stats.waitSlices-(task.reportedWaitSlices||0);
+          task.reportedWaitSlices=task.runner.stats.waitSlices;
           counters.buildStage=step.progress?.stage||"finalizando";
           if(step.done){
             const scenery=step.value;
