@@ -1,0 +1,43 @@
+{
+  "id": "belmira-mcd-habibs",
+  "avenue": "Avenida Dona Belmira Marin",
+  "start": {
+    "name": "McDonald's Belmira",
+    "address": "Av. Dona Belmira Marin, 1277",
+    "lat": -23.7414161,
+    "lon": -46.6916534,
+    "verifiedFrom": "https://www.mcdonalds.com.br/restaurantes/sao-paulo/belmira-marin-bel-bel"
+  },
+  "end": {
+    "name": "Habib's Grajaú",
+    "address": "Av. Dona Belmira Marin, 111",
+    "lat": -23.7327927,
+    "lon": -46.6969538,
+    "verifiedFrom": "https://www.habibs.com.br/blog-do-genio/37-o-mes-das-criancas-ta-on-no-habibs"
+  },
+  "bbox": [
+    -46.699,
+    -23.7427,
+    -46.6904,
+    -23.7317
+  ],
+  "mainRoadBufferMeters": 55,
+  "sideRoadBufferMeters": 58,
+  "buildingBufferMeters": 90,
+  "dem": {
+    "baseElevationMeters": 780,
+    "grid": {
+      "x0": -210,
+      "z0": -610,
+      "step": 70,
+      "nx": 16,
+      "nz": 20
+    }
+  },
+  "assets": {
+    "photoReferences": "not_used",
+    "facadeGeneration": "local low-poly material templates",
+    "r2": "future"
+  },
+  "note": "Brand frontages are approximations; do not claim photo-real or verified facade at McDonalds without review."
+}
