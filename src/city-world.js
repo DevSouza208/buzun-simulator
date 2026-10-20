@@ -2,54 +2,19 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import { sampleHeight, getTerrainBounds, getTerrainMode } from "./terrain.js";
 import { createRoadScene, STREET_PALETTE } from "./city-road-mesh.js";
 import { graphFromRoads } from "./grajau-osm.js";
+import { createCarvedTerrain } from "./terrain-cutout.js";
 
 /** Temporary streets-only Grajaú map, no buildings nor speculative POIs. */
-function buildGround(scene,roads) {
+function roadBounds(roads) {
   let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
   for(const road of roads)for(const [x,z] of road.p){
     minX=Math.min(minX,x);maxX=Math.max(maxX,x);
     minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);
   }
   if(!Number.isFinite(minX))throw Error("Sem limites de mapa válidos");
-  const offset=210;
-  minX-=offset;maxX+=offset;minZ-=offset;maxZ+=offset;
-  // Fine relief only where measured SRTM data exists. Outside the exported
-  // DEM we deliberately use flat base instead of presenting fake altitudes.
-  // Splitting the ground prevents a coarse citywide mesh from covering roads.
-  const dem=getTerrainBounds();
-  const inner={
-    minX:Math.max(minX,dem.minX),maxX:Math.min(maxX,dem.maxX),
-    minZ:Math.max(minZ,dem.minZ),maxZ:Math.min(maxZ,dem.maxZ)
-  };
-  const regions=[];
-  if(inner.maxX>inner.minX&&inner.maxZ>inner.minZ){
-    regions.push([inner.minX,inner.maxX,inner.minZ,inner.maxZ,getTerrainMode()==="terrarium"?24:12]);
-    regions.push([minX,inner.minX,minZ,maxZ,140]);
-    regions.push([inner.maxX,maxX,minZ,maxZ,140]);
-    regions.push([inner.minX,inner.maxX,minZ,inner.minZ,140]);
-    regions.push([inner.minX,inner.maxX,inner.maxZ,maxZ,140]);
-  }else regions.push([minX,maxX,minZ,maxZ,140]);
-  const material=new THREE.MeshLambertMaterial({
-    color:STREET_PALETTE.ground,side:THREE.DoubleSide,flatShading:true
-  });
-  for(const [x0,x1,z0,z1,step] of regions) {
-    if(x1-x0<1||z1-z0<1)continue;
-    const geo=new THREE.PlaneGeometry(x1-x0,z1-z0,
-      Math.max(1,Math.ceil((x1-x0)/step)),
-      Math.max(1,Math.ceil((z1-z0)/step)));
-    geo.rotateX(-Math.PI/2);
-    const attr=geo.getAttribute("position"),cx=(x0+x1)/2,cz=(z0+z1)/2;
-    for(let i=0;i<attr.count;i++){
-      const x=attr.getX(i)+cx,z=attr.getZ(i)+cz;
-      attr.setY(i,sampleHeight(x,z)-.13);
-    }
-    geo.computeVertexNormals();
-    const ground=new THREE.Mesh(geo,material);
-    ground.position.set(cx,0,cz);
-    ground.name=step<=24?"Grajau_Relief_HighRes":"Grajau_Ground_Outer";
-    scene.add(ground);
-  }
-  return {minX,maxX,minZ,maxZ};
+  const padding=220;
+  return {minX:minX-padding,maxX:maxX+padding,
+    minZ:minZ-padding,maxZ:maxZ+padding};
 }
 function makeSpatialIndex(segments,cellSize=100){
   const grid=new Map(),key=(x,z)=>x+":"+z;
@@ -81,8 +46,12 @@ function projectionOnSegment(x,z,s){
     angle:Math.atan2(dx,-dz),segment:s};
 }
 export function createCityWorld(scene,map) {
-  const bounds=buildGround(scene,map.roads);
+  const bounds=roadBounds(map.roads);
   const scenery=createRoadScene(scene,map.roads,sampleHeight);
+  // Asphalt + sidewalks own their footprint. Ground is clipped under them
+  // at fragment level, not just placed a few centimetres lower.
+  const ground=createCarvedTerrain(scene,scenery.corridors,
+    scenery.junctionPoints,sampleHeight,bounds);
   const index=makeSpatialIndex(scenery.segments);
   const graph=graphFromRoads(map.roads);
   function closest(x,z) {
@@ -117,6 +86,7 @@ export function createCityWorld(scene,map) {
     knownWidths:map.roads.filter(r=>r.widthSource==="osm:width").length
   };
   scenery.updateVisibility(spawn.x,spawn.z);
+  ground.update(spawn.x,spawn.z,12);
   return {
     segments:scenery.segments,spawn,terminalSpawn:spawn,pilotSpawns:empty,
     collides:()=>false,
@@ -124,7 +94,7 @@ export function createCityWorld(scene,map) {
     heightAt:sampleHeight,facades:empty,corridorLandmarks,
     closest,
     nearbySegments:(x,z,r=650)=>index.candidates(x,z,r),
-    update:(x,z)=>scenery.updateVisibility(x,z),
+    update:(x,z)=>{scenery.updateVisibility(x,z);ground.update(x,z);},
     graph,stats,bounds
   };
 }
