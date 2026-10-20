@@ -1,7 +1,7 @@
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "series": "0.1",
-  "patch": 1,
-  "description": "Buzun Simulator — prototype build version updated by GitHub Actions",
+  "patch": 2,
+  "description": "Versioned automatically after changes to main",
   "source": "public/data/version.json"
 }
