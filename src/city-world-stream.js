@@ -3,8 +3,8 @@ import {createRoadScene,createRoadSceneSteps,getJunctions}
   from "./city-road-mesh.js";
 import {createCooperativeRunner} from "./worldgen-cooperative.js";
 import {createRegionGeometryCache} from "./worldgen-region-cache.js";
-import {resolveRegionalHeight,resolveRegionalSurface,roadRegionAhead}
-  from "./worldgen-boundary-height.js";
+import {resolveRegionalHeight,resolveRegionalSurface,roadRegionAhead,
+  prioritizeBoundaryQueue} from "./worldgen-boundary-height.js";
 import {createRoadCorridors} from "./road-corridor.js";
 import {createCarvedTerrain} from "./terrain-cutout.js";
 import {graphFromRoads} from "./grajau-osm.js";
@@ -395,15 +395,7 @@ export function createStreamingCityWorld(scene,map){
     if(ahead?.key!==lastPrefetchKey)lastPrefetchKey=null;
     if(ahead&&!loaded.has(ahead.key)&&
        !emptyRegions.has(ahead.key)){
-      const idx=queue.findIndex(r=>r.key===ahead.key);
-      if(idx>=0){
-        const [item]=queue.splice(idx,1);
-        queue.unshift(item);
-      }else{
-        // This path should be rare, but ensure a diagonal crossing is
-        // not missed by any nearest-center ranking.
-        queue.unshift(ahead);
-      }
+      queue=prioritizeBoundaryQueue(queue,ahead);
       if(lastPrefetchKey!==ahead.key){
         counters.boundaryPrefetches++;
         lastPrefetchKey=ahead.key;
