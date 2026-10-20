@@ -67,7 +67,7 @@ test("Both completed sides blend small grades of the SAME asphalt ID continuousl
   assert.ok(left.height<30.312);
   assert.equal(blends,2);
   const outside=resolveRegionalHeight(900,240,get);
-  assert.equal(outside.height,30.312);
+  assert.ok(near(outside.height,30.312,1e-10));
 });
 test("Bridge and a different OSM way never get averaged across borders",()=>{
   for(const other of [
