@@ -441,8 +441,9 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   // curb orientation and ramp heights are computed by the SAME pure
   // composer in both the background Worker and fallback path.
   const emitRoadside=(kind,vertices)=>{
-    const mid=[vertices.reduce((n,v)=>n+v[0],0)/vertices.length,
-      vertices.reduce((n,v)=>n+v[2],0)/vertices.length];
+    const sample=kind==="curb"?vertices.slice(0,2):vertices;
+    const mid=[sample.reduce((n,v)=>n+v[0],0)/sample.length,
+      sample.reduce((n,v)=>n+v[2],0)/sample.length];
     const buffer=chunkFor(mid)[kind];
     if(kind==="curb")addQuad(buffer,...vertices);
     else addTri(buffer,...vertices);
