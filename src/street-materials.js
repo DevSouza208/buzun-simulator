@@ -17,8 +17,13 @@ const hash=(x,y,seed)=>{
   return ((n^(n>>>16))>>>0)%1024/1023;
 };
 const color=(n)=>Math.max(0,Math.min(255,Math.round(n)));
+// Three.js road scene calls the sidewalk material "walk". Use one canonical
+// material specification for both identifiers, including pixel patterns and
+// UVs. A mismatched name must never crash the complete world at startup.
+const canonicalKind=kind=>kind==="walk"?"sidewalk":kind;
 export function streetMaterialSpec(kind){
-  const c=CONFIG[kind];if(!c)throw Error("Material viário desconhecido: "+kind);
+  const c=CONFIG[canonicalKind(kind)];
+  if(!c)throw Error("Material viário desconhecido: "+kind);
   return c;
 }
 export function streetUv(x,z,kind){
@@ -29,12 +34,14 @@ export function streetTexturePixels(kind,size=64){
   if(!Number.isInteger(size)||size<16||size>256)
     throw Error("Tamanho de textura incompatível");
   const {base,noise}=streetMaterialSpec(kind);
+  const material=canonicalKind(kind);
   const pixels=new Uint8Array(size*size*4);
   let low=255,high=0,seamPixels=0;
   for(let z=0;z<size;z++)for(let x=0;x<size;x++){
-    const random=hash(x,z,kind==="asphalt"?7:kind==="sidewalk"?13:29);
+    const random=hash(x,z,material==="asphalt"?7:
+      material==="sidewalk"?13:29);
     let v=(random-.5)*2*noise;
-    if(kind==="sidewalk"){
+    if(material==="sidewalk"){
       // Delicate expansion joints between square pavement blocks.
       // Edges wrap cleanly in both directions and stay world-aligned
       // when a sidewalk is clipped by an intersection or curb cut.
@@ -42,7 +49,7 @@ export function streetTexturePixels(kind,size=64){
       else if(x===1||z===1){v-=7;seamPixels++;}
       else if((x>size*.48&&x<size*.54)&&
               (z>size*.48&&z<size*.54))v-=2;
-    }else if(kind==="asphalt"){
+    }else if(material==="asphalt"){
       // Grain is subtle; do not paint sharp lane-looking stripes.
       if(hash(x,z,61)>.986)v+=6;
     }else{
@@ -57,6 +64,6 @@ export function streetTexturePixels(kind,size=64){
     }
     pixels[index+3]=255;
   }
-  return {kind,size,data:pixels,tileMetres:CONFIG[kind].tileMetres,
+  return {kind,size,data:pixels,tileMetres:CONFIG[material].tileMetres,
     low,high,seamPixels};
 }
