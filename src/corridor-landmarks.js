@@ -42,11 +42,13 @@ export function buildCorridorLandmarks(scene,map,{sampleHeight,closestStreet}) {
   const results=[];
   for(const loc of map.landmarks){
     const baseName=loc.key==="mcdonalds"?"McDonald's":"Habib's";
+    // Real address remains the route anchor; fictional brands dress the game.
+    const fictionalName=loc.key==="mcdonalds"?"Mc Donaits":"HabiBuz";
     const brand=loc.key==="mcdonalds"
       ? {primary:"#cc302f",secondary:"#ffe783",walls:"#ead5ae",glass:"#4f7c89"}
       : {primary:"#174b9b",secondary:"#f9f2dc",walls:"#ddd8c9",glass:"#456d91"};
     const group=new THREE.Group();group.name="BuzunLandmark_"+loc.key;
-    group.userData={key:loc.key,confidence:loc.confidence||"unverified",referenceOnly:true};
+    group.userData={key:loc.key,confidence:loc.confidence||"unverified",referenceOnly:true,fictionalStoreBrand:fictionalName};
     const found=map.buildings.find(b=>b.id===loc.buildingId);
     const alternatives=map.buildings.map(b=>{
       const p=b.p.slice(0,-1),cx=p.reduce((s,v)=>s+v[0],0)/p.length,cz=p.reduce((s,v)=>s+v[1],0)/p.length;
@@ -66,7 +68,7 @@ export function buildCorridorLandmarks(scene,map,{sampleHeight,closestStreet}) {
         wallPanel(group,left,right,y+.15,y+3.15,brand.glass,.09);
         wallPanel(group,left,right,y+3.18,y+4.1,brand.primary,.14);
         const mid=f.mid;
-        const label=sign(baseName,brand.primary,brand.secondary);
+        const label=sign(fictionalName,brand.primary,brand.secondary);
         label.scale.set(Math.max(11,Math.min(21,f.length*.95)),4.6,1);
         label.position.set(mid[0],y+6.3,mid[1]);
         group.add(label);
@@ -79,7 +81,7 @@ export function buildCorridorLandmarks(scene,map,{sampleHeight,closestStreet}) {
       }
     }
     const nearest=closestStreet(...loc.xy);
-    const marker=sign(confirmed?baseName:baseName+" · ref.",brand.primary,brand.secondary);
+    const marker=sign(fictionalName,brand.primary,brand.secondary);
     marker.scale.set(18,4.5,1);
     const bx=building ? building.p.slice(0,-1).reduce((s,v)=>s+v[0],0)/(building.p.length-1) : loc.xy[0];
     const bz=building ? building.p.slice(0,-1).reduce((s,v)=>s+v[1],0)/(building.p.length-1) : loc.xy[1];
