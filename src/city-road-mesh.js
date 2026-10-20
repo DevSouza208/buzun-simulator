@@ -13,7 +13,7 @@ export const STREET_PALETTE=Object.freeze({
   asphalt:"#364250",walk:"#d6d0c6",curb:"#eee1cf",shoulder:"#a5b89d",
   white:"#eee8dc",yellow:"#e9c86c",ground:"#a5b89d"
 });
-const SPACING=3.5; // metre-to-metre tessellation; no coordinate scaling
+const SPACING=5; // metre-to-metre tessellation; no coordinate scaling
 function lerp(a,b,t){return a+(b-a)*t;}
 function addTri(buffer,a,b,c){
   buffer.push(...a,...b,...c);
