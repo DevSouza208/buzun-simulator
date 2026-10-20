@@ -15,6 +15,8 @@ import { planPedestrianCrossings,buildZebraBars }
   from "./pedestrian-crossings.js";
 import { buildCurbRampZones,createRampIndex } from "./curb-ramps.js";
 import { streetTexturePixels,streetUv } from "./street-materials.js";
+import {makeWorldgenProfiler,geometryBudget,summarizeRoadSectors,
+  newRoadVisibilityStats,applyRoadTileLOD} from "./worldgen-diagnostics.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -178,6 +180,7 @@ export function getJunctions(roads){
   return [...touches.values()].filter(j=>j.ways.size>1);
 }
 export function createRoadScene(scene,roads,sampleHeight) {
+  const profiler=makeWorldgenProfiler();
   const chunks=new Map();
   const chunkFor=p=>{
     const key=chunkKey(p);
@@ -191,6 +194,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
   const laneStatistics={roadsByLaneCount:{},sourceCounts:{},
     oneWayRoads:0,constrainedByWidth:0,ambiguousLaneTags:0};
   const corridors=createRoadCorridors(roads);
+  profiler.mark("corredores_espaciais");
   const joints=getJunctions(roads);
   const pedestrianCrossings=planPedestrianCrossings(roads,joints);
   // Small per-40m tile index to suppress lane paint underneath zebra
@@ -238,6 +242,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
         if(Math.hypot(j.point[0]-p[0],j.point[1]-p[1])<j.maxWidth/2+1.1+clearance)return true;
     return false;
   };
+  profiler.mark("cruzamentos_terreno_planejamento");
   for(const road of roads){
     if(!road.p?.length)continue;
     const width=road.widthMeters||7,half=width/2,
@@ -327,12 +332,14 @@ export function createRoadScene(scene,roads,sampleHeight) {
   // Corner fillets share the SAME planar footprint with the asphalt
   // compositor and the sidewalk subtraction; never draw free-standing
   // rounded curb decorations without adding their road surface.
+  profiler.mark("amostragem_vias_e_pintura");
   asphaltPatches.push(...roundedCorners.patches);
   const asphaltUnion=unionAsphaltPatches(asphaltPatches,(triangle)=>{
     const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
       (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
     addTri(chunkFor(mid).asphalt,...triangle);
   });
+  profiler.mark("uniao_poligonal_asfalto");
   // Zebra paint is validated against the same draped road surface BEFORE
   // we carve ramps. Only actually paintable crossings receive curb cuts.
   const surface=createRoadSurfaceIndex(surfaceSegments);
@@ -348,6 +355,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
     crossingStatistics.barsPainted+=bars.length;
     verifiedRampSites.push(site);
   }
+  profiler.mark("verificacao_travessias");
   const rampGeometry=buildCurbRampZones(verifiedRampSites);
   const rampSurface=createRampIndex(rampGeometry.zones);
   // Use the same accepted sidewalk polygon union. The ramp cutter removes
@@ -369,6 +377,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
           (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
         addTri(chunkFor(mid).tactile,...triangle);
       }});
+  profiler.mark("uniao_calcadas_guias_rampas");
   const tiles=[];
   const seamStats={sharedVertices:0,snappedVertices:0,
     independentLevels:0,degenerateTriangles:0};
@@ -395,17 +404,26 @@ export function createRoadScene(scene,roads,sampleHeight) {
           key==="curb"||key==="tactile"?1e-6:.085});
       for(const k of Object.keys(seamStats))seamStats[k]+=health[k]||0;
     }
+    const budget=geometryBudget(ch);
     const group=new THREE.Group();
     group.name="Buzun_RoadTile_"+ch.x+"_"+ch.z;
+    const meshes={};
     for(const [key,color] of hues){
       const m=meshFrom(ch[key],color,
         key==="walk"||key==="curb"||key==="tactile",key);
-      if(m)group.add(m);
+      if(m){m.name="Buzun_"+key;group.add(m);meshes[key]=m;}
       ch[key].length=0;
     }
     scene.add(group);
-    tiles.push({x:ch.x,z:ch.z,group});
+    tiles.push({x:ch.x,z:ch.z,group,meshes,budget});
   }
+  profiler.mark("costura_e_alocacao_mesh");
+  const geometryStatistics=summarizeRoadSectors(tiles);
+  const buildProfile=profiler.report();
+  // The same object is updated in place so developer panels can observe
+  // current GPU draw-budget without walking the Three.js scene.
+  const lodStatistics=newRoadVisibilityStats();
+  let lastVisibility=null;
   return {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
     surface,asphaltUnion,laneStatistics,roadsideStats,filletSurface,
@@ -423,11 +441,15 @@ export function createRoadScene(scene,roads,sampleHeight) {
       tactileFragments:roadsideStats.tactileFragments
     },
     gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
-    // Spatial tile visibility keeps the full-city scene playable in-browser.
+    buildProfile,geometryStatistics,lodStatistics,
+    // Only 3D VISUAL detail is culled; physics, lane metadata, terrain,
+    // minimap and OSM geometry are unaffected. Recompute when the camera
+    // moves enough to matter, not 60 times per second.
     updateVisibility(x,z,radius=850) {
-      for(const tile of tiles)
-        tile.group.visible=Math.abs(tile.x*440+220-x)<radius+440&&
-          Math.abs(tile.z*440+220-z)<radius+440;
+      if(lastVisibility&&lastVisibility.radius===radius&&
+        Math.hypot(x-lastVisibility.x,z-lastVisibility.z)<10)return;
+      applyRoadTileLOD(tiles,x,z,{radius,stats:lodStatistics});
+      lastVisibility={x,z,radius};
     }
   };
 }
