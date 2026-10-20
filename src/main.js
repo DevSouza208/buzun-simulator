@@ -2,7 +2,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import { createWorld } from "./world.js";
 import { bindTouchControls } from "./touch-controls.js";
 import { modelYawFromHeading } from "./driving.js";
-import { heightAlongHeading } from "./terrain.js";
+import { heightAlongHeading, configureTerrain, getTerrainMode } from "./terrain.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -122,7 +122,7 @@ function resetCar(announce = true) {
   if (announce) showToast(spawn.label ? "Você está diante de: " + spawn.label : "Veículo reposicionado");
 }
 function visitFacade(nextIndex, announce = true) {
-  const places = world?.pilotSpawns || [];
+  const places = world?.previewSpawns || world?.pilotSpawns || [];
   if (!places.length) return false;
   spawnIndex = (nextIndex % places.length + places.length) % places.length;
   world.spawn = places[spawnIndex];
@@ -295,7 +295,7 @@ function toggleHelp(force) {
 function bindInputs() {
   mobileInput = bindTouchControls($("mobile-controls"), () => driving);
   $("facade-choice").addEventListener("change", e => {
-    const places = world?.pilotSpawns || [];
+    const places = world?.previewSpawns || world?.pilotSpawns || [];
     const found = places.findIndex(place => String(place.id) === e.target.value);
     if (found >= 0) visitFacade(found, driving);
   });
@@ -349,37 +349,24 @@ async function start() {
     // Marin street geometry extends the same local coordinate system.
     // Importing a road backbone first avoids downloading thousands of
     // distant building meshes on mobile before neighborhood tiles exist.
-    const [initialResponse, spineResponse, feedersResponse, facadeResponse] = await Promise.all([
-      fetch("./public/data/grajau.json"),
-      fetch("./public/data/belmira-marin.json"),
-      fetch("./public/data/cocaia-corredores.json"),
+    const [mapResponse, elevationResponse, facadeResponse] = await Promise.all([
+      fetch("./public/data/belmira-corridor.json"),
+      fetch("./public/data/belmira-elevation.json"),
       fetch("./public/data/facade-pilot.json"),
     ]);
-    if (!initialResponse.ok || !spineResponse.ok || !feedersResponse.ok || !facadeResponse.ok)
-      throw new Error("Não foi possível carregar os dados do Grajaú ou do piloto de fachadas.");
-    const [original, spine, feeders, pilot] = await Promise.all([
-      initialResponse.json(), spineResponse.json(), feedersResponse.json(),facadeResponse.json(),
+    if (!mapResponse.ok || !elevationResponse.ok || !facadeResponse.ok)
+      throw new Error("Não foi possível carregar o corredor Belmira e os dados de altitude.");
+    const [corridor, elevation, pilot] = await Promise.all([
+      mapResponse.json(), elevationResponse.json(), facadeResponse.json(),
     ]);
-    if (!Array.isArray(original.roads) || original.roads.length < 10 ||
-        !Array.isArray(spine.roads) || spine.roads.length < 15 ||
-        !Array.isArray(feeders.roads) || feeders.roads.length < 15)
-      throw new Error("Os dados de alguma das vias estão incompletos.");
-    if ([spine, feeders].some(part => part.origin.lat !== original.origin.lat ||
-                                    part.origin.lon !== original.origin.lon))
-      throw new Error("As origens geográficas dos arquivos não coincidem.");
-    // Keep full OSM ways without duplicating pieces already seen in the
-    // first neighbourhood extract. This is the permanent arterial skeleton
-    // on which future streamed low-poly neighbourhood sectors can be added.
-    const namedWays = new Map([...spine.roads, ...feeders.roads].map(road => [road.id, road]));
-    roadData = {
-      ...original,
-      roads: [
-        ...original.roads.filter(road => !namedWays.has(road.id)),
-        ...namedWays.values(),
-      ],
-      backbone: spine.stats,
-      feeders: feeders.stats,
-    };
+    if(!Array.isArray(corridor.roads) || corridor.roads.length<25 ||
+       !Array.isArray(corridor.buildings) || corridor.buildings.length<100)
+      throw new Error("O recorte da Belmira está incompleto.");
+    if (corridor.origin.lat!==elevation.origin.lat ||
+        corridor.origin.lon!==elevation.origin.lon)
+      throw new Error("As coordenadas do mapa e do terreno não coincidem.");
+    configureTerrain(elevation);
+    roadData = corridor;
 
     status.textContent = "Construindo ruas e fachadas low poly...";
     await new Promise(resolve => setTimeout(resolve, 25));
@@ -403,7 +390,35 @@ async function start() {
     scene.add(car);
     player = { x: world.spawn.x, z: world.spawn.z, yaw: world.spawn.angle,
       speed: 0, distance: 0, boundaryWarned: false };
-    if (world.pilotSpawns.length) visitFacade(0, false);
+    // Corridor showcase: two verified-address landmarks first, then the
+    // optional original three facade test models if present in this crop.
+    const landmarks = world.corridorLandmarks || [];
+    const locations = landmarks.map(loc => {
+      const road = world.closest(...loc.xy);
+      const roadHeading = road.angle;
+      const start = loc.roadPoint || [road.x,road.z];
+      const destination = landmarks.find(l=>l.key!==loc.key);
+      const towardDestination = destination
+        ? Math.atan2(destination.xy[0]-start[0], -(destination.xy[1]-start[1]))
+        : roadHeading;
+      const normalize = a => Math.atan2(Math.sin(a),Math.cos(a));
+      const angle = Math.abs(normalize(towardDestination-roadHeading))>Math.PI/2
+        ? normalize(roadHeading+Math.PI) : roadHeading;
+      const towardStore = Math.atan2(loc.xy[0]-start[0],-(loc.xy[1]-start[1]));
+      return {id:loc.key,label:loc.label,x:start[0],z:start[1],angle,
+        cameraOrbit:THREE.MathUtils.clamp(normalize(towardStore-angle),-.9,.9)};
+    });
+    world.previewSpawns=[...locations,...world.pilotSpawns];
+    const optionLabels = {mcdonalds:"01 — McDonald's (início da descida)",
+      habibs:"02 — Habib's (fim do corredor)"};
+    const selector=$("facade-choice");
+    selector.replaceChildren(...world.previewSpawns.map((loc,i)=>{
+      const option=document.createElement("option");
+      option.value=String(loc.id);
+      option.textContent=optionLabels[loc.id] || (i+1)+" — "+loc.label;
+      return option;
+    }));
+    if (world.previewSpawns.length) visitFacade(0,false);
     // Source map outlines may overlap roads; choose a road segment without
     // building collision as a safer spawn, close to the requested terminal.
     if (world.collides(player.x, player.z)) {
@@ -426,8 +441,8 @@ async function start() {
     clock = new THREE.Clock();
     tick();
     $("map-status").textContent = world.stats.roads + " trechos reais";
-    status.textContent = "Mundo pronto: " + world.stats.roads + " vias · " +
-      world.stats.pilotFacades + " fachadas piloto. Início em frente ao modelo selecionado.";
+    status.textContent = "Belmira pronta: McDonald’s → Habib’s · " +
+      world.stats.buildings + " construções · relevo " + (getTerrainMode()==="srtm30m"?"SRTM real.":"experimental.");
     startButton.disabled = false;
     startButton.textContent = "COMEÇAR A DIRIGIR  ↗";
   } catch (error) {
