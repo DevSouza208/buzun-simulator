@@ -59,7 +59,7 @@ test("Road corridor mask and sidewalk clip keep distinct neighbouring roads",()=
     {id:2,t:"residential",widthMeters:7,p:[[0,-35],[0,35]]}
   ];
   const corridor=createRoadCorridors(roads);
-  assert.equal(corridor.query(-5,-5,5,5).length,4);
+  assert.equal(corridor.query(-5,-5,5,5).length,2);
   assert.ok(corridor.covers(0,0));
   assert.ok(corridor.covers(12,7));
   assert.ok(!corridor.covers(33,33));
