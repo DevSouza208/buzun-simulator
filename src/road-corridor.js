@@ -184,16 +184,17 @@ function curbLineInsideCircle(a,b,center,radius) {
   return t1>t0?[t0,t1]:null;
 }
 export function visibleCurbIntervals(a,b,ownRoad,nearby=[],junctions=[]) {
+  const retreat=Math.max(0,Math.min(4,Number(ownRoad.cornerClearanceMeters)||0));
   if(Math.hypot(b[0]-a[0],b[1]-a[1])<.02)return [];
   const excluded=[];
   for(const s of nearby){
     if(String(s.id)===String(ownRoad.id)||
        (s.layer||0)!==(ownRoad.layer||0))continue;
-    const interval=curbLineInsideRoad(a,b,s);
+    const interval=curbLineInsideRoad(a,b,s,.14+retreat);
     if(interval)excluded.push(interval);
   }
   for(const j of junctions) {
-    const radius=Math.max(2.8,j.maxWidth/2+.43);
+    const radius=Math.max(2.8,j.maxWidth/2+.43+retreat);
     const interval=curbLineInsideCircle(a,b,j.point,radius);
     if(interval)excluded.push(interval);
   }
