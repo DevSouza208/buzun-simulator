@@ -5,6 +5,8 @@ import { drapedSections, createRoadSurfaceIndex, coordinateKey }
   from "./draped-road.js";
 import { unionAsphaltPatches, asphaltPriority, physicalLayer } from "./asphalt-union.js";
 import { resolveLanePlan, paintIntervals } from "./road-lanes.js";
+import { buildIntersectionGradeModels,reconcileRoadGrade }
+  from "./intersection-grade.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -151,6 +153,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
     oneWayRoads:0,constrainedByWidth:0,ambiguousLaneTags:0};
   const corridors=createRoadCorridors(roads);
   const joints=getJunctions(roads);
+  const gradeModels=buildIntersectionGradeModels(roads,joints,sampleHeight);
   const fixedJunctions=new Set(joints.map(j=>coordinateKey(j.point)));
   const junctionCells=new Map();
   const cellSize=40;
@@ -177,8 +180,10 @@ export function createRoadScene(scene,roads,sampleHeight) {
     // One elevation profile along the entire OSM way, subdivided into
     // short draped sections. Both asphalt edges, curbs and lane markings
     // share EXACTLY the same sampled road heights.
-    const sections=getSections(drapedSections(road.p,sampleHeight,
-      {fixedJunctions}),sampleHeight);
+    const sectionGrades=reconcileRoadGrade(
+      drapedSections(road.p,sampleHeight,{fixedJunctions}),
+      gradeModels.byWay.get(String(road.id)));
+    const sections=getSections(sectionGrades,sampleHeight);
     if(sections.length<2)continue;
     laneStatistics.roadsByLaneCount[lanePlan.total]=
       (laneStatistics.roadsByLaneCount[lanePlan.total]||0)+1;
@@ -265,7 +270,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
       const mid=[(wall[0][0]+wall[1][0])/2,
         (wall[0][2]+wall[1][2])/2];
       addQuad(chunkFor(mid).curb,...wall);
-    },{junctions:joints});
+    },{junctions:joints,bevelCurbs:true});
   const surface=createRoadSurfaceIndex(surfaceSegments);
   const tiles=[];
   const hues=[
@@ -291,6 +296,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
   return {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
     surface,asphaltUnion,laneStatistics,roadsideStats,
+    gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
       for(const tile of tiles)
