@@ -34,8 +34,7 @@ test("9m border halo covers owner, adjacent cells, corners and negative coordina
   assert.deepEqual(adjacentRoadRegions(880,440).map(x=>x.key),
     ["1:0","0:0"]);
   assert.deepEqual(adjacentRoadRegions(879,-.5).map(x=>x.key),
-    ["0:-1","-1:-1","0:0","-1:0"]
-      .map(()=>null).filter(Boolean).concat(["0:-1","1:-1","0:0","1:0"]));
+    ["0:-1","0:0","1:-1","1:0"]);
   const neg=adjacentRoadRegions(-.001,20).map(x=>x.key);
   assert.deepEqual(neg,["-1:0","0:0"]);
   const keys=adjacentRoadRegions(879,879).map(x=>x.key);
