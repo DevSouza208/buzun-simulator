@@ -196,7 +196,9 @@ export function getJunctions(roads){
  */
 export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   renderBounds=null,roadBatchSize=4,backgroundAsphalt=false,
-  backgroundRoadside=backgroundAsphalt
+  backgroundRoadside=backgroundAsphalt,
+  // One city-wide junction/grade authority shared by every streamed chunk.
+  globalGrades=null,globalFixedJunctions=null
 }={}) {
   const profiler=makeWorldgenProfiler();
   const detail=renderProfile(renderBounds);
@@ -239,14 +241,23 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
       }
     return false;
   };
-  const gradeModels=buildIntersectionGradeModels(roads,joints,sampleHeight);
+  // The same OSM way must have the same elevation samples on BOTH sides
+  // of a streaming boundary. Do not rebuild grades from a region subset:
+  // missing remote junction owners would create different vertical sheets.
+  const gradeModels=globalGrades||
+    buildIntersectionGradeModels(roads,joints,sampleHeight);
+  const localJointKeys=new Set(joints.map(j=>coordinateKey(j.point)));
+  const localGradeModels=globalGrades?
+    gradeModels.models.filter(g=>localJointKeys.has(coordinateKey(g.point))):
+    gradeModels.models;
   const roundedCorners=buildJunctionFillets(roads,joints,sampleHeight,
-    {gradeModels:gradeModels.models});
+    {gradeModels:localGradeModels});
   // Only OSM-confirmed dual one-way carriageways produce planted medians.
   // Crossroads cut these islands through the same asphalt polygon mask.
   const medians=findSeparatedCarriagewayMedians(roads,sampleHeight);
   const filletSurface=createFilletSurfaceIndex(roundedCorners.patches);
-  const fixedJunctions=new Set(joints.map(j=>coordinateKey(j.point)));
+  const fixedJunctions=globalFixedJunctions||
+    new Set(joints.map(j=>coordinateKey(j.point)));
   const junctionCells=new Map();
   const cellSize=40;
   const put=(x,z,item)=>{
@@ -580,7 +591,7 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
       tactileTriangles:roadsideStats.tactileTriangles,
       tactileFragments:roadsideStats.tactileFragments
     },
-    gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
+    gradeStatistics:{sharedJunctionPlanes:localGradeModels.length},
     buildProfile,geometryStatistics,lodStatistics,
     renderProfile:detail,asphaltWorkerStats,roadsideWorkerStats,
     // Only 3D VISUAL detail is culled; physics, lane metadata, terrain,
