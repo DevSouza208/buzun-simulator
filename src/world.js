@@ -124,7 +124,31 @@ export function createWorld(scene, map, options = {}) {
       }
     }
   }
-  for (const b of [shoulders, roads, stripes]) {
+  // Actual intersections: fill the gaps where named OSM way segments
+  // share a vertex. Streets ending at the crop boundary remain unconnected.
+  const junctions=positions(), crossings=new Map();
+  const jointKey=(p)=>p.map(v=>Math.round(v*10)).join(":");
+  for(const seg of segments){
+    for(const p of [seg.a,seg.b]){
+      const k=jointKey(p);
+      if(!crossings.has(k))crossings.set(k,{p,arms:[],names:new Set()});
+      const j=crossings.get(k);
+      j.arms.push(seg);
+      if(seg.name)j.names.add(seg.name);
+    }
+  }
+  for(const joint of crossings.values()){
+    if(joint.arms.length<3||joint.names.size<2)continue;
+    const radius=Math.max(...joint.arms.map(s=>s.width))/2+.18;
+    const [x,z]=joint.p,y=sampleHeight(x,z)+.046;
+    const paving=joint.arms.some(s=>["primary","secondary"].includes(s.type))?cAvenue:cRoad;
+    for(let i=0;i<12;i++){
+      const a=i*2*Math.PI/12,b=(i+1)*2*Math.PI/12;
+      tri(junctions,[x,y,z],[x+radius*Math.cos(a),sampleHeight(x+radius*Math.cos(a),z+radius*Math.sin(a))+.046,z+radius*Math.sin(a)],
+        [x+radius*Math.cos(b),sampleHeight(x+radius*Math.cos(b),z+radius*Math.sin(b))+.046,z+radius*Math.sin(b)],paving);
+    }
+  }
+  for(const b of [shoulders, roads, junctions, stripes]) {
     const mesh = materialMesh(b);
     if (mesh) scene.add(mesh);
   }
