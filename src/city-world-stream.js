@@ -10,6 +10,8 @@ import {resolveRegionalHeight,resolveRegionalSurface,roadRegionAhead,
   prioritizeBoundaryQueue} from "./worldgen-boundary-height.js";
 import {createRoadCorridors} from "./road-corridor.js";
 import {createCarvedTerrain} from "./terrain-cutout.js";
+import {createWorldSheet} from "./worldgen-sheet.js";
+import {createSheetTerrain} from "./worldgen-sheet-terrain.js";
 import {graphFromRoads} from "./grajau-osm.js";
 import {summarizeRoadSectors} from "./worldgen-diagnostics.js";
 import {createRegionRoadIndex,regionAt,regionKey,regionBounds,
@@ -87,7 +89,9 @@ function centerlineIndex(roads,cellSize=105){
   }
   return {segments,candidates,closest};
 }
-export function createStreamingCityWorld(scene,map){
+export function createStreamingCityWorld(scene,map,{
+  sheetPreview=false
+}={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
   const routeStart=map.route?.[0]||[0,0];
@@ -110,7 +114,14 @@ export function createStreamingCityWorld(scene,map){
     map.roads,globalJunctions,sampleHeight);
   const globalFixedJunctions=new Set(
     globalJunctions.map(j=>coordinateKey(j.point)));
-  const worldSource={globalGrades,globalFixedJunctions};
+  // v6 opt-in: one canonical, road-aware terrain height field. It is
+  // created once for all OSM roads and does not depend on region loading.
+  const worldSheet=sheetPreview?createWorldSheet(
+    renderRoads,sampleHeight,{
+      gradeModels:globalGrades,
+      fixedJunctions:globalFixedJunctions
+    }):null;
+  const worldSource={globalGrades,globalFixedJunctions,worldSheet};
   const loaded=new Map(),emptyRegions=new Set();
   const disposeRegion=record=>{
     for(const tile of record.scenery.tiles){
@@ -129,7 +140,8 @@ export function createStreamingCityWorld(scene,map){
   // for the next 10m player movement leaves every brand-new chunk visible
   // and can send hundreds of draw calls to WebGL (measured 1.8 FPS).
   let visibilityFocus={x:spawn.x,z:spawn.z};
-  const counters={mode:"experimental",regionMetres:REGION_METRES,
+  const counters={mode:sheetPreview?"world-sheet-preview":"experimental",
+    regionMetres:REGION_METRES,
     repairedRoadGaps:joinPlan.stats.connected,
     totalRoads:map.roads.length,loadedRegions:0,readyRegions:0,
     unloadedRegions:0,building:null,queuedRegions:0,
@@ -215,8 +227,12 @@ export function createStreamingCityWorld(scene,map){
       height:sampleHeight(nearest.x,nearest.z),
       distance:nearest.distance,halfWidth,walk:1.7,curbTop:.18};
   }};
-  const ground=createCarvedTerrain(scene,corridors,globalJunctions,
-    sampleHeight,bounds,roadSurfaceAdapter);
+  // A sheet does not cut a transparent hole underneath asphalt.
+  // Adjacent terrain chunks use precisely the same global H(x,z).
+  const ground=worldSheet?
+    createSheetTerrain(scene,worldSheet,bounds):
+    createCarvedTerrain(scene,corridors,globalJunctions,
+      sampleHeight,bounds,roadSurfaceAdapter);
   const graph=graphFromRoads(map.roads);
   const corridorLandmarks=(map.landmarks||[]).map(loc=>{
     const road=streets.closest(...loc.xy);
@@ -224,6 +240,16 @@ export function createStreamingCityWorld(scene,map){
       roadPoint:road?[road.x,road.z]:loc.xy,confirmedFootprint:false};
   });
   function heightAt(x,z){
+    if(worldSheet){
+      // Collision cannot change height when a neighboring chunk arrives:
+      // the entire road profile exists independently of streamed meshes.
+      const street=worldSheet.roadAt(x,z);
+      if(street?.distance<=street.halfWidth+.08)
+        return street.base+.072;
+      if(street?.distance<=street.halfWidth+street.walk)
+        return street.base+(street.curbTop??.18);
+      return worldSheet.height(x,z);
+    }
     const sampled=resolveRegionalHeight(x,z,regionScenery,{
       onBlend:()=>counters.boundaryHeightBlends++
     });
@@ -520,6 +546,7 @@ export function createStreamingCityWorld(scene,map){
       for(const record of loaded.values())disposeRegion(record);
       loaded.clear();
       cache.clear();
+      worldSheet&&ground.dispose();
       syncCacheStats();
       counters.loadedRegions=0;
     }
