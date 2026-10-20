@@ -167,7 +167,10 @@ export function createRoadScene(scene,roads,sampleHeight) {
   for(const road of roads){
     if(!road.p?.length)continue;
     const width=road.widthMeters||7,half=width/2,
-      foot=sidewalkWidth(road);
+      foot=sidewalkWidth(road),
+      curbTop=.04+Math.max(0,Math.min(.4,
+        Number.isFinite(Number(road.curbHeightMeters))
+          ? Number(road.curbHeightMeters):.14));
     // One elevation profile along the entire OSM way, subdivided into
     // short draped sections. Both asphalt edges, curbs and lane markings
     // share EXACTLY the same sampled road heights.
@@ -218,11 +221,11 @@ export function createRoadScene(scene,roads,sampleHeight) {
         };
         for(const poly of pieces) {
           if(poly.length<3)continue;
-          const first=[poly[0][0],atHeight(...poly[0])+.18,poly[0][1]];
+          const first=[poly[0][0],atHeight(...poly[0])+curbTop,poly[0][1]];
           for(let k=1;k<poly.length-1;k++){
             const p=poly[k],q=poly[k+1];
-            addTri(buffer.walk,first,[p[0],atHeight(...p)+.18,p[1]],
-              [q[0],atHeight(...q)+.18,q[1]]);
+            addTri(buffer.walk,first,[p[0],atHeight(...p)+curbTop,p[1]],
+              [q[0],atHeight(...q)+curbTop,q[1]]);
           }
         }
         // Clip the actual curb EDGE to road polygons and the circular
@@ -240,8 +243,8 @@ export function createRoadScene(scene,roads,sampleHeight) {
           const ca=curbSection(from),cb=curbSection(to);
           addQuad(buffer.curb,point(ca,inner,.04,sampleHeight),
             point(cb,inner,.04,sampleHeight),
-            point(cb,inner,.18,sampleHeight),
-            point(ca,inner,.18,sampleHeight));
+            point(cb,inner,curbTop,sampleHeight),
+            point(ca,inner,curbTop,sampleHeight));
         }
         // Do NOT paint terrain-coloured shoulder quads across the road.
         // Their old uncut ribbons caused green strips through intersections.
