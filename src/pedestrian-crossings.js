@@ -7,6 +7,7 @@
  * OSM junctions, away from the intersecting pavement itself.
  */
 import {physicalLayer,asphaltPriority} from "./asphalt-union.js";
+import {sidewalkWidth} from "./road-corridor.js";
 const EXCLUDED=new Set(["motorway","motorway_link","trunk","trunk_link"]);
 const EPS=1e-7;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -63,6 +64,7 @@ function waysAtJunction(junction,roadIndex){
       if(dot(direction,at.axis)<.90)continue;
       arms.push({
         roadId:road.id,layer:0,type:road.t,widthMeters:width,
+        sidewalkMeters:sidewalkWidth(road),
         from:junction.point,point:at.center,axis:at.axis,
         normal:normal(at.axis),offset,priority:asphaltPriority(road),
         source:"inferred-osm-junction"
