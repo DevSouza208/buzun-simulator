@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {adjacentRoadRegions,roadRegionAhead,
-  resolveRegionalHeight,resolveRegionalSurface,
+  resolveRegionalHeight,resolveRegionalSurface,prioritizeBoundaryQueue,
   BOUNDARY_HEIGHT_MARGIN,BOUNDARY_PREFETCH_METRES}
   from "../src/worldgen-boundary-height.js";
 import {regionAt,regionKey,REGION_METRES}
@@ -193,4 +193,19 @@ test("Sampling a parked region through peek does not resurrect it or update LRU 
   assert.equal(hit.fromNeighbor,true);
   assert.equal(cache.stats.hits,0);
   assert.equal(cache.stats.entries,1);
+});
+
+test("Directional boundary queue is stable, makes urgent next cell FIRST, and does not duplicate",()=>{
+  const queue=[{key:"1:1"},{key:"0:1"},{key:"1:0"}];
+  const ahead={key:"1:0",x:1,z:0};
+  const sorted=prioritizeBoundaryQueue(queue,ahead);
+  assert.deepEqual(sorted.map(r=>r.key),["1:0","1:1","0:1"]);
+  assert.deepEqual(queue.map(r=>r.key),["1:1","0:1","1:0"]);
+  assert.equal(new Set(sorted.map(r=>r.key)).size,3);
+  const extra={key:"-1:0",x:-1,z:0};
+  assert.deepEqual(prioritizeBoundaryQueue(queue,extra).map(r=>r.key),
+    ["-1:0","1:1","0:1","1:0"]);
+  assert.deepEqual(prioritizeBoundaryQueue(queue,extra,
+    key=>key==="-1:0"),queue);
+  assert.deepEqual(prioritizeBoundaryQueue(queue,null),queue);
 });
