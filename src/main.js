@@ -11,6 +11,7 @@ import { fetchGrajauRoads, combineLegacyRoads, GRAJAU_BBOX } from "./grajau-osm.
 import { loadCityElevations } from "./terrain-tiles.js";
 import { applyRoadEdits, readSavedEdits } from "./road-editor-model.js";
 import { mountRoadAdmin } from "./road-admin.js";
+import { mountWorldgenOverlay } from "./worldgen-overlay.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -28,7 +29,7 @@ const minimapContext = minimap.getContext("2d");
 const keys = new Set();
 let mobileInput;
 let world, player, car, renderer, scene, camera, clock, roadData;
-let sourceRoads=[], adminEditor=null;
+let sourceRoads=[], adminEditor=null, worldgenOverlay=null;
 let driving = false, cameraMode = 0, yawOrbit = 0, pitchOrbit = .15;
 let lastHud = 0, lastMinimap = 0, toastTimer = null;
 let pointerDown = false, lastPointerX = 0, lastPointerY = 0;
@@ -318,12 +319,14 @@ function tick() {
     const focus=adminEditor.focus();
     world.update?.(focus.x,focus.z);
     renderer.render(scene,adminEditor.getCamera());
+    worldgenOverlay?.frame(performance.now(),renderer,world);
     return;
   }
   advance(dt);
   world.update?.(player.x,player.z);
   updateCamera(dt);
   renderer.render(scene, camera);
+  worldgenOverlay?.frame(performance.now(),renderer,world);
   hud(performance.now());
   drawMinimap(performance.now());
 }
@@ -484,6 +487,13 @@ async function start() {
     camera = new THREE.PerspectiveCamera(60, 1, .1, 1550);
     resize();
     world = createWorld(scene, roadData, { cityRoads:true });
+    const search=new URLSearchParams(location.search);
+    const showWorldgen=search.get("worldgen")==="debug"||
+      search.get("debug")==="worldgen";
+    worldgenOverlay?.dispose();
+    worldgenOverlay=mountWorldgenOverlay({enabled:showWorldgen});
+    if(worldgenOverlay)window.buzunWorldgenReport=
+      ()=>worldgenOverlay.report(world);
     car = createCar();
     scene.add(car);
     player = { x: world.spawn.x, z: world.spawn.z, yaw: world.spawn.angle,
