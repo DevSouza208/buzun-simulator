@@ -131,7 +131,7 @@ function visitFacade(nextIndex, announce = true) {
   world.spawn = places[spawnIndex];
   $("facade-choice").value = String(world.spawn.id);
   if (player) resetCar(false);
-  if (announce) showToast("Modelo " + (spawnIndex + 1) + "/" + places.length + ": " + world.spawn.label);
+  if (announce) showToast("Ponto " + (spawnIndex + 1) + "/" + places.length + ": " + world.spawn.label);
   return true;
 }
 async function refreshBuildVersion() {
@@ -262,7 +262,7 @@ function hud(now) {
     goal.textContent=progress.remaining<28 && progress.offRoute<30
       ? "DESTINO: HABIB'S · CHEGOU!"
       : progress.offRoute>70 ? "FORA DO CORREDOR · RETORNE À BELMIRA"
-        : "HABIB'S · "+Math.round(progress.remaining/10)*10+" m RESTANTES";
+        : "HABIB'S · "+Math.round(progress.remaining)+" m RESTANTES";
   }
 }
 function drawMinimap(now) {
