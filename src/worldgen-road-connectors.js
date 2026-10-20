@@ -17,6 +17,25 @@ const dot=(a,b)=>a[0]*b[0]+a[1]*b[1];
 const normalName=s=>String(s||"").toLowerCase().normalize("NFD")
   .replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
 const key=(x,z)=>x+":"+z;
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+
+/** C1-continuous elevation across an inferred missing road span, including
+ * matched entry/exit slopes. Kept separate from the natural DEM fallback.
+ * Overlap tails extend the endpoint slope into each original road. */
+export function connectorHeightAt(road,x,z,fallback){
+  const grade=road?.joinProfile;
+  if(!grade)return fallback(x,z);
+  const {a,b,h0,h1,grade0,grade1}=grade;
+  const dx=b[0]-a[0],dz=b[1]-a[1],length=dx*dx+dz*dz;
+  if(length<.0001)return h0;
+  const t=((x-a[0])*dx+(z-a[1])*dz)/length;
+  const gap=Math.sqrt(length);
+  if(t<=0)return h0+grade0*t*gap;
+  if(t>=1)return h1+grade1*(t-1)*gap;
+  const t2=t*t,t3=t2*t;
+  return (2*t3-3*t2+1)*h0+(t3-2*t2+t)*gap*grade0+
+    (-2*t3+3*t2)*h1+(t3-t2)*gap*grade1;
+}
 
 function terminal(road,isStart){
   if(!Array.isArray(road.p)||road.p.length<2)return null;
@@ -104,9 +123,21 @@ export function buildSmoothRoadConnectors(roads,heightAt,{
     }
     p.push(to);
     const widthMeters=Math.min(a.width,b.width);
+    const segmentSlope=(start,end)=>{
+      const distance=Math.hypot(
+        start[0]-end[0],start[1]-end[1]);
+      return distance>.001?
+        clamp((heightAt(...end)-heightAt(...start))/distance,
+          -.28,.28):0;
+    };
+    // From A we travel outward; into B we travel inward.
+    const grade0=segmentSlope(a.inner,a.point);
+    const grade1=segmentSlope(b.point,b.inner);
     connectors.push({
       id:"buzun:join:"+String(a.road.id)+":"+String(b.road.id)+":"+i+":"+j,
       n:a.road.n,t:a.road.t,widthMeters,layer:a.layer,
+      joinProfile:{a:a.point,b:b.point,h0:heightAt(...a.point),
+        h1:heightAt(...b.point),grade0,grade1},
       bridge:Boolean(a.road.bridge),tunnel:Boolean(a.road.tunnel),
       widthSource:"inferred:continuity",p,
       visualConnector:true,joinGapMetres:gap
