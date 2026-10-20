@@ -62,9 +62,14 @@ export function waysFromOverpass(payload,origin=ORIGIN) {
     if(p.length<2)continue;
     const type=way.tags.highway;
     const {width,source}=widthFor(way.tags,type);
-    roads.push({id:way.id,t:type,n:way.tags.name||"",o:way.tags.oneway||"",
+    roads.push({id:way.id,t:type,n:way.tags.name||"",
+      o:way.tags.oneway||(way.tags.junction==="roundabout"?"yes":""),
       p,nodeIds:n,widthMeters:width,widthSource:source,
       lanes:Number.parseInt(way.tags.lanes,10)||null,
+      // Directional lane tags are necessary to handle asymmetrical 2+1
+      // roads without assigning a third lane to an invented direction.
+      lanesForward:Number.parseInt(way.tags["lanes:forward"],10)||null,
+      lanesBackward:Number.parseInt(way.tags["lanes:backward"],10)||null,
       bridge:way.tags.bridge==="yes",tunnel:way.tags.tunnel==="yes",
       layer:Number.parseInt(way.tags.layer,10)||0});
   }
