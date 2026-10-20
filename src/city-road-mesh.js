@@ -15,6 +15,7 @@ import { planPedestrianCrossings,buildZebraBars }
   from "./pedestrian-crossings.js";
 import { buildCurbRampZones,createRampIndex } from "./curb-ramps.js";
 import { streetTexturePixels,streetUv } from "./street-materials.js";
+import {clipMeshBufferToRegion} from "./worldgen-region-stream.js";
 import {makeWorldgenProfiler,geometryBudget,summarizeRoadSectors,
   newRoadVisibilityStats,applyRoadTileLOD} from "./worldgen-diagnostics.js";
 
@@ -179,7 +180,9 @@ export function getJunctions(roads){
   }
   return [...touches.values()].filter(j=>j.ways.size>1);
 }
-export function createRoadScene(scene,roads,sampleHeight) {
+export function createRoadScene(scene,roads,sampleHeight,{
+  renderBounds=null
+}={}) {
   const profiler=makeWorldgenProfiler();
   const chunks=new Map();
   const chunkFor=p=>{
@@ -393,6 +396,11 @@ export function createRoadScene(scene,roads,sampleHeight) {
     ["shoulder",STREET_PALETTE.shoulder]
   ];
   for(const ch of chunks.values()){
+    // Geometry was composed with halo roads, and only now cut to the
+    // authoritative region edge. Neighboring regions each own their own
+    // nonoverlapping half, including draped interpolation at cut vertices.
+    if(renderBounds)for(const [key] of hues)
+      ch[key]=clipMeshBufferToRegion(ch[key],renderBounds);
     // Snap and reconcile neighboring vertices AFTER all geometric clipping.
     // Identical X/Z points in asphalt, walks and curbs now have consistent
     // coordinates; real vertical steps/overpasses stay independent.
@@ -405,6 +413,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
       for(const k of Object.keys(seamStats))seamStats[k]+=health[k]||0;
     }
     const budget=geometryBudget(ch);
+    if(budget.triangles===0)continue;
     const group=new THREE.Group();
     group.name="Buzun_RoadTile_"+ch.x+"_"+ch.z;
     const meshes={};
