@@ -2,6 +2,11 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import { clippedLine, closestSegment, pointInPolygon, roadWidth, seeded } from "./geo.js";
 import { sampleHeight, getTerrainBounds } from "./terrain.js";
 import { terrainBandQuads } from "./road-geometry.js";
+import { avenueMarkings } from "./road-markings.js";
+import { chooseStreetFront, facadeRecipe } from "./facade-kit.js";
+import { frontagePanels } from "./facade-detail.js";
+import { addFictionalShopSigns } from "./store-signs.js";
+import { buildStreetFurniture } from "./street-furniture.js";
 import { buildCorridorLandmarks } from "./corridor-landmarks.js";
 import { buildPilotFacades } from "./world-engine.js";
 import { facadeRoadSpawns } from "./spawn.js";
@@ -99,9 +104,24 @@ export function createWorld(scene, map, options = {}) {
   scene.add(localLand);
 
   const shoulders = positions(), roads = positions(), stripes = positions();
+  const laneWhites = positions(), laneYellows = positions();
+  const routeSegments = [];
+  let routeDistance = 0;
+  for(let i=1;i<(map.route||[]).length;i++){
+    const a=map.route[i-1],b=map.route[i];
+    const length=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    if(length>.05)routeSegments.push({a,b,at:routeDistance,length});
+    routeDistance+=length;
+  }
   const segments = [];
   for (const road of map.roads) {
     const width = roadWidth(road.t);
+    // Authentic OSM polyline; only the paint/lane layout is approximate.
+    for(const mark of avenueMarkings(road,width)){
+      band(mark.color==="yellow"?laneYellows:laneWhites,
+        mark.a,mark.b,mark.halfWidth,.077,
+        mark.color==="yellow"?"#f4ce62":"#e6e4d9");
+    }
     for (let i = 1; i < road.p.length; i++) {
       const clipped = clippedLine(road.p[i - 1], road.p[i], 6500);
       if (!clipped) continue;
@@ -111,7 +131,7 @@ export function createWorld(scene, map, options = {}) {
       band(shoulders, a, b, width / 2 + 1.55, .008, cConcrete);
       band(roads, a, b, width / 2, .035,
         ["primary", "secondary"].includes(road.t) ? cAvenue : cRoad);
-      if (width >= 9 && len >= 9) {
+      if (width >= 9 && len >= 9 && !/Belmira Marin/i.test(road.n||"")) {
         const dx = (b[0] - a[0]) / len, dz = (b[1] - a[1]) / len;
         for (let d = 4; d < len - 1; d += 14) {
           const start = [a[0] + dx * d, a[1] + dz * d];
@@ -145,7 +165,7 @@ export function createWorld(scene, map, options = {}) {
         [x+radius*Math.cos(b),sampleHeight(x+radius*Math.cos(b),z+radius*Math.sin(b))+.046,z+radius*Math.sin(b)],paving);
     }
   }
-  for(const b of [shoulders, roads, junctions, stripes]) {
+  for(const b of [shoulders, roads, junctions, stripes, laneYellows, laneWhites]) {
     const mesh = materialMesh(b);
     if (mesh) scene.add(mesh);
   }
@@ -153,6 +173,7 @@ export function createWorld(scene, map, options = {}) {
   // Keep source OSM building IDs intact: a future facade editor can store
   // overrides per id rather than rewriting the underlying map.
   const walls = positions(), details = positions();
+  const signCandidates = [];
   const pilotIds = new Set((options.facadePilot?.buildings || []).map(x => x.osmId));
   const GRID = 32, collisionGrid = new Map();
   const key = (i, j) => i + ":" + j;
@@ -186,6 +207,24 @@ export function createWorld(scene, map, options = {}) {
         : b.use || b.n ? 4.2 + Math.floor(seed*3)*1.5
           : 4.4 + Math.floor(seed * 3) * 2.7 + (seeded(b.id*7)>.96?7:0);
     const facade = b.n==="Habib\'s" ? color("#dcd6c1") : buildingMaterials[Math.floor(seed * buildingMaterials.length)];
+    // Enrich the road-facing side only, keeping OSM geometry and collisions
+    // untouched; all unknown shop details remain clearly fictional.
+    const front=chooseStreetFront(poly,segments,29);
+    const recipe=front ? facadeRecipe(b,front,height) : null;
+    if(recipe){
+      for(const item of frontagePanels(front,recipe,sampleHeight))
+        quad(details,...item.corners,color(item.color));
+      if(recipe.kind==="shop" && routeSegments.length && front.roadDistance<23){
+        const nearRoute=closestSegment(front.mid[0],front.mid[1],routeSegments);
+        if(nearRoute && nearRoute.distance<38) {
+          const along=nearRoute.segment.at+nearRoute.t*nearRoute.segment.length;
+          signCandidates.push({id:b.id,x:front.mid[0],z:front.mid[1],
+            nx:front.nx,nz:front.nz,width:front.length,height,
+            y:sampleHeight(...front.mid),along,
+            score:nearRoute.distance});
+        }
+      }
+    }
     const roof = facade.clone().multiplyScalar(.80);
     const area = poly.reduce((sum, a, i) => {
       const next = poly[(i + 1) % poly.length];
@@ -231,6 +270,16 @@ export function createWorld(scene, map, options = {}) {
       }
     }
   }
+  // Distribute fake storefronts across the real avenue instead of creating
+  // dozens of repeating signs at one road junction.
+  signCandidates.sort((a,b)=>a.along-b.along||a.score-b.score);
+  const selectedSigns=[];
+  for(const sign of signCandidates) {
+    if(selectedSigns.length>=26)break;
+    if(selectedSigns.some(other=>Math.abs(other.along-sign.along)<31))continue;
+    selectedSigns.push(sign);
+  }
+  const fictionalStores=addFictionalShopSigns(scene,selectedSigns);
   const buildingMesh = materialMesh(walls, { lit: true });
   const windowMesh = materialMesh(details);
   if (buildingMesh) scene.add(buildingMesh);
@@ -248,6 +297,7 @@ export function createWorld(scene, map, options = {}) {
     return false;
   }
 
+  const streetFurniture=buildStreetFurniture(scene,map.route||[],segments,collides,sampleHeight);
   const pilotSpawns = facadeRoadSpawns(facades, segments, collides);
   const corridorLandmarks = buildCorridorLandmarks(scene, map, {sampleHeight,closestStreet:(x,z)=>closestSegment(x,z,segments)});
 
@@ -303,6 +353,6 @@ export function createWorld(scene, map, options = {}) {
   }
   return { segments, spawn, pilotSpawns, terminalSpawn, collides, inExploreArea, heightAt:sampleHeight, facades, corridorLandmarks,
     closest: (x, z) => closestSegment(x, z, segments),
-    stats: { roads: map.roads.length, buildings: stored.length, trees: trunks.length, pilotFacades:facades.length, landmarks:corridorLandmarks.length },
+    stats: { roads: map.roads.length, buildings: stored.length, trees: trunks.length, pilotFacades:facades.length, landmarks:corridorLandmarks.length, fictionalStores, utilityPoles:streetFurniture.count },
     terminal: { x, z } };
 }
