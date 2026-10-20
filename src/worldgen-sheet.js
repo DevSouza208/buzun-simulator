@@ -177,16 +177,9 @@ export function createWorldSheet(roads,naturalHeight,{
     if(!allHits.length)return natural;
     const hits=allHits.slice(0,5),owner=hits[0];
     let sum=0,total=0,lowestLane=Infinity,lowestWalk=Infinity;
-    // A grass triangle must never cover the footprint of any road
-    // actually drawn at ground level, even with incomplete OSM junctions.
-    // Topology controls BLENDING only; safety of the surface is universal.
-    for(const hit of allHits){
-      if(hit.distance<=hit.halfWidth+.08)
-        lowestLane=Math.min(lowestLane,hit.base-.24);
-      else if(hit.distance<=hit.halfWidth+hit.walk)
-        lowestWalk=Math.min(lowestWalk,
-          hit.base+(hit.curbTop??.18)-.10);
-    }
+    // Keep the ordinary road/crossing blend unchanged; the triangle-safe
+    // raster has its own conservative pavement clamp in meshHeight().
+    // Do not change the physics grade or established 6.1 shoulder profile.
     for(const hit of hits){
       if(!meetNear(owner.roadId,hit.roadId,x,z))continue;
       // Never combine unrelated vertical grades (e.g. missing OSM bridge
