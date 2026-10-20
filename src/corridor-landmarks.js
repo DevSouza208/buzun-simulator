@@ -89,5 +89,29 @@ export function buildCorridorLandmarks(scene,map,{sampleHeight,closestStreet}) {
     results.push({key:loc.key,label:baseName,xy:loc.xy,buildingId:building?.id||null,confirmedFootprint:confirmed,
       roadPoint:nearest?[nearest.x,nearest.z]:loc.xy});
   }
+  // Additional business names come from OSM semantic tags, not photographs.
+  // They are locator cards only, not assertions about actual facade designs.
+  const placeNames=new Set(["habib's","habbibs"]);
+  for(const poi of map.pois||[]){
+    if(!poi.n || placeNames.has(poi.n.trim().toLowerCase()))continue;
+    const text=sign(poi.n,"#263c46","#e3f4d0");
+    text.name="OSM_POI_"+poi.id;
+    text.userData={osmId:poi.id,classification:poi.t,source:"OpenStreetMap",appearanceVerified:false};
+    text.scale.set(Math.max(9,Math.min(21,poi.n.length*1.15)),3.2,1);
+    text.position.set(poi.p[0],sampleHeight(...poi.p)+8.5,poi.p[1]);
+    scene.add(text);
+  }
+  for(const b of map.buildings||[]){
+    if(!b.n||b.n==="Habib's")continue;
+    const points=b.p.slice(0,-1);
+    const x=points.reduce((sum,p)=>sum+p[0],0)/points.length;
+    const z=points.reduce((sum,p)=>sum+p[1],0)/points.length;
+    const label=sign(b.n,"#263d42","#e5edcb");
+    label.name="OSM_NamedBuilding_"+b.id;
+    label.userData={osmId:b.id,source:"OpenStreetMap",appearanceVerified:false};
+    label.scale.set(Math.max(9,Math.min(20,b.n.length*1.2)),3.2,1);
+    label.position.set(x,sampleHeight(x,z)+10,z);
+    scene.add(label);
+  }
   return results;
 }
