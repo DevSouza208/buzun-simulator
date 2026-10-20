@@ -8,7 +8,8 @@ import {SHEET_TILE_METRES,SHEET_GRID_SEGMENTS}
  * Low-poly triangles are just partitions of a single logical sheet.
  */
 export function createSheetTerrain(scene,sheet,bounds,{
-  visibilityRadius=900,maxActive=26
+  // Denser 5m mesh: cap active tiles to preserve low-poly GPU budget.
+  visibilityRadius=900,maxActive=18
 }={}){
   const size=SHEET_TILE_METRES;
   const tiles=new Map();
