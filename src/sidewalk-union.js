@@ -82,13 +82,43 @@ const heightAt=(patch,p)=>{
   return patch.h0+(patch.h1-patch.h0)*t;
 };
 const lift=(patch,p,up)=>[p[0],heightAt(patch,p)+up,p[1]];
+/** Keep the editor's optional corner-recess control: it removes only the
+ * segment of an already-correct curb edge next to a real shared OSM node.
+ * No artificial circular ASPHALT or sidewalk polygons are introduced.
+ */
+export function retreatCurbAtJunctions(a,b,junctions,retreat=0){
+  if(!(retreat>0)||!junctions?.length)return [[a,b]];
+  const dx=b[0]-a[0],dz=b[1]-a[1],len=dx*dx+dz*dz;
+  if(len<1e-8)return [];
+  const removed=[];
+  for(const j of junctions){
+    const center=j.point,r=Math.max(2.8,(j.maxWidth||6)/2+.43)+retreat;
+    const sx=a[0]-center[0],sz=a[1]-center[1],A=len,
+      B=2*(sx*dx+sz*dz),C=sx*sx+sz*sz-r*r,
+      discriminant=B*B-4*A*C;
+    if(discriminant<=0)continue;
+    const t0=Math.max(0,(-B-Math.sqrt(discriminant))/(2*A));
+    const t1=Math.min(1,(-B+Math.sqrt(discriminant))/(2*A));
+    if(t1>t0)removed.push([t0,t1]);
+  }
+  removed.sort((a,b)=>a[0]-b[0]);
+  const kept=[];let cursor=0;
+  for(const [start,end] of removed){
+    if(start>cursor+.001)kept.push([cursor,start]);
+    cursor=Math.max(cursor,end);
+  }
+  if(cursor<1-.001)kept.push([cursor,1]);
+  const interpolate=t=>[a[0]+dx*t,a[1]+dz*t];
+  return kept.filter(([start,end])=>(end-start)*Math.sqrt(len)>.1)
+    .map(([start,end])=>[interpolate(start),interpolate(end)]);
+}
 /**
  * Warning: sidewalk meshes and curbs must use the same real asphalt
  * footprint; caller should pass the exact road ribbon patches consumed
  * by unionAsphaltPatches, not raw unsampled OSM ways.
  */
 export function composeRoadsideMeshes(asphaltPatches,walkPatches,
-  onSidewalk,onCurb,{cellSize=28}={}){
+  onSidewalk,onCurb,{cellSize=28,junctions=[]}={}){
   const asphalt=new PlanarIndex(cellSize),sidewalks=new PlanarIndex(cellSize);
   for(const patch of asphaltPatches){
     const layer=physicalLayer(patch);
@@ -100,6 +130,12 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
   const sorted=[...walkPatches].sort((a,b)=>
     asphaltPriority(b)-asphaltPriority(a)||
     String(a.id).localeCompare(String(b.id)));
+  const junctionsByWay=new Map();
+  for(const j of junctions)for(const id of j.ways||[]){
+    const key=String(id);
+    if(!junctionsByWay.has(key))junctionsByWay.set(key,[]);
+    junctionsByWay.get(key).push(j);
+  }
   let groundPieces=0,clipOperations=0,curbSegments=0,discarded=0;
   for(const patch of sorted){
     const layer=physicalLayer(patch);
@@ -162,9 +198,13 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
       if(before===after)continue;
       const h=patch.curbTop??.18;
       if(h<=.042)continue;
-      onCurb([lift(patch,a,.04),lift(patch,b,.04),
-        lift(patch,b,h),lift(patch,a,h)],patch);
-      curbSegments++;
+      for(const [start,end] of retreatCurbAtJunctions(a,b,
+        junctionsByWay.get(String(patch.id)),
+        patch.cornerClearanceMeters||0)){
+        onCurb([lift(patch,start,.04),lift(patch,end,.04),
+          lift(patch,end,h),lift(patch,start,h)],patch);
+        curbSegments++;
+      }
     }
   }
   return {sidewalkPolygons:groundPieces,curbSegments,
