@@ -249,7 +249,7 @@ export function createStreamingCityWorld(scene,map,{
         return street.base+.072;
       if(street?.distance<=street.halfWidth+street.walk)
         return street.base+(street.curbTop??.18);
-      return worldSheet.height(x,z);
+      return worldSheet.meshHeight(x,z);
     }
     const sampled=resolveRegionalHeight(x,z,regionScenery,{
       onBlend:()=>counters.boundaryHeightBlends++

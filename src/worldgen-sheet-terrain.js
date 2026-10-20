@@ -31,7 +31,7 @@ export function createSheetTerrain(scene,sheet,bounds,{
       ox=(gx+.5)*size,oz=(gz+.5)*size;
     for(let i=0;i<points.count;i++){
       const x=ox+points.getX(i),z=oz+points.getZ(i);
-      points.setY(i,sheet.height(x,z));
+      points.setY(i,sheet.tileSample(x,z));
     }
     points.needsUpdate=true;
     geometry.computeVertexNormals();

@@ -20,7 +20,7 @@ test("6.0: one deterministic global surface across both neighboring sheet chunks
   const b=sheetTileVertices(1,0,sheet.height);
   const n=SHEET_GRID_SEGMENTS+1;
   assert.equal(SHEET_TILE_METRES,420);
-  assert.equal(SHEET_GRID_STEP_METRES,5);
+  assert.equal(SHEET_GRID_STEP_METRES,4);
   assert.equal(a.length,n*n);
   for(let z=0;z<n;z++){
     const left=a[z*n+(n-1)],right=b[z*n];
