@@ -3,6 +3,7 @@ import { createWorld } from "./world.js";
 import { bindTouchControls } from "./touch-controls.js";
 import { modelYawFromHeading } from "./driving.js";
 import { heightAlongHeading, configureTerrain, getTerrainMode } from "./terrain.js";
+import { progressAlongRoute } from "./route-progress.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -237,7 +238,14 @@ function hud(now) {
   distanceText.textContent = (player.distance / 1000).toFixed(2) + " km";
   const near = world.closest(player.x, player.z);
   streetText.textContent = near?.segment.name || "Ruas do Grajaú";
-  terrainLabel.textContent = near && near.distance > near.segment.width / 2 + 4 ? "FORA DA VIA • VOLTE AO ASFALTO" : "EXPLORAÇÃO LIVRE";
+  terrainLabel.textContent = near && near.distance > near.segment.width / 2 + 4 ? "FORA DA VIA • VOLTE AO ASFALTO" : "BELMIRA: McDONALD'S → HABIB'S";
+  const goal=$("route-progress"),progress=progressAlongRoute(roadData?.route,player.x,player.z);
+  if(goal&&progress){
+    goal.textContent=progress.remaining<28 && progress.offRoute<30
+      ? "DESTINO: HABIB'S · CHEGOU!"
+      : progress.offRoute>70 ? "FORA DO CORREDOR · RETORNE À BELMIRA"
+        : "HABIB'S · "+Math.round(progress.remaining/10)*10+" m RESTANTES";
+  }
 }
 function drawMinimap(now) {
   if (now - lastMinimap < 150 || !world || !player) return;
@@ -425,10 +433,10 @@ async function start() {
       const viable = world.segments
         .filter(s => !world.collides((s.a[0] + s.b[0]) / 2, (s.a[1] + s.b[1]) / 2))
         .sort((a, b) =>
-          Math.hypot((a.a[0] + a.b[0]) / 2 - world.terminal.x,
-                     (a.a[1] + a.b[1]) / 2 - world.terminal.z)
-          - Math.hypot((b.a[0] + b.b[0]) / 2 - world.terminal.x,
-                       (b.a[1] + b.b[1]) / 2 - world.terminal.z));
+          Math.hypot((a.a[0] + a.b[0]) / 2 - world.spawn.x,
+                     (a.a[1] + a.b[1]) / 2 - world.spawn.z)
+          - Math.hypot((b.a[0] + b.b[0]) / 2 - world.spawn.x,
+                       (b.a[1] + b.b[1]) / 2 - world.spawn.z));
       if (viable.length) {
         const s = viable[0];
         world.spawn = { x: (s.a[0] + s.b[0]) / 2, z: (s.a[1] + s.b[1]) / 2,
