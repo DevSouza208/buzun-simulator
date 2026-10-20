@@ -46,12 +46,16 @@ function projectionOnSegment(x,z,s){
     angle:Math.atan2(dx,-dz),segment:s};
 }
 export function createCityWorld(scene,map) {
+  const time=()=>performance.now();
+  const start=time();
   const bounds=roadBounds(map.roads);
   const scenery=createRoadScene(scene,map.roads,sampleHeight);
+  const roadsReady=time();
   // Asphalt + sidewalks own their footprint. Ground is clipped under them
   // at fragment level, not just placed a few centimetres lower.
   const ground=createCarvedTerrain(scene,scenery.corridors,
     scenery.junctionPoints,sampleHeight,bounds,scenery.surface);
+  const terrainReady=time();
   const roadHeightAt=(x,z)=>{
     const road=scenery.surface.sample(x,z);
     // Rounded corner fills are REAL drivable asphalt beyond the original
@@ -109,7 +113,16 @@ export function createCityWorld(scene,map) {
     seamStatistics:scenery.seamStatistics,
     crossingStatistics:scenery.crossingStatistics,
     rampStatistics:scenery.rampStatistics,
-    finishStatistics:scenery.finishStatistics
+    finishStatistics:scenery.finishStatistics,
+    // Profiling data excludes HTTP/DEM downloads; records CPU build only.
+    buildProfile:scenery.buildProfile,
+    geometryStatistics:scenery.geometryStatistics,
+    lodStatistics:scenery.lodStatistics,
+    worldTiming:{
+      roadsMs:+(roadsReady-start).toFixed(1),
+      terrainMs:+(terrainReady-roadsReady).toFixed(1),
+      totalMs:0
+    }
   };
   console.info("[Buzun WorldGen] Asfalto unificado:",scenery.asphaltUnion);
   console.info("[Buzun WorldGen] Faixas inteligentes:",scenery.laneStatistics);
@@ -123,6 +136,14 @@ export function createCityWorld(scene,map) {
   console.info("[Buzun WorldGen] Materiais e piso tátil:",scenery.finishStatistics);
   scenery.updateVisibility(spawn.x,spawn.z);
   ground.update(spawn.x,spawn.z,12);
+  stats.worldTiming.totalMs=+(time()-start).toFixed(1);
+  console.info("[Buzun WorldGen 5.10] Construção (ms):",
+    stats.worldTiming,stats.buildProfile);
+  console.info("[Buzun WorldGen 5.10] Setores pesados:",
+    stats.geometryStatistics.heavySectors);
+  console.info("[Buzun WorldGen 5.10] Memória de geometria (estimada):",
+    stats.geometryStatistics.megabytes,"MiB",
+    "Triângulos:",stats.geometryStatistics.triangles);
   return {
     segments:scenery.segments,spawn,terminalSpawn:spawn,pilotSpawns:empty,
     collides:()=>false,
