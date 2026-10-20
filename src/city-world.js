@@ -60,6 +60,11 @@ export function createCityWorld(scene,map) {
     const corner=scenery.filletSurface.sample(x,z,0);
     if(road&&road.distance<=road.halfWidth+.08)return road.height+.072;
     if(corner!==null)return corner;
+    // For the 5.8 curb cuts the collision/height model follows the actual
+    // sculpted sidewalk triangles; before, physics always sampled a flat
+    // raised slab even where the visual ramp was lowered.
+    const ramp=scenery.rampSurface.heightAt(x,z,scenery.surface);
+    if(ramp!==null)return ramp;
     if(road&&road.distance<=road.halfWidth+road.walk)return road.height+(road.curbTop??.18);
     return sampleHeight(x,z);
   };
@@ -102,7 +107,8 @@ export function createCityWorld(scene,map) {
     cornerStatistics:scenery.cornerStatistics,
     medianStatistics:scenery.medianStatistics,
     seamStatistics:scenery.seamStatistics,
-    crossingStatistics:scenery.crossingStatistics
+    crossingStatistics:scenery.crossingStatistics,
+    rampStatistics:scenery.rampStatistics
   };
   console.info("[Buzun WorldGen] Asfalto unificado:",scenery.asphaltUnion);
   console.info("[Buzun WorldGen] Faixas inteligentes:",scenery.laneStatistics);
@@ -112,6 +118,7 @@ export function createCityWorld(scene,map) {
   console.info("[Buzun WorldGen] Canteiros entre pistas:",scenery.medianStatistics);
   console.info("[Buzun WorldGen] Integridade de costuras:",scenery.seamStatistics);
   console.info("[Buzun WorldGen] Travessias sugeridas:",scenery.crossingStatistics);
+  console.info("[Buzun WorldGen] Rampas e rebaixamentos:",scenery.rampStatistics);
   scenery.updateVisibility(spawn.x,spawn.z);
   ground.update(spawn.x,spawn.z,12);
   return {
