@@ -25,6 +25,7 @@ O novo `src/pedestrian-crossings.js` é JS puro, não depende de WebGL e não al
 - `src/city-road-mesh.js`: índice espacial por 40 m, supressão de outras marcas e criação dos triângulos da pintura no próprio chunk 3D.
 - `src/city-world.js`: `stats.crossingStatistics` e relatório no console `[Buzun WorldGen] Travessias sugeridas:`.
 - `tests/pedestrian-crossings.test.js`: T/X, superfície correta, vias separadas, expressways, trechos curtos, geometria e auditoria de vias do Grajaú.
+- `tests/grajau-crossing-surface.test.js`: simulação com o índice de superfície montado a partir dos 38.258 segmentos originais do snapshot. Resultado do CI: **3.757 locais candidatos, 3.148 com tinta válida, 609 rejeitados pela checagem de piso e 18.888 barras**, em cerca de 0,27 s para validar a tinta depois de construir o índice. A produção usa seções de 5 m e suavização de relevo, portanto os totais finais podem variar.
 
 ## Limitações
 - **Curb ramps acessíveis e rebaixamento efetivo das calçadas ainda não foram implementados**. As zebras são pintura visual; por isso não devem ser apresentadas como travessias reais/seguras para pedestres.
