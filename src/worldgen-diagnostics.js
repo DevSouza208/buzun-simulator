@@ -47,15 +47,30 @@ export function makeWorldgenProfiler(now=()=>
   typeof performance!=="undefined"?performance.now():Date.now()){
   const born=now();let previous=born;
   const stages={};
+  let pausedSince=null,pausedTotal=0,pausedInStage=0;
+  const pausedNow=t=>pausedSince===null?0:Math.max(0,t-pausedSince);
   return {
+    pause(){
+      if(pausedSince===null)pausedSince=now();
+    },
+    resume(){
+      if(pausedSince===null)return;
+      const elapsed=Math.max(0,now()-pausedSince);
+      pausedTotal+=elapsed;
+      pausedInStage+=elapsed;
+      pausedSince=null;
+    },
     mark(name){
       const time=now();
-      stages[name]=Math.max(0,time-previous);
+      stages[name]=Math.max(0,time-previous-pausedInStage-pausedNow(time));
       previous=time;
+      pausedInStage=0;
+      if(pausedSince!==null)pausedSince=time;
       return stages[name];
     },
     report(){
-      return {totalMs:+(now()-born).toFixed(2),
+      const time=now();
+      return {totalMs:+Math.max(0,time-born-pausedTotal-pausedNow(time)).toFixed(2),
         stagesMs:Object.fromEntries(Object.entries(stages).map(
           ([name,value])=>[name,+value.toFixed(2)]))};
     }
