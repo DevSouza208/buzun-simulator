@@ -9,6 +9,9 @@
 export const CURB_RISE=.14;
 export const TERRAIN_MARGIN=.65;
 export function sidewalkWidth(road) {
+  // Editor overrides supersede stylistic defaults without changing OSM tags.
+  const override=Number(road.sidewalkMeters);
+  if(Number.isFinite(override)&&override>=.6&&override<=5)return override;
   // All drivable ways receive a virtual pedestrian edge in this game world,
   // even when OSM has no sidewalk tag. This is a stylized design choice.
   const type=road.t||road.type;
