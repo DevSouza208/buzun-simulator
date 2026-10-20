@@ -276,7 +276,10 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
     // share EXACTLY the same sampled road heights.
     const sectionGrades=reconcileRoadGrade(
       drapedSections(road.p,sampleHeight,{
-        fixedJunctions,step:detail.sampleMetres}),
+        fixedJunctions,step:detail.sampleMetres,
+        radius:detail.gradeSmoothMetres,
+        adaptive:detail.adaptiveSampling,
+        maxSlope:detail.maxRoadSlope}),
       gradeModels.byWay.get(String(road.id)));
     const sections=getSections(sectionGrades,sampleHeight);
     if(sections.length<2)continue;
