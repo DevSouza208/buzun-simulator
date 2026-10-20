@@ -9,6 +9,8 @@ import { progressAlongRoute } from "./route-progress.js";
 import { auditMetricCorridor } from "./metric-audit.js";
 import { fetchGrajauRoads, combineLegacyRoads, GRAJAU_BBOX } from "./grajau-osm.js";
 import { loadCityElevations } from "./terrain-tiles.js";
+import { applyRoadEdits, readSavedEdits } from "./road-editor-model.js";
+import { mountRoadAdmin } from "./road-admin.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -26,6 +28,7 @@ const minimapContext = minimap.getContext("2d");
 const keys = new Set();
 let mobileInput;
 let world, player, car, renderer, scene, camera, clock, roadData;
+let sourceRoads=[], adminEditor=null;
 let driving = false, cameraMode = 0, yawOrbit = 0, pitchOrbit = .15;
 let lastHud = 0, lastMinimap = 0, toastTimer = null;
 let pointerDown = false, lastPointerX = 0, lastPointerY = 0;
@@ -327,6 +330,17 @@ function toggleHelp(force) {
 }
 function bindInputs() {
   mobileInput = bindTouchControls($("mobile-controls"), () => driving);
+  adminEditor=mountRoadAdmin({
+    getRoads:()=>sourceRoads,
+    getPosition:()=>player,
+    whenOpen:()=>{driving=false;keys.clear();mobileInput?.releaseAll();},
+    whenClose:()=>{
+      driving=!!world&&landing.classList.contains("hidden")&&
+        $("help-overlay").classList.contains("hidden");
+      keys.clear();
+    },
+    notify:showToast
+  });
   $("facade-choice").addEventListener("change", e => {
     const places = world?.previewSpawns || world?.pilotSpawns || [];
     const found = places.findIndex(place => String(place.id) === e.target.value);
@@ -334,6 +348,9 @@ function bindInputs() {
   });
   $("next-facade").addEventListener("click", () => visitFacade(spawnIndex + 1));
   document.addEventListener("keydown", e => {
+    // Forms in the editor keep their native keyboard behavior. Also avoid
+    // game hotkeys while viewing the overhead map.
+    if(adminEditor?.isOpen() || e.target.closest("input,select,textarea"))return;
     if (["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))
       e.preventDefault();
     if (!e.repeat && e.code === "KeyR" && driving) resetCar();
@@ -427,9 +444,13 @@ async function start() {
       })
     ]);
     configureCityTerrain(tiles,corridor.origin);
+    // Always retain the unmodified OSM extract for the editor. The game
+    // receives a derived geometry snapshot with sparse local corrections.
+    sourceRoads=imported.roads;
+    const authoredRoads=applyRoadEdits(sourceRoads,readSavedEdits());
     roadData={
       origin:corridor.origin,route:corridor.route,landmarks:corridor.landmarks,
-      roads:imported.roads,buildings:[],pois:[],
+      roads:authoredRoads,buildings:[],pois:[],
       mapSource:imported.source,upToDate:imported.upToDate,
       reliefSource:tiles?.source||"SRTM local Belmira"
     };
