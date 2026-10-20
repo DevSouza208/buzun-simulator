@@ -42,16 +42,17 @@ export function chooseStreetFront(poly,segments,maxDistance=24){
   }
   return best;
 }
-export function facadeRecipe(building,front){
+export function facadeRecipe(building,front,renderedHeight=null){
   if(!front)return null;
   const seed=seeded(building.id);
   const explicitType=[building.use,building.t].filter(Boolean).join(" ").toLowerCase();
   const knownShop=/retail|commercial|supermarket|shop|store|mall|office/.test(explicitType);
   const measuredHeight=Number.parseFloat(building.height);
   const measuredFloors=Number.parseFloat(building.levels);
-  const height=Number.isFinite(measuredHeight)&&measuredHeight>=2.5
+  const inferredHeight=Number.isFinite(measuredHeight)&&measuredHeight>=2.5
     ? measuredHeight : Number.isFinite(measuredFloors)&&measuredFloors>=1
       ? measuredFloors*3.05:5;
+  const height=Number.isFinite(renderedHeight)?renderedHeight:inferredHeight;
   const kind=knownShop?"shop":height>=7.1?"sobrado":seed>.69?"shop":"house";
   const palette=MATERIALS[Math.floor(seeded(building.id*7+11)*MATERIALS.length)];
   const width=Math.min(.90,Math.max(.52,7/front.length));
