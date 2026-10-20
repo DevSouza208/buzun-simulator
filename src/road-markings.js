@@ -26,7 +26,7 @@ export function avenueMarkings(road,width) {
     if(len<.05)continue;
     if(oneWay){
       // Parallel one-way carriageways use dashed WHITE lane guides.
-      add(a,b,0,.085,"white");
+      // Centre guide is dashed, never one solid white stripe.
     } else {
       // Continuous double amber central divider, two thin parallel stripes.
       add(a,b,-.21,.075,"yellow");
@@ -43,9 +43,6 @@ export function avenueMarkings(road,width) {
       const step=Math.min(len-d,Math.max(.0001,remains));
       if(phase<paint-.0001){
         for(const lateral of offsets){
-          // Oneway segments already have their own center marking; don't
-          // draw duplicate opaque stripes on top of it.
-          if(oneWay&&lateral===0)continue;
           add(pointAt(a,b,d/len),pointAt(a,b,(d+step)/len),lateral,.085,"white");
         }
       }
