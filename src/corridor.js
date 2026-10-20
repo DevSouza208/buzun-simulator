@@ -22,7 +22,8 @@ function nearestOnRoad(point,roads) {
 /** Walks the real named OSM road graph between two geocoded anchors. */
 export function buildRoadCorridor(namedRoads, start, end, origin) {
  if(!namedRoads.length)throw Error("No named road segments");
- const from=local(start.lat,start.lon,origin),to=local(end.lat,end.lon,origin);
+ const from = Array.isArray(start.local)&&start.local.length===2 ? start.local : local(start.lat,start.lon,origin);
+ const to = Array.isArray(end.local)&&end.local.length===2 ? end.local : local(end.lat,end.lon,origin);
  const a=nearestOnRoad(from,namedRoads),b=nearestOnRoad(to,namedRoads);
  if(!a||!b||a.error>35||b.error>35)throw Error("Endpoint is too far from mapped main road");
  const graph=new Map, vertices=new Map;
