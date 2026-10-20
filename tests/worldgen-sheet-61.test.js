@@ -53,8 +53,8 @@ test("6.1: near parallel roads do NOT fuse without actual OSM junction",()=>{
   assert.equal(combined.roadAt(60,4).roadId,"main");
 });
 test("6.1: identical 5m tile borders and reduced active tile budget",()=>{
-  assert.equal(SHEET_GRID_SEGMENTS,84);
-  assert.equal(SHEET_GRID_STEP_METRES,5);
+  assert.equal(SHEET_GRID_SEGMENTS,105);
+  assert.equal(SHEET_GRID_STEP_METRES,4);
   const terrain=readFileSync(new URL(
     "../src/worldgen-sheet-terrain.js",import.meta.url),"utf8");
   const city=readFileSync(new URL(
