@@ -118,8 +118,8 @@
   <div id="admin-login" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Entrar no editor do Buzun">
     <form id="admin-login-form" class="admin-login-panel">
       <div class="welcome-badge">BUZUN CREATE / ACESSO LOCAL</div>
-      <h2>Editor de ruas<span>.</span></h2>
-      <p>Entre para abrir a planta do Grajaú e corrigir as ruas antes de gerar a cidade.</p>
+      <h2>Modelador 3D<span>.</span></h2>
+      <p>Edite asfalto, calçadas, meios-fios e esquinas diretamente na cidade renderizada. O mapa OSM original fica intacto.</p>
       <label for="admin-username">USUÁRIO</label>
       <input id="admin-username" name="username" autocomplete="username" required placeholder="Usuário" />
       <label for="admin-password">SENHA</label>
@@ -135,7 +135,7 @@
 
   <section id="admin-editor" class="admin-editor hidden" aria-label="Editor local das ruas do Grajaú">
     <div class="admin-header">
-      <div class="admin-title"><div class="admin-icon">B.</div><div><strong>BUZUN CREATE</strong><span>EDITOR VIÁRIO · GRAJAÚ 1:1</span></div></div>
+      <div class="admin-title"><div class="admin-icon">B.</div><div><strong>BUZUN CREATE</strong><span>MODELAGEM 3D DAS VIAS · GRAJAÚ 1:1</span></div></div>
       <div class="admin-header-actions">
         <span id="admin-edits-count">0 larguras · 0 vértices editados</span>
         <button id="admin-apply" class="admin-apply">APLICAR NO JOGO ↗</button>
@@ -146,32 +146,37 @@
     <div class="admin-workspace">
       <div class="admin-map-area">
         <div class="admin-toolbar" role="toolbar" aria-label="Ferramentas de edição">
-          <button data-admin-tool="select" class="active" title="Selecionar rua">◉ Selecionar</button>
-          <button data-admin-tool="pan" title="Mover mapa">✥ Navegar</button>
-          <button data-admin-tool="node" title="Mover vértices da rua">⌁ Editar pontos</button>
+          <button data-admin-tool="select" class="active" title="Selecionar malha viária">◉ Selecionar pista</button>
+          <button data-admin-tool="pan" title="Mover câmera aérea">✥ Mover câmera</button>
+          <button data-admin-tool="asphalt" title="Arrastar a borda do asfalto">↔ Puxar asfalto</button>
+          <button data-admin-tool="sidewalk" title="Arrastar a calçada">↔ Puxar calçada</button>
           <span class="admin-tools-separator"></span>
           <button id="admin-zoom-in" aria-label="Aproximar">＋</button>
           <button id="admin-zoom-out" aria-label="Afastar">－</button>
           <button id="admin-center">⌖ Meu carro</button>
           <button id="admin-fit">▣ Ver região</button>
         </div>
-        <canvas id="admin-map" aria-label="Mapa interativo das ruas do Grajaú, visto de cima"></canvas>
+        <div id="admin-map-stage" aria-label="Vista ortográfica da geometria 3D real do Grajaú"></div>
         <div class="admin-map-bottom">
-          <span><i class="admin-dot"></i><span id="admin-visible-count">0 vias visíveis</span> · OpenStreetMap + Buzun WorldGen</span>
+          <span><i class="admin-dot"></i> Cena 3D real · OSM como referência · modelagem Buzun</span>
           <span id="admin-map-status" role="status">Clique numa rua para começar</span>
         </div>
       </div>
       <aside class="admin-sidebar">
-        <div class="admin-section-heading">PROPRIEDADES DA RUA <span>01 / EDITAR</span></div>
+        <div class="admin-section-heading">MODELAGEM DA VIA <span>01 / GERADOR 3D</span></div>
         <h2 id="admin-road-name">Selecione uma rua</h2>
-        <p id="admin-road-meta">Clique em uma via no mapa para editar.</p>
+        <p id="admin-road-meta">Clique no asfalto da cena 3D para selecionar.</p>
         <div class="admin-selection-status" id="admin-width-origin">Nenhuma via selecionada</div>
         <div class="admin-fields">
           <label for="admin-width">Largura do asfalto <small>metros</small></label>
           <input id="admin-width" type="number" min="2" max="45" step="0.1" disabled />
           <label for="admin-walk">Calçada por lado <small>metros</small></label>
           <input id="admin-walk" type="number" min="0.6" max="5" step="0.1" disabled />
-          <button id="admin-width-save" disabled>✓ SALVAR MEDIDAS</button>
+          <label for="admin-curb">Altura do meio-fio <small>metros</small></label>
+          <input id="admin-curb" type="number" min="0" max="0.4" step="0.01" disabled />
+          <label for="admin-corner">Recuo do meio-fio nas esquinas <small>metros</small></label>
+          <input id="admin-corner" type="number" min="0" max="4" step="0.1" disabled />
+          <button id="admin-width-save" disabled>✓ SALVAR MODELAGEM</button>
           <button id="admin-road-reset" disabled>↶ Reverter esta rua</button>
         </div>
         <div class="admin-section-heading">ARQUIVO E HISTÓRICO <span>02 / LOCAL</span></div>
@@ -182,8 +187,8 @@
           <input id="admin-import" type="file" accept=".json,application/json" />
           <button id="admin-clear">Limpar correções</button>
         </div>
-        <p class="admin-sidebar-note">Selecione uma via, altere sua largura ou use <b>Editar pontos</b> para puxar os vértices. Alterações são salvas localmente; use <b>Aplicar no jogo</b> para reconstruir as ruas.</p>
-        <p class="admin-sidebar-note admin-safety">Este é um editor demonstrativo, não um painel seguro. Não publica dados no OSM nem no repositório. Exporte seu JSON para guardar as correções.</p>
+        <p class="admin-sidebar-note">Você está vendo as <b>malhas reais em Three.js</b>. Clique na pista, altere medidas ou use Puxar asfalto / Puxar calçada. O destaque colorido é uma prévia; <b>Aplicar no jogo</b> regenera asfalto, meio-fios, calçadas e terreno com suas medidas.</p>
+        <p class="admin-sidebar-note admin-safety">Ajustes locais de <b>modelagem</b>, não de coordenadas geográficas. A senha é demonstrativa e pública. Exporte o JSON para guardar e compartilhar as correções.</p>
       </aside>
     </div>
   </section>

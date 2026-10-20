@@ -200,3 +200,21 @@ html, body { overscroll-behavior: none; }
   .admin-map-bottom{padding:6px;font-size:9px}
   .admin-file-actions{grid-template-columns:repeat(2,1fr)}
 }
+
+/* Modelagem: o canvas WebGL REAL migra para a janela de trabalho. */
+#admin-map-stage{
+  position:relative;display:block;flex:1;min-height:0;min-width:0;
+  background:#142e38;overflow:hidden;touch-action:none
+}
+#admin-map-stage #game{
+  position:absolute;inset:0;width:100%;height:100%;display:block;
+  touch-action:none;cursor:crosshair
+}
+#admin-editor [data-admin-tool="pan"].active~#admin-map-stage{cursor:grab}
+.admin-toolbar{z-index:1;position:relative}
+.admin-map-bottom{z-index:1}
+.admin-sidebar input:focus-visible{outline:2px solid #d4fa85;outline-offset:2px}
+@media (max-width:780px){
+  #admin-map-stage{min-height:36vh}
+  .admin-sidebar{max-height:38vh}
+}
