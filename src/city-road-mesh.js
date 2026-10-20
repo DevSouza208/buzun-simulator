@@ -142,7 +142,7 @@ function createStreetMaterial(kind,color,lambert){
   materialCache.set(kind,mat);
   return mat;
 }
-function meshFrom(points,color,lambert=false,kind=""){
+function meshFrom(points,color,lambert=false,kind="",cameraCulling=false){
   if(!points.length)return null;
   const g=new THREE.BufferGeometry();
   g.setAttribute("position",new THREE.Float32BufferAttribute(points,3));
@@ -155,8 +155,12 @@ function meshFrom(points,color,lambert=false,kind=""){
     g.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
   }
   g.computeVertexNormals();
+  // Camera frustum culling is independent of distance LOD: it rejects
+  // region meshes behind or beyond the camera. Bounding spheres are
+  // conservative, so any partially visible road remains drawable.
+  if(cameraCulling)g.computeBoundingSphere();
   const obj=new THREE.Mesh(g,createStreetMaterial(kind,color,lambert));
-  obj.frustumCulled=false;
+  obj.frustumCulled=cameraCulling;
   return obj;
 }
 function chunkKey(p,size=440){
@@ -425,7 +429,8 @@ export function createRoadScene(scene,roads,sampleHeight,{
     const meshes={};
     for(const [key,color] of hues){
       const m=meshFrom(ch[key],color,
-        key==="walk"||key==="curb"||key==="tactile",key);
+        key==="walk"||key==="curb"||key==="tactile",key,
+        detail.cameraFrustumCulling);
       if(m){m.name="Buzun_"+key;group.add(m);meshes[key]=m;}
       ch[key].length=0;
     }
@@ -462,7 +467,7 @@ export function createRoadScene(scene,roads,sampleHeight,{
     // Only 3D VISUAL detail is culled; physics, lane metadata, terrain,
     // minimap and OSM geometry are unaffected. Recompute when the camera
     // moves enough to matter, not 60 times per second.
-    updateVisibility(x,z,radius=850) {
+    updateVisibility(x,z,radius=detail.visualRadiusMetres) {
       if(lastVisibility&&lastVisibility.radius===radius&&
         Math.hypot(x-lastVisibility.x,z-lastVisibility.z)<10)return;
       applyRoadTileLOD(tiles,x,z,{radius,stats:lodStatistics});
