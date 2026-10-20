@@ -171,15 +171,16 @@ export function createWorldSheet(roads,naturalHeight,{
     return lerp(sidewalkGround,natural,
       smooth((d-outer)/Math.max(blendMetres,.01)));
   }
-  function height(x,z){
-    const natural=naturalHeight(x,z),hits=roadHits(x,z);
-    if(!hits.length)return natural;
-    const owner=hits[0];
+  function height(x,z,candidates=null){
+    const natural=naturalHeight(x,z);
+    const allHits=candidates||roadHits(x,z,Infinity);
+    if(!allHits.length)return natural;
+    const hits=allHits.slice(0,5),owner=hits[0];
     let sum=0,total=0,lowestLane=Infinity,lowestWalk=Infinity;
     // A grass triangle must never cover the footprint of any road
     // actually drawn at ground level, even with incomplete OSM junctions.
     // Topology controls BLENDING only; safety of the surface is universal.
-    for(const hit of roadHits(x,z,Infinity)){
+    for(const hit of allHits){
       if(hit.distance<=hit.halfWidth+.08)
         lowestLane=Math.min(lowestLane,hit.base-.24);
       else if(hit.distance<=hit.halfWidth+hit.walk)
@@ -216,8 +217,9 @@ export function createWorldSheet(roads,naturalHeight,{
     // a 4m triangle may otherwise bridge over a paved road without
     // any vertex inside the lane. Expand its ground support by a full
     // cell diagonal so the interpolated face stays beneath the pavement.
-    const original=height(x,z);
-    return conservativeGroundSupport(original,roadHits(x,z,Infinity),{
+    const candidates=roadHits(x,z,Infinity);
+    const original=height(x,z,candidates);
+    return conservativeGroundSupport(original,candidates,{
       step:SHEET_GRID_STEP_METRES
     });
   }
