@@ -3,6 +3,7 @@ import { sidewalkWidth, createRoadCorridors } from "./road-corridor.js";
 import { composeRoadsideSteps } from "./sidewalk-union.js";
 import { drapedSections, createRoadSurfaceIndex, coordinateKey }
   from "./draped-road.js";
+import {connectorHeightAt} from "./worldgen-road-connectors.js";
 import { unionAsphaltSteps, asphaltPriority, physicalLayer } from "./asphalt-union.js";
 import { resolveLanePlan, paintIntervals } from "./road-lanes.js";
 import { buildIntersectionGradeModels,reconcileRoadGrade }
@@ -285,8 +286,10 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
     // One elevation profile along the entire OSM way, subdivided into
     // short draped sections. Both asphalt edges, curbs and lane markings
     // share EXACTLY the same sampled road heights.
+    const roadHeight=road.visualConnector?
+      (x,z)=>connectorHeightAt(road,x,z,sampleHeight):sampleHeight;
     const sectionGrades=reconcileRoadGrade(
-      drapedSections(road.p,sampleHeight,{
+      drapedSections(road.p,roadHeight,{
         fixedJunctions,step:detail.sampleMetres,
         radius:detail.gradeSmoothMetres,
         adaptive:detail.adaptiveSampling,
