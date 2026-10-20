@@ -91,7 +91,8 @@ test("Long dash has stable 4.4m paint / 7.6m gaps across 5m segments",()=>{
     phase+=5;
   }
   assert.ok(Math.abs(intervals.reduce((n,[a,b])=>n+(b-a),0)-44)<1e-7);
-  assert.ok(intervals.some(([a,b])=>a===12&&Math.abs(b-16.4)<1e-8));
+  assert.ok(intervals.some(([a,b])=>a===12&&b===15));
+  assert.ok(intervals.some(([a,b])=>a===15&&Math.abs(b-16.4)<1e-8));
   assert.deepEqual(paintIntervals(100,3,"solid"),[[0,1]]);
   assert.deepEqual(paintIntervals(0,.001,"dashed"),[]);
 });
