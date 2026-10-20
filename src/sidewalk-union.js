@@ -125,13 +125,13 @@ export function retreatCurbAtJunctions(a,b,junctions,retreat=0){
  */
 export function composeRoadsideMeshes(asphaltPatches,walkPatches,
   onSidewalk,onCurb,{cellSize=28,junctions=[],bevelCurbs=false,
-    rampSites=[],onTactile=null}={}){
+    rampSites=[],onTactile=null,tactileOptions={}}={}){
   const asphalt=new PlanarIndex(cellSize),sidewalks=new PlanarIndex(cellSize);
   const ramps=buildCurbRampZones(rampSites);
   const rampIndex=createRampIndex(ramps.zones,{cellSize});
   // Precompute warning pavers once per verified side, not per triangle.
   if(onTactile)for(const zone of ramps.zones)
-    zone.pavers=tactilePaversForZone(zone);
+    zone.pavers=tactilePaversForZone(zone,tactileOptions);
   let rampTriangles=0,rampCells=0,loweredCurbSegments=0,
     tactileFragments=0,tactileTriangles=0;
   const emitTop=(poly,patch,zone=null)=>{

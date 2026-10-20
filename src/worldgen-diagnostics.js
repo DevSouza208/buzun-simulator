@@ -26,6 +26,17 @@ export function distanceToRoadTile(x,z,tileX,tileZ,{
   return Math.hypot(Math.max(x0-x,0,x-x1),
     Math.max(z0-z,0,z-z1));
 }
+/** Shortest distance to a region's actual rectangular footprint.
+ * Streaming batches are 880m wide, not the old 440m mesh chunks.
+ * Reusing the legacy 440m location would hide roads while the driver was
+ * still IN a batch that spans into the next original tile.
+ */
+export function distanceToRoadBounds(x,z,bounds,overhang=25){
+  return Math.hypot(
+    Math.max(bounds.minX-overhang-x,0,x-bounds.maxX-overhang),
+    Math.max(bounds.minZ-overhang-z,0,z-bounds.maxZ-overhang)
+  );
+}
 export function roadDetailVisible(kind,distance,{
   radius=850,wasVisible=false,hysteresis=18
 }={}){
@@ -98,7 +109,9 @@ export function applyRoadTileLOD(tiles,x,z,{
   let shown=0,hidden=0,visibleTriangles=0,hiddenTriangles=0,
     visibleDrawables=0,hiddenDrawables=0;
   for(const tile of tiles){
-    const distance=distanceToRoadTile(x,z,tile.x,tile.z);
+    const distance=tile.bounds?
+      distanceToRoadBounds(x,z,tile.bounds):
+      distanceToRoadTile(x,z,tile.x,tile.z);
     let any=false;
     for(const [kind,mesh] of Object.entries(tile.meshes)){
       const visible=roadDetailVisible(kind,distance,{
