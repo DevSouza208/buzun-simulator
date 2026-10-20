@@ -96,6 +96,7 @@ test("Sidewalk heights follow slope 1:1 and curbs meet same shared grade",()=>{
   for(const {tri} of mesh)for(const [x,y] of tri)
     assert.ok(Math.abs(y-(10+x*.2+.2))<1e-5);
   for(const {wall} of walls){
-    assert.ok(Math.abs(wall[2][1]-wall[0][1]-.16)<1e-5);
+    assert.ok(Math.abs(wall[2][1]-wall[1][1]-.16)<1e-5);
+    assert.ok(Math.abs(wall[3][1]-wall[0][1]-.16)<1e-5);
   }
 });
