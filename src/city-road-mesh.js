@@ -1,6 +1,8 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
-import { sidewalkWidth, CURB_RISE, createRoadCorridors,
+import { sidewalkWidth, createRoadCorridors,
   clipSidewalkPolygon } from "./road-corridor.js";
+import { drapedSections, createRoadSurfaceIndex, coordinateKey }
+  from "./draped-road.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -11,7 +13,7 @@ export const STREET_PALETTE=Object.freeze({
   asphalt:"#364250",walk:"#d6d0c6",curb:"#eee1cf",shoulder:"#a5b89d",
   white:"#eee8dc",yellow:"#e9c86c",ground:"#a5b89d"
 });
-const SPACING=7; // metre-to-metre tessellation; no coordinate scaling
+const SPACING=3.5; // metre-to-metre tessellation; no coordinate scaling
 function lerp(a,b,t){return a+(b-a)*t;}
 function addTri(buffer,a,b,c){
   buffer.push(...a,...b,...c);
@@ -39,12 +41,13 @@ function normalAt(points,i) {
   const nx=-tz,nz=tx;
   const mx=-(tz+uz),mz=tx+ux,ml=Math.hypot(mx,mz);
   if(ml<.25)return [nx,nz];
-  const mX=mx/ml,mZ=mz/ml,dot=Math.max(.86,mX*nx+mZ*nz);
+  const mX=mx/ml,mZ=mz/ml,dot=Math.max(.96,mX*nx+mZ*nz);
   return [mX/dot,mZ/dot];
 }
 function getSections(path,sampleHeight){
-  return path.map((p,i)=>({p,normal:normalAt(path,i),
-    base:sampleHeight(...p)}));
+  const points=path.map(row=>Array.isArray(row)?row:row.p);
+  return points.map((p,i)=>({p,normal:normalAt(points,i),
+    base:Array.isArray(path[i])?sampleHeight(...p):path[i].base}));
 }
 function point(section,offset,up,sampleHeight) {
   const x=section.p[0]+section.normal[0]*offset;
@@ -143,9 +146,10 @@ export function createRoadScene(scene,roads,sampleHeight) {
     }
     return chunks.get(key);
   };
-  const segments=[];
+  const segments=[],surfaceSegments=[];
   const corridors=createRoadCorridors(roads);
   const joints=getJunctions(roads);
+  const fixedJunctions=new Set(joints.map(j=>coordinateKey(j.point)));
   const junctionCells=new Map();
   const cellSize=40;
   const put=(x,z,item)=>{
@@ -164,16 +168,22 @@ export function createRoadScene(scene,roads,sampleHeight) {
     if(!road.p?.length)continue;
     const width=road.widthMeters||7,half=width/2,
       foot=sidewalkWidth(road);
-    const sections=getSections(samplePolyline(road.p),sampleHeight);
+    // One elevation profile along the entire OSM way, subdivided into
+    // short draped sections. Both asphalt edges, curbs and lane markings
+    // share EXACTLY the same sampled road heights.
+    const sections=getSections(drapedSections(road.p,sampleHeight,
+      {fixedJunctions}),sampleHeight);
     if(sections.length<2)continue;
     // Exact sampled OSM centreline, physically separate raised sidewalks.
     for(let i=1;i<sections.length;i++){
       const a=sections[i-1],b=sections[i],buffer=chunkFor([
         (a.p[0]+b.p[0])/2,(a.p[1]+b.p[1])/2
       ]);
-      addQuad(buffer.asphalt,point(a,-half,.042,sampleHeight),
-        point(b,-half,.042,sampleHeight),point(b,half,.042,sampleHeight),
-        point(a,half,.042,sampleHeight));
+      addQuad(buffer.asphalt,point(a,-half,.072,sampleHeight),
+        point(b,-half,.072,sampleHeight),point(b,half,.072,sampleHeight),
+        point(a,half,.072,sampleHeight));
+      surfaceSegments.push({a:a.p,b:b.p,h0:a.base,h1:b.base,
+        halfWidth:half,walk:foot});
       const middle=[(a.p[0]+b.p[0])/2,(a.p[1]+b.p[1])/2];
       // A sidewalk must end at a junction; never extend as a raised strip
       // through an intersecting asphalt carriageway.
@@ -223,17 +233,9 @@ export function createRoadScene(scene,roads,sampleHeight) {
         if(!crossed) addQuad(buffer.curb,point(a,inner,.04,sampleHeight),
           point(b,inner,.04,sampleHeight),point(b,inner,.18,sampleHeight),
           point(a,inner,.18,sampleHeight));
-        // Short grass/soil apron bridges the edge of the terrain mask and
-        // makes the walking surface meet natural ground without a black gap.
-        const apron=side*(half+foot+.95);
-        addQuad(buffer.shoulder,point(a,outer,.16,sampleHeight),
-          point(b,outer,.16,sampleHeight),
-          [b.p[0]+b.normal[0]*apron,
-            sampleHeight(b.p[0]+b.normal[0]*apron,b.p[1]+b.normal[1]*apron)-.05,
-            b.p[1]+b.normal[1]*apron],
-          [a.p[0]+a.normal[0]*apron,
-            sampleHeight(a.p[0]+a.normal[0]*apron,a.p[1]+a.normal[1]*apron)-.05,
-            a.p[1]+a.normal[1]*apron]);
+        // Do NOT paint terrain-coloured shoulder quads across the road.
+        // Their old uncut ribbons caused green strips through intersections.
+        // Terrain carving handles the outer sidewalk transition instead.
       }
       // Painting is topology-aware: no invented centre double yellow on
       // one-way carriageways or residential side streets.
@@ -298,6 +300,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
   }
   return {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
+    surface:createRoadSurfaceIndex(surfaceSegments),
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
       for(const tile of tiles)
