@@ -116,13 +116,53 @@ export function combineLegacyRoads(...sources) {
   }
   return [...byId.values()];
 }
+// IndexedDB handles large city extracts (often larger than localStorage's
+// 5 MB limit). If private mode blocks IDB, the app still uses local extracts.
+async function openCityCache() {
+  if(typeof indexedDB==="undefined")return null;
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open("BuzunOSMCache",1);
+    req.onupgradeneeded=()=>req.result.createObjectStore("extracts");
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function readCityCache() {
+  const db=await openCityCache();
+  if(!db)return null;
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction("extracts","readonly");
+    const req=tx.objectStore("extracts").get(CACHE_KEY);
+    req.onsuccess=()=>resolve(req.result||null);
+    req.onerror=()=>reject(req.error);
+    tx.oncomplete=()=>db.close();
+  });
+}
+async function saveCityCache(data) {
+  const db=await openCityCache();
+  if(!db)return;
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction("extracts","readwrite");
+    tx.objectStore("extracts").put(data,CACHE_KEY);
+    tx.oncomplete=()=>{db.close();resolve();};
+    tx.onerror=()=>{db.close();reject(tx.error);};
+  });
+}
 export async function fetchGrajauRoads({signal,timeoutMs=30000,onStatus=()=>{},fallback=[]}={}) {
   const now=Date.now();
   // Keep retries well apart if public Overpass is busy; no per-frame API calls.
   try {
+    const stored=await readCityCache();
+    if(stored?.saved && now-stored.saved<259200000&&stored.roads?.length>50)
+      return {roads:stored.roads,source:"cache OSM",upToDate:true};
+  }catch{}
+  try {
     const stored=JSON.parse(localStorage.getItem(CACHE_KEY)||"null");
     if(stored?.saved && now-stored.saved<86400000&&stored.roads?.length>50)
       return {roads:stored.roads,source:"cache OSM",upToDate:true};
+    const lastFailure=Number(localStorage.getItem(CACHE_KEY+"-retry")||0);
+    if(fallback.length && now-lastFailure<1800000)
+      return {roads:fallback,source:"OSM local (reserva)",upToDate:false};
   }catch{}
   onStatus("Consultando o OpenStreetMap para o mapa ampliado do Grajaú...");
   const controller=new AbortController();
@@ -138,11 +178,12 @@ export async function fetchGrajauRoads({signal,timeoutMs=30000,onStatus=()=>{},f
     const json=await response.json();
     const roads=waysFromOverpass(json);
     if(roads.length<100)throw Error("O retorno do OSM veio incompleto");
-    try {localStorage.setItem(CACHE_KEY,JSON.stringify({saved:now,roads}));} catch {}
+    try {await saveCityCache({saved:now,roads});} catch {}
     return {roads,source:"Overpass API",upToDate:true};
   }catch(error){
     if(signal?.aborted)throw error;
     if(!fallback.length)throw error;
+    try {localStorage.setItem(CACHE_KEY+"-retry",String(now));} catch {}
     onStatus("OSM indisponível: usando os recortes reais salvos do Grajaú.");
     return {roads:fallback,source:"OSM local (reserva)",upToDate:false,error:String(error)};
   }finally{
