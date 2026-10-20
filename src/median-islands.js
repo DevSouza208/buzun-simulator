@@ -67,7 +67,9 @@ function candidate(a,b,minGap,maxGap,minRun){
     return [b.a[0]+d[0]*projection,b.a[1]+d[1]*projection];
   };
   const pa=pos(lo),qa=pos(hi),pb=nearestB(lo),qb=nearestB(hi);
-  const side=Math.sign(lateral),inset=.10;
+  // Share the same border as asphalt; leave no gap between road and
+  // planted median. The compositor removes any accidental overlap.
+  const side=Math.sign(lateral),inset=0;
   const edgeA=point=>[
     point[0]+normal[0]*side*(a.halfWidth+inset),
     point[1]+normal[1]*side*(a.halfWidth+inset)
