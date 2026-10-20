@@ -87,5 +87,5 @@ WG605-01,WorldGen 6.5,LOD e métricas de streaming por altura compartilhada,Plan
 WG606-01,WorldGen 6.6,Promover folha ao modo padrão após validação visual,Planejado,Não quebrar produção
 WG601-02,WorldGen 6.1,Perfil lateral em 3 zonas pista calçada e ombro,Implementado piloto,Comparar encostas e calçadas com os mesmos prints
 WG601-03,WorldGen 6.1,Múltiplas vias em junções OSM com proteção a vias paralelas,Implementado piloto,Revisar cruzamentos inclinados e viadutos
-WG601-04,WorldGen 6.1,Grade de terreno 5 metros e limite de 18 tiles ativos,Implementado piloto,Medir FPS e RAM após 15 minutos jogando
+WG601-04,WorldGen 6.1,Grade de terreno 5 metros e todos os tiles visíveis cobertos,Implementado piloto,Medir FPS e RAM após 15 minutos jogando
 WG601-05,WorldGen 6.1,Teste visual real no percurso McDonalds Habibs,Pendente,Comparar imagens e corrigir interseções

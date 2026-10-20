@@ -59,6 +59,24 @@ test("6.1: identical 5m tile borders and reduced active tile budget",()=>{
     "../src/worldgen-sheet-terrain.js",import.meta.url),"utf8");
   const city=readFileSync(new URL(
     "../src/city-world-stream.js",import.meta.url),"utf8");
-  assert.match(terrain,/visibilityRadius=900,maxActive=18/);
+  assert.match(terrain,/visibilityRadius=900,maxActive=32/);
   assert.match(city,/junctions:globalJunctions/);
+});
+
+test("6.1: every intersecting 420m terrain tile fits the streaming budget",()=>{
+  const tile=420,radius=900,maxActive=32;
+  let mostWanted=0;
+  for(let x=0;x<tile;x+=14)for(let z=0;z<tile;z+=14){
+    let count=0;
+    for(let gx=-3;gx<=3;gx++)for(let gz=-3;gz<=3;gz++){
+      const d=Math.hypot(
+        Math.max(Math.abs(x-(gx+.5)*tile)-tile/2,0),
+        Math.max(Math.abs(z-(gz+.5)*tile)-tile/2,0));
+      if(d<=radius)count++;
+    }
+    mostWanted=Math.max(mostWanted,count);
+    assert.ok(count<=maxActive,
+      "A terrain tile would disappear within the visible radius");
+  }
+  assert.ok(mostWanted>=24,"Fixture covers dense tile intersections");
 });
