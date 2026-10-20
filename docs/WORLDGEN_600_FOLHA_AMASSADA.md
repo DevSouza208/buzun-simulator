@@ -27,9 +27,11 @@ compatíveis do OSM, não subtrechos escolhidos por chunk.
 
 `heightWorld(x,z)`: terreno natural fora dos corredores, que se
 aproxima de `roadGrade` nas ruas sem permitir cortes transparentes.
-No piloto, a superfície sob a rua fica 0,34 m abaixo da altura da
-faixa de rolamento; entre os passeios e a natureza usa-se uma
-transição `smoothstep` por 9 m.
+Na fase 6.1, a folha sustenta a pista 0,16 m abaixo da cota base,
+sobe suavemente para a base da calçada (0,045 m abaixo dela) e
+retorna ao terreno natural em um ombro com `smoothstep` de 9 m.
+Cruzes de vias conectadas por um nó OSM podem influenciar o mesmo ponto;
+vias paralelas não são fundidas por simples proximidade.
 
 `worldSheet.sectionsFor(way)` alimenta os vértices e o índice de
 altura do asfalto; `worldSheet.roadAt(x,z)` alimenta o veículo e a
@@ -44,7 +46,7 @@ carregar/descarregar qualquer chunk.
 | 6.0.2 | Malha de terreno 420 m, grade 7 m com bordas iguais, sem recortar vazios | Implementado no piloto |
 | 6.0.3 | Asfalto e física consultam os mesmos perfis canônicos, inclusive sem chunk carregado | Implementado no piloto |
 | 6.0.4 | Inicialização com `?worldgen=sheet`, mantendo a versão estável como padrão | Implementado no piloto |
-| 6.1 | Perfis de relevo por hierarquia de vias, cortes/aterros coerentes e inclinações viárias realistas | Pendente |
+| 6.1 | Perfil lateral em três zonas e influência de braços conectados no cruzamento (corte/aterro por hierarquia ainda pendente) | Piloto implementado |
 | 6.2 | Geometria adaptativa perto de asfalto e cruzamentos (densidade variável, redução de penetração do solo) | Pendente |
 | 6.3 | Cruzamentos: união topológica única e cota de concordância sem sobreposição ou buracos | Pendente |
 | 6.4 | Pintura/materiais viários na folha e correção de zebra, calçadas e bordas | Pendente |
@@ -83,8 +85,8 @@ carregar/descarregar qualquer chunk.
 
 ## Riscos e próximos passos
 
-- O solo é uma grade regular 7 m: em curvas fechadas, uma célula
-  ainda pode invadir um limite estreito do asfalto. Melhorar
+- O solo agora é uma grade regular 5 m: em curvas fechadas, uma célula
+  ainda ainda pode invadir um limite estreito do asfalto. Melhorar
   tesselação local adaptativa antes de promover a nova arquitetura.
 - A cota vem do DEM, não de topografia viária; falsas rampas ainda
   podem existir. Será necessário nivelamento controlado por trecho.
@@ -95,3 +97,25 @@ carregar/descarregar qualquer chunk.
 
 O estágio 6.0 inicial é uma **prova funcional opt-in**, não um
 anúncio de eliminação completa dos bugs dos screenshots.
+
+
+## Alterações 6.1 (preview `worldgen=sheet`)
+
+- Malha do terreno: 84 subdivisões em 420 m = 5 m (antes 60 = 7 m).
+- Até 18 tiles ativos (antes 26) para conter custo de memória e triangulação;
+  isso precisa ser validado para não mostrar bordas vazias à distância.
+- Perfil lateral em três zonas contínuas: 0,16 m sob asfalto, transição até
+  a base da calçada e blend até relevo natural em 9 m.
+- Cruzamentos: amostra até cinco vias candidatas, deduplicando trechos da
+  mesma via. Só aceita influência cruzada de ruas efetivamente conectadas
+  por nós de junção OSM próximos; diferenças verticais maiores que
+  0,65 m são ignoradas.
+- Nas faixas de rolamento e calçadas, limita a altura da folha para não
+  ultrapassar o piso renderizado nas junções.
+- Todos esses ajustes só se aplicam a `worldgen=sheet`, sem alterar
+  o gerador `stream` usado pelo endereço principal.
+
+**Próximas validações:** cruzamentos da Belmira Marin, inclinação de rampas,
+custo de geração da primeira região, FPS contínuo e faixa de pedestre.
+A 6.1 ainda **não une os polígonos de asfalto num único objeto topológico**:
+essa correção continua planejada na fase 6.3.
