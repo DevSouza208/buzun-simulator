@@ -1,6 +1,6 @@
 # BUZUN SIMULATOR — Game Design Document (GDD)
 
-**Versão:** 1.5 — World Engine piloto (3 fachadas) e relevo suave demonstrativo
+**Versão:** 1.6 — corredor McDonald's → Habib's com relevo SRTM e geração de quarteirões
 **Data:** 19 de outubro de 2026  
 **Projeto:** Buzun Simulator  
 **Repositório:** https://github.com/DevSouza208/buzun-simulator  
@@ -187,6 +187,14 @@ Motor piloto: `public/data/facade-pilot.json` define os presets; `src/facade-rec
 **Relevo agora:** `src/terrain.js` centraliza a amostragem `sampleHeight(x,z)` em metros. O terreno low poly no entorno inicial, asfalto, árvores, prédios, carro e câmera passam pela mesma interface. O valor atual é **uma ondulação procedural artificial suave, não dados de altitude reais**. As ruas distantes mantêm o terreno plano, com transição gradual. A próxima implementação pode trocar o amostrador por um DEM confiável, respeitando suavização de ruas, pontes e terrenos de construção.
 
 **Próximo marco, ainda não feito:** validar no celular o relevo e as três fachadas; depois organizar uma biblioteca de texturas neutras reutilizáveis, referências legalmente permitidas e só então o botão que seleciona uma região e dispara a cadeia de processamento. O editor **não existe ainda** e a automação **não consulta APIs de imagem**.
+
+### 5.8 Primeiro corredor demonstrativo com altimetria real
+
+**Implementação atual:** recorte da Avenida Dona Belmira Marin entre o McDonald's nº 1277 e o Habib's nº 111, ambos endereços verificados publicamente. O motor usa 44 fragmentos de vias e entradas laterais reais, 619 contornos de construções do OpenStreetMap e 320 amostras SRTM30m. A descida aproximada entre as âncoras tem 52 metros de diferença, não necessariamente constante. Solo, bordas do asfalto, calçadas, prédios, carro e câmera compartilham o amostrador de elevação. A cena principal inicia no McDonald's, informa a distância até o Habib's e oferece seleção dos locais de spawn.
+
+**Precisão visual:** Habib's tem edifício cadastrado no OSM sob o ID `619054945`; o modelo low poly é interpretativo. A localização do McDonald's é ancorada por endereço, mas o prédio exato ainda não está identificado, então sua fachada é uma referência aproximada, não fiel. Outros estabelecimentos são identificados por nomes/tags do OSM, não por fotos.
+
+**Futuro Create:** passos realizados, provedores, limites, scripts, testes, licenças e pendências estão em [docs/WORLD_ENGINE_BELMIRA.md](docs/WORLD_ENGINE_BELMIRA.md). A ferramenta de um clique, a visão computacional com imagens de rua, texturas geradas por IA e armazenamento em R2 seguem planejados — ainda não são recursos entregues. A nova cena requer revisão visual no navegador, especialmente em rampas/esquinas e no McDonald's.
 
 ## 6. Veículos e direção
 
@@ -448,6 +456,7 @@ Criar a base do projeto e entregar **uma cena 3D com ruas reais do entorno do Te
 
 ## 20. Histórico
 
+- **v1.6 (2026-10-19):** implementação do recorte McDonald's 1277 → Habib's 111, relevo real SRTM30m, esquinas e entradas reais, 619 prédios OSM, marcos low poly, progresso no HUD e documentação reproduzível para futuro botão Create. Revisão visual ainda pendente.
 - **v1.5 (2026-10-19):** motor interno piloto com três fachadas estilizadas associadas a edifícios OSM reais, sem afirmar aparência real; relevo artificial suave e interface de altitude compartilhada por mapa/carro; testes automatizados e validação visual ainda pendente.
 - **v1.4 (2026-10-19):** Belmira Marin completa no OSM (55 trechos conectados) e ramais Canal de Cocaia, Pedro Escobar e Rubens de Oliveira (28 trechos); motor ampliado para percursos longos e construção de bairros postergada até validação no celular. Relevo segue depois da malha viária.
 - **v1.3 (2026-10-19):** adicionado HUD mobile com setas e pedais multitoque no código; proposta técnica de relevo real via DEM (ainda não implementada), com dependências de malha, edifícios e dinâmica do carro; testes em dispositivo real pendentes.
