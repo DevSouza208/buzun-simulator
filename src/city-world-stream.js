@@ -5,7 +5,8 @@ import {createCarvedTerrain} from "./terrain-cutout.js";
 import {graphFromRoads} from "./grajau-osm.js";
 import {summarizeRoadSectors} from "./worldgen-diagnostics.js";
 import {createRegionRoadIndex,regionAt,regionKey,regionBounds,
-  plannedRegions,regionDistance,REGION_METRES} from "./worldgen-region-stream.js";
+  plannedRegions,regionDistance,REGION_METRES,
+  activateLoadedRoadRegion} from "./worldgen-region-stream.js";
 
 /**
  * Experimental streaming city. Only the current 880 m road region is
@@ -110,7 +111,7 @@ export function createStreamingCityWorld(scene,map){
     // clipping occurs only after every intersection has been resolved.
     const scenery=createRoadScene(scene,ways,sampleHeight,
       {renderBounds:regionBounds(rx,rz)});
-    scenery.updateVisibility(visibilityFocus.x,visibilityFocus.z);
+    activateLoadedRoadRegion(scenery,visibilityFocus.x,visibilityFocus.z);
     const elapsed=time()-started;
     counters.totalRegionBuildMs+=elapsed;
     counters.maxRegionBuildMs=Math.max(elapsed,counters.maxRegionBuildMs);
