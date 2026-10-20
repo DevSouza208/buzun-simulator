@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
-import { sampleHeight } from "./terrain.js";
+import { sampleHeight, getTerrainBounds } from "./terrain.js";
 import { createRoadScene, STREET_PALETTE } from "./city-road-mesh.js";
 import { graphFromRoads } from "./grajau-osm.js";
 
@@ -13,23 +13,42 @@ function buildGround(scene,roads) {
   if(!Number.isFinite(minX))throw Error("Sem limites de mapa válidos");
   const offset=210;
   minX-=offset;maxX+=offset;minZ-=offset;maxZ+=offset;
-  const geo=new THREE.PlaneGeometry(maxX-minX,maxZ-minZ,
-    Math.min(250,Math.ceil((maxX-minX)/60)),
-    Math.min(250,Math.ceil((maxZ-minZ)/60)));
-  geo.rotateX(-Math.PI/2);
-  const attr=geo.getAttribute("position");
-  const cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
-  for(let i=0;i<attr.count;i++){
-    const x=attr.getX(i)+cx,z=attr.getZ(i)+cz;
-    attr.setY(i,sampleHeight(x,z)-.13);
-  }
-  geo.computeVertexNormals();
-  const ground=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({
+  // Fine relief only where measured SRTM data exists. Outside the exported
+  // DEM we deliberately use flat base instead of presenting fake altitudes.
+  // Splitting the ground prevents a coarse citywide mesh from covering roads.
+  const dem=getTerrainBounds();
+  const inner={
+    minX:Math.max(minX,dem.minX),maxX:Math.min(maxX,dem.maxX),
+    minZ:Math.max(minZ,dem.minZ),maxZ:Math.min(maxZ,dem.maxZ)
+  };
+  const regions=[];
+  if(inner.maxX>inner.minX&&inner.maxZ>inner.minZ){
+    regions.push([inner.minX,inner.maxX,inner.minZ,inner.maxZ,12]);
+    regions.push([minX,inner.minX,minZ,maxZ,140]);
+    regions.push([inner.maxX,maxX,minZ,maxZ,140]);
+    regions.push([inner.minX,inner.maxX,minZ,inner.minZ,140]);
+    regions.push([inner.minX,inner.maxX,inner.maxZ,maxZ,140]);
+  }else regions.push([minX,maxX,minZ,maxZ,140]);
+  const material=new THREE.MeshLambertMaterial({
     color:STREET_PALETTE.ground,side:THREE.DoubleSide,flatShading:true
-  }));
-  ground.position.set(cx,0,cz);
-  ground.name="GrajauGround";
-  scene.add(ground);
+  });
+  for(const [x0,x1,z0,z1,step] of regions) {
+    if(x1-x0<1||z1-z0<1)continue;
+    const geo=new THREE.PlaneGeometry(x1-x0,z1-z0,
+      Math.max(1,Math.ceil((x1-x0)/step)),
+      Math.max(1,Math.ceil((z1-z0)/step)));
+    geo.rotateX(-Math.PI/2);
+    const attr=geo.getAttribute("position"),cx=(x0+x1)/2,cz=(z0+z1)/2;
+    for(let i=0;i<attr.count;i++){
+      const x=attr.getX(i)+cx,z=attr.getZ(i)+cz;
+      attr.setY(i,sampleHeight(x,z)-.13);
+    }
+    geo.computeVertexNormals();
+    const ground=new THREE.Mesh(geo,material);
+    ground.position.set(cx,0,cz);
+    ground.name=step===12?"Grajau_SRTM_HighRes":"Grajau_Ground_Outer";
+    scene.add(ground);
+  }
   return {minX,maxX,minZ,maxZ};
 }
 function makeSpatialIndex(segments,cellSize=100){
