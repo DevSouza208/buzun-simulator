@@ -174,9 +174,10 @@ export function createFilletSurfaceIndex(fillets,cellSize=35){
         }
     }
   }
-  function sample(x,z){
+  function sample(x,z,layer=0){
     for(const {patch,poly} of cells.get(key(
       Math.floor(x/cellSize),Math.floor(z/cellSize)))||[]){
+      if(patch.layer!==layer)continue;
       const p=[x,z],side=poly.map((a,i)=>
         cross([poly[(i+1)%3][0]-a[0],poly[(i+1)%3][1]-a[1]],
           [p[0]-a[0],p[1]-a[1]]));
