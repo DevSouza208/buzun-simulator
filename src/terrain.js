@@ -65,7 +65,7 @@ export function sampleHeight(x, z, mode = cityDEM ? "terrarium" : activeDEM ? "s
     const height=cityDEM.pointSample(x,z,cityOrigin,780);
     if(height!=null&&Number.isFinite(height))return height;
   }
-  if (activeDEM) {
+  if (activeDEM && (mode === "srtm30m" || mode === "terrarium")) {
     const b = getTerrainBounds();
     if(x<b.minX||x>b.maxX||z<b.minZ||z>b.maxZ) return 0;
     return bilinearHeight(x,z);
