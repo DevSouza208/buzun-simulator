@@ -155,9 +155,16 @@ export function createWorld(scene, map, options = {}) {
 
     if (pilotIds.has(b.id)) continue; // Replaced by a modular pilot facade.
     const baseY = sampleHeight(centerX, centerZ);
-    const seed = seeded(b.id), height = 5.5 + Math.floor(seed * 4) * 2.8 +
-      (seeded(b.id * 7) > .91 ? 12 : 0);
-    const facade = buildingMaterials[Math.floor(seed * buildingMaterials.length)];
+    const seed = seeded(b.id);
+    const realHeight = Number.parseFloat(b.height);
+    const storeyCount=Number.parseFloat(b.levels);
+    const height = Number.isFinite(realHeight) && realHeight >= 2.5 && realHeight < 80
+      ? realHeight
+      : Number.isFinite(storeyCount) && storeyCount>=1 && storeyCount<=15
+        ? storeyCount*3.05
+        : b.use || b.n ? 4.2 + Math.floor(seed*3)*1.5
+          : 4.4 + Math.floor(seed * 3) * 2.7 + (seeded(b.id*7)>.96?7:0);
+    const facade = b.n==="Habib\'s" ? color("#dcd6c1") : buildingMaterials[Math.floor(seed * buildingMaterials.length)];
     const roof = facade.clone().multiplyScalar(.80);
     const area = poly.reduce((sum, a, i) => {
       const next = poly[(i + 1) % poly.length];
