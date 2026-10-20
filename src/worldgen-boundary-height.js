@@ -132,3 +132,13 @@ export function roadRegionAhead(x,z,heading,{
   return {x:next.x,z:next.z,key:regionKey(next.x,next.z),
     distance};
 }
+
+/** Bring a predicted transition to the front without dropping any queued
+ * region. Pure/immutable so simulations can verify load order in Node CI.
+ */
+export function prioritizeBoundaryQueue(queue,ahead,isReady=()=>false){
+  if(!ahead||isReady(ahead.key))return [...queue];
+  const result=[...queue],index=result.findIndex(r=>r.key===ahead.key);
+  const target=index<0?ahead:result.splice(index,1)[0];
+  return [target,...result];
+}
