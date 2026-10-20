@@ -17,24 +17,43 @@ export function createCooperativeRunner(iterator,{
   if(!(sliceMs>0)||!(maxSteps>=1))
     throw Error("Orçamento de etapas inválido");
   let done=false,cancelled=false,result=null,progress=null;
-  const stats={slices:0,yields:0,maxSliceMs:0,cpuMs:0};
+  const stats={slices:0,yields:0,maxSliceMs:0,cpuMs:0,
+    maxStepMs:0,slowestStage:null,slowSteps:0,waitSlices:0};
   return {
     stats,
     get done(){return done;},
     get cancelled(){return cancelled;},
     get progress(){return progress;},
-    cancel(){cancelled=true;},
+    cancel(){
+      if(cancelled||done)return;
+      cancelled=true;
+      // A suspended generator can own a live Web Worker. Closing it
+      // executes its finally block and terminates the worker promptly.
+      iterator.return?.();
+    },
     advance(){
       if(cancelled)return {done:true,cancelled:true,value:null,progress};
       if(done)return {done:true,value:result,progress};
       const start=now();
       let steps=0;
       do{
+        const beforeStep=now();
         const step=iterator.next();
+        const duration=Math.max(0,now()-beforeStep);
         steps++;
+        if(duration>stats.maxStepMs){
+          stats.maxStepMs=duration;
+          stats.slowestStage=step.value?.stage||
+            progress?.stage||"finalização";
+        }
+        if(duration>sliceMs)stats.slowSteps++;
         if(step.done){done=true;result=step.value;break;}
         progress=step.value;
         stats.yields++;
+        if(progress?.waiting){
+          stats.waitSlices++;
+          break; // never spin on a worker that has not answered yet
+        }
       }while(steps<maxSteps&&now()-start<sliceMs);
       const elapsed=Math.max(0,now()-start);
       stats.slices++;

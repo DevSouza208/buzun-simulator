@@ -18,6 +18,8 @@ import { streetTexturePixels,streetUv } from "./street-materials.js";
 import {clipMeshBufferToRegion} from "./worldgen-region-stream.js";
 import {renderProfile,renderBatchForPoint}
   from "./worldgen-render-profile.js";
+import {startAsphaltWorkerJob} from "./worldgen-asphalt-client.js";
+import {replayAsphaltTriangles} from "./worldgen-asphalt-job.js";
 import {makeWorldgenProfiler,geometryBudget,summarizeRoadSectors,
   newRoadVisibilityStats,applyRoadTileLOD} from "./worldgen-diagnostics.js";
 
@@ -191,7 +193,7 @@ export function getJunctions(roads){
  * below runs the SAME generator to completion, synchronously.
  */
 export function* createRoadSceneSteps(scene,roads,sampleHeight,{
-  renderBounds=null,roadBatchSize=4
+  renderBounds=null,roadBatchSize=4,backgroundAsphalt=false
 }={}) {
   const profiler=makeWorldgenProfiler();
   const detail=renderProfile(renderBounds);
@@ -356,12 +358,55 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   // rounded curb decorations without adding their road surface.
   profiler.mark("amostragem_vias_e_pintura");
   asphaltPatches.push(...roundedCorners.patches);
-  const asphaltUnion=yield* paceGeometry(unionAsphaltSteps(
-    asphaltPatches,(triangle)=>{
+  const emitAsphalt=triangle=>{
     const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
       (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
     addTri(chunkFor(mid).asphalt,...triangle);
-  }),profiler);
+  };
+  // Only background regions use a Worker. The synchronous initial region,
+  // emergency load and traditional full-city mode CANNOT wait on a worker:
+  // blocking the event loop would prevent any onmessage from running.
+  const asphaltWorkerStats={requested:backgroundAsphalt,
+    used:false,fallback:false,triangles:0,error:null};
+  let asphaltUnion=null;
+  const job=backgroundAsphalt&&renderBounds?
+    startAsphaltWorkerJob(asphaltPatches):null;
+  try{
+    if(job){
+      const workerStarted=performance.now();
+      while(job.status==="pending"){
+        // Some content blockers silently suppress worker messages. Never
+        // wait indefinitely: rerun the exact same union on the main thread.
+        if(performance.now()-workerStarted>12000){
+          asphaltWorkerStats.error="Tempo limite do Worker (12 s)";
+          job.cancel();
+          break;
+        }
+        profiler.pause();
+        yield {stage:"asphalt_worker_wait",waiting:true};
+        profiler.resume();
+      }
+      if(job.status==="complete"){
+        asphaltWorkerStats.used=true;
+        asphaltWorkerStats.triangles=job.positions.length/9;
+        asphaltUnion=job.stats;
+        yield* paceGeometry(replayAsphaltTriangles(
+          job.positions,emitAsphalt),profiler);
+      }else{
+        asphaltWorkerStats.fallback=true;
+        asphaltWorkerStats.error=asphaltWorkerStats.error||
+          job.error||"Worker cancelado";
+      }
+    }else if(backgroundAsphalt) {
+      asphaltWorkerStats.fallback=true;
+      asphaltWorkerStats.error="Worker indisponível";
+    }
+    if(!asphaltUnion)
+      asphaltUnion=yield* paceGeometry(unionAsphaltSteps(
+        asphaltPatches,emitAsphalt),profiler);
+  }finally{
+    job?.cancel();
+  }
   profiler.mark("uniao_poligonal_asfalto");
   // Zebra paint is validated against the same draped road surface BEFORE
   // we carve ramps. Only actually paintable crossings receive curb cuts.
@@ -486,7 +531,7 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
     },
     gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
     buildProfile,geometryStatistics,lodStatistics,
-    renderProfile:detail,
+    renderProfile:detail,asphaltWorkerStats,
     // Only 3D VISUAL detail is culled; physics, lane metadata, terrain,
     // minimap and OSM geometry are unaffected. Recompute when the camera
     // moves enough to matter, not 60 times per second.
