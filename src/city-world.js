@@ -1,5 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
-import { sampleHeight, getTerrainBounds } from "./terrain.js";
+import { sampleHeight, getTerrainBounds, getTerrainMode } from "./terrain.js";
 import { createRoadScene, STREET_PALETTE } from "./city-road-mesh.js";
 import { graphFromRoads } from "./grajau-osm.js";
 
@@ -23,7 +23,7 @@ function buildGround(scene,roads) {
   };
   const regions=[];
   if(inner.maxX>inner.minX&&inner.maxZ>inner.minZ){
-    regions.push([inner.minX,inner.maxX,inner.minZ,inner.maxZ,12]);
+    regions.push([inner.minX,inner.maxX,inner.minZ,inner.maxZ,getTerrainMode()==="terrarium"?24:12]);
     regions.push([minX,inner.minX,minZ,maxZ,140]);
     regions.push([inner.maxX,maxX,minZ,maxZ,140]);
     regions.push([inner.minX,inner.maxX,minZ,inner.minZ,140]);
@@ -46,7 +46,7 @@ function buildGround(scene,roads) {
     geo.computeVertexNormals();
     const ground=new THREE.Mesh(geo,material);
     ground.position.set(cx,0,cz);
-    ground.name=step===12?"Grajau_SRTM_HighRes":"Grajau_Ground_Outer";
+    ground.name=step<=24?"Grajau_Relief_HighRes":"Grajau_Ground_Outer";
     scene.add(ground);
   }
   return {minX,maxX,minZ,maxZ};
@@ -120,7 +120,7 @@ export function createCityWorld(scene,map) {
   return {
     segments:scenery.segments,spawn,terminalSpawn:spawn,pilotSpawns:empty,
     collides:()=>false,
-    inExploreArea:(x,z)=>x>bounds.minX&&x<bounds.maxX&&z>bounds.minZ&&z<bounds.maxZ&&!!closest(x,z),
+    inExploreArea:(x,z)=>x>bounds.minX&&x<bounds.maxX&&z>bounds.minZ&&z<bounds.maxZ&&(closest(x,z)?.distance??Infinity)<62,
     heightAt:sampleHeight,facades:empty,corridorLandmarks,
     closest,
     nearbySegments:(x,z,r=650)=>index.candidates(x,z,r),
