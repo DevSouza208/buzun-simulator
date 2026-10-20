@@ -30,6 +30,7 @@ export function mountWorldgenOverlay({
       stages:stats.buildProfile?.stagesMs,
       geometry:stats.geometryStatistics,
       lod:{...stats.lodStatistics},
+      streaming:stats.streaming?{...stats.streaming}:null,
       fps:+fps.toFixed(1),
       frames
     };
@@ -57,6 +58,12 @@ export function mountWorldgenOverlay({
           "/"+r.geometry.triangles.toLocaleString("pt-BR")+" triângulos viários",
         "Geometria total: "+megabytes+" MiB estimados",
         "WorldGen: "+(r.build?.totalMs??"?")+" ms",
+        ...(r.streaming?[
+          "Streaming: "+r.streaming.loadedRegions+
+            " regiões ativas · "+r.streaming.queuedRegions+" aguardando",
+          "Primeira região: "+r.streaming.initialRegionMs.toFixed(1)+" ms",
+          "Próximo setor: "+(r.streaming.building||"em espera")
+        ]:[]),
         "Asfalto: "+(r.stages?.uniao_poligonal_asfalto??"?")+" ms",
         "Calçadas: "+(r.stages?.uniao_calcadas_guias_rampas??"?")+" ms",
         "Setor maior: "+(r.geometry.heavySectors?.[0]?.tile??"?"),
