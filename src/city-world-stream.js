@@ -90,6 +90,11 @@ export function createStreamingCityWorld(scene,map){
       -(next[1]-routeStart[1]))};
   const regionIndex=createRegionRoadIndex(map.roads);
   const loaded=new Map(),emptyRegions=new Set();
+  // Regions are mounted while the user may be standing still on the
+  // landing screen. They MUST receive LOD visibility immediately; waiting
+  // for the next 10m player movement leaves every brand-new chunk visible
+  // and can send hundreds of draw calls to WebGL (measured 1.8 FPS).
+  let visibilityFocus={x:spawn.x,z:spawn.z};
   const counters={mode:"experimental",regionMetres:REGION_METRES,
     totalRoads:map.roads.length,loadedRegions:0,readyRegions:0,
     unloadedRegions:0,building:null,queuedRegions:0,
@@ -105,6 +110,7 @@ export function createStreamingCityWorld(scene,map){
     // clipping occurs only after every intersection has been resolved.
     const scenery=createRoadScene(scene,ways,sampleHeight,
       {renderBounds:regionBounds(rx,rz)});
+    scenery.updateVisibility(visibilityFocus.x,visibilityFocus.z);
     const elapsed=time()-started;
     counters.totalRegionBuildMs+=elapsed;
     counters.maxRegionBuildMs=Math.max(elapsed,counters.maxRegionBuildMs);
@@ -270,6 +276,7 @@ export function createStreamingCityWorld(scene,map){
   }
   let lastLod=[Infinity,Infinity],lastRegionKey="";
   function update(x,z){
+    visibilityFocus={x,z};
     const current=regionAt(x,z);
     const key=regionKey(current.x,current.z);
     if(key!==lastRegionKey||
