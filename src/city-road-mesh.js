@@ -11,6 +11,8 @@ import { buildJunctionFillets,createFilletSurfaceIndex }
   from "./junction-fillets.js";
 import { findSeparatedCarriagewayMedians } from "./median-islands.js";
 import { sealMeshSeams } from "./mesh-seams.js";
+import { planPedestrianCrossings,buildZebraBars }
+  from "./pedestrian-crossings.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -157,6 +159,30 @@ export function createRoadScene(scene,roads,sampleHeight) {
     oneWayRoads:0,constrainedByWidth:0,ambiguousLaneTags:0};
   const corridors=createRoadCorridors(roads);
   const joints=getJunctions(roads);
+  const pedestrianCrossings=planPedestrianCrossings(roads,joints);
+  // Small per-40m tile index to suppress lane paint underneath zebra
+  // stripes; no shared road centerlines or original OSM data are moved.
+  const crossingCells=new Map(),crossingCellSize=40;
+  for(const site of pedestrianCrossings.sites){
+    const cx=Math.floor(site.point[0]/crossingCellSize),
+      cz=Math.floor(site.point[1]/crossingCellSize);
+    const key=cx+":"+cz;
+    if(!crossingCells.has(key))crossingCells.set(key,[]);
+    crossingCells.get(key).push(site);
+  }
+  const nearCrosswalk=(point,id)=>{
+    const cx=Math.floor(point[0]/crossingCellSize),
+      cz=Math.floor(point[1]/crossingCellSize);
+    for(let x=cx-1;x<=cx+1;x++)for(let z=cz-1;z<=cz+1;z++)
+      for(const site of crossingCells.get(x+":"+z)||[]){
+        if(String(site.roadId)!==String(id))continue;
+        const dx=point[0]-site.point[0],dz=point[1]-site.point[1];
+        const along=Math.abs(dx*site.axis[0]+dz*site.axis[1]);
+        const sideways=Math.abs(dx*site.normal[0]+dz*site.normal[1]);
+        if(along<4.6&&sideways<site.widthMeters/2+1)return true;
+      }
+    return false;
+  };
   const gradeModels=buildIntersectionGradeModels(roads,joints,sampleHeight);
   const roundedCorners=buildJunctionFillets(roads,joints,sampleHeight,
     {gradeModels:gradeModels.models});
@@ -246,7 +272,9 @@ export function createRoadScene(scene,roads,sampleHeight) {
       // Keep the whole intersection mouth blank: marks cannot run across
       // a crossing, even if only a single end of this 5m quad is near it.
       const clearOfJunction=!intersection &&
-        !nearJunction(a.p,.6)&&!nearJunction(b.p,.6);
+        !nearJunction(a.p,.6)&&!nearJunction(b.p,.6)&&
+        !nearCrosswalk(middle,road.id)&&
+        !nearCrosswalk(a.p,road.id)&&!nearCrosswalk(b.p,road.id);
       if(clearOfJunction)
         for(const mark of lanePlan.markings)
           paintLaneMarking(buffer,a,b,mark,travelled,sampleHeight);
@@ -287,6 +315,16 @@ export function createRoadScene(scene,roads,sampleHeight) {
       addQuad(chunkFor(mid).curb,...wall);
     },{junctions:joints,bevelCurbs:true});
   const surface=createRoadSurfaceIndex(surfaceSegments);
+  const crossingStatistics={...pedestrianCrossings.stats,
+    crossingsPainted:0,barsPainted:0,rejectedSurface:0};
+  for(const site of pedestrianCrossings.sites){
+    const bars=buildZebraBars(site,surface);
+    if(!bars.length){crossingStatistics.rejectedSurface++;continue;}
+    const buffer=chunkFor(site.point).white;
+    for(const [a,b,c,d] of bars)addQuad(buffer,a,b,c,d);
+    crossingStatistics.crossingsPainted++;
+    crossingStatistics.barsPainted+=bars.length;
+  }
   const tiles=[];
   const seamStats={sharedVertices:0,snappedVertices:0,
     independentLevels:0,degenerateTriangles:0};
@@ -325,7 +363,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
     surface,asphaltUnion,laneStatistics,roadsideStats,filletSurface,
     cornerStatistics:roundedCorners.stats,medianStatistics:medians.stats,
-    seamStatistics:seamStats,
+    crossingStatistics,seamStatistics:seamStats,
     gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
