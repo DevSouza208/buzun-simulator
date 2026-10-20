@@ -102,8 +102,10 @@ anúncio de eliminação completa dos bugs dos screenshots.
 ## Alterações 6.1 (preview `worldgen=sheet`)
 
 - Malha do terreno: 84 subdivisões em 420 m = 5 m (antes 60 = 7 m).
-- Até 18 tiles ativos (antes 26) para conter custo de memória e triangulação;
-  isso precisa ser validado para não mostrar bordas vazias à distância.
+- Limite de 32 tiles ativos para cobrir inteiramente os setores no raio
+  de 900 m: um limite experimental de 18 criava novas bordas vazias.
+  O consumo de GPU com grade 5 m deve ser medido no navegador antes de
+  aplicar LOD por distância sem quebrar as costuras.
 - Perfil lateral em três zonas contínuas: 0,16 m sob asfalto, transição até
   a base da calçada e blend até relevo natural em 9 m.
 - Cruzamentos: amostra até cinco vias candidatas, deduplicando trechos da
