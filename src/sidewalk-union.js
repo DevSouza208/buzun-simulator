@@ -123,9 +123,10 @@ export function retreatCurbAtJunctions(a,b,junctions,retreat=0){
  * footprint; caller should pass the exact road ribbon patches consumed
  * by unionAsphaltPatches, not raw unsampled OSM ways.
  */
-export function composeRoadsideMeshes(asphaltPatches,walkPatches,
+export function* composeRoadsideSteps(asphaltPatches,walkPatches,
   onSidewalk,onCurb,{cellSize=28,junctions=[],bevelCurbs=false,
-    rampSites=[],onTactile=null,tactileOptions={}}={}){
+    rampSites=[],onTactile=null,tactileOptions={},
+    batchSize=14}={}){
   const asphalt=new PlanarIndex(cellSize),sidewalks=new PlanarIndex(cellSize);
   const ramps=buildCurbRampZones(rampSites);
   const rampIndex=createRampIndex(ramps.zones,{cellSize});
@@ -175,7 +176,8 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
     if(!junctionsByWay.has(key))junctionsByWay.set(key,[]);
     junctionsByWay.get(key).push(j);
   }
-  let groundPieces=0,clipOperations=0,curbSegments=0,discarded=0;
+  let groundPieces=0,clipOperations=0,curbSegments=0,discarded=0,
+    completedWalks=0,completedCurbs=0;
   for(const patch of sorted){
     const layer=physicalLayer(patch);
     for(const subject of triangles(patch)){
@@ -235,6 +237,8 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
         groundPieces++;
       }
     }
+    if(++completedWalks%batchSize===0)
+      yield {stage:"sidewalk",done:completedWalks,total:sorted.length};
   }
   // After all polygon subtraction, only the edges bordering asphalt are
   // curb candidates. A small bevel gives the raised edge a rounded profile
@@ -318,10 +322,25 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
         }
       }
     }
+    if(++completedCurbs%batchSize===0)
+      yield {stage:"curb",done:completedCurbs,total:sidewalks.cells.size};
   }
   return {sidewalkPolygons:groundPieces,curbSegments,curbFaces,
     droppedAgainstAsphalt:discarded,clipOperations,
     rampSites:rampSites.length,rampSides:ramps.stats.rampSides,
     rampCells,rampTriangles,loweredCurbSegments,
     tactileFragments,tactileTriangles};
+}
+
+/** Stable synchronous entrypoint. The streaming world alone consumes
+ * composeRoadsideSteps between animation frames; every old caller gets
+ * the same union, tri order, ramp and curb topology as before.
+ */
+export function composeRoadsideMeshes(asphaltPatches,walkPatches,
+  onSidewalk,onCurb,options={}){
+  const iterator=composeRoadsideSteps(asphaltPatches,walkPatches,
+    onSidewalk,onCurb,options);
+  let result=iterator.next();
+  while(!result.done)result=iterator.next();
+  return result.value;
 }

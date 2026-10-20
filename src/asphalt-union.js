@@ -113,7 +113,9 @@ function heightAt(patch,p){
  * The broadphase indexes original triangles, NOT fragments, because
  * subtracting a previously-subtracted triangle is unnecessary.
  */
-export function unionAsphaltPatches(patches,emit,{cellSize=28}={}){
+export function* unionAsphaltSteps(patches,emit,{
+  cellSize=28,batchSize=20
+}={}){
   const polygons=[];
   for(const patch of patches){
     const layer=physicalLayer(patch);
@@ -135,7 +137,7 @@ export function unionAsphaltPatches(patches,emit,{cellSize=28}={}){
         ids.push(cell(x,z,p.layer));
     return ids;
   };
-  let clipped=0,emitted=0,skipped=0,overlaps=0;
+  let clipped=0,emitted=0,skipped=0,overlaps=0,processed=0;
   for(const patch of polygons){
     let pieces=[patch.polygon];
     const already=new Set();
@@ -173,7 +175,22 @@ export function unionAsphaltPatches(patches,emit,{cellSize=28}={}){
       if(!cells.has(key))cells.set(key,[]);
       cells.get(key).push(patch);
     }
+    // Main-thread cooperative scheduling: yield between *complete*
+    // triangle ownership updates so a partial subtraction never changes
+    // priorities or overlaps with the following batch.
+    if(++processed%batchSize===0)
+      yield {stage:"asphalt",done:processed,total:polygons.length};
   }
   return {inputTriangles:polygons.length,outputTriangles:emitted,
     clipped,hiddenTriangles:skipped,overlaps};
+}
+
+/** Legacy one-shot API: exactly the same geometry as the stepwise version.
+ * Full-world generation and existing callers stay synchronous by design.
+ */
+export function unionAsphaltPatches(patches,emit,options={}){
+  const iterator=unionAsphaltSteps(patches,emit,options);
+  let result=iterator.next();
+  while(!result.done)result=iterator.next();
+  return result.value;
 }

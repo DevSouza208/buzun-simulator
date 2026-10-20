@@ -1,5 +1,7 @@
 import {sampleHeight} from "./terrain.js";
-import {createRoadScene,getJunctions} from "./city-road-mesh.js";
+import {createRoadScene,createRoadSceneSteps,getJunctions}
+  from "./city-road-mesh.js";
+import {createCooperativeRunner} from "./worldgen-cooperative.js";
 import {createRoadCorridors} from "./road-corridor.js";
 import {createCarvedTerrain} from "./terrain-cutout.js";
 import {graphFromRoads} from "./grajau-osm.js";
@@ -101,7 +103,10 @@ export function createStreamingCityWorld(scene,map){
     unloadedRegions:0,building:null,queuedRegions:0,
     totalRegionBuildMs:0,initialRegionMs:0,
     maxRegionBuildMs:0,trianglesAllocated:0,
-    urgentRegionLoads:0,travelDirection:[0,0]};
+    urgentRegionLoads:0,travelDirection:[0,0],
+    backgroundRegions:0,cooperativeSlices:0,
+    maxCooperativeSliceMs:0,cooperativeCpuMs:0,
+    cancelledBackgroundRegions:0,buildStage:null};
   const buildRegion=(rx,rz)=>{
     const key=regionKey(rx,rz);
     if(loaded.has(key)||emptyRegions.has(key))return;
@@ -212,38 +217,87 @@ export function createStreamingCityWorld(scene,map){
         lodStatistics[name]+=scenery.lodStatistics[name]||0;
   };
   let focus={x:spawn.x,z:spawn.z},queue=[],
-    scheduled=false,disposed=false,lastPlan=null;
-  // The initial heading comes from the OSM route. During driving it is
-  // refreshed from actual displacement, without requiring a new vehicle
-  // API or coupling the world to camera controls.
+    scheduled=false,disposed=false,lastPlan=null,pendingTask=null;
+  // Initial OSM heading helps neighbor loads favor the direction of travel.
   let driveHeading=[Math.sin(spawn.angle),-Math.cos(spawn.angle)];
   const schedule=()=>{
-    if(scheduled||disposed||!queue.length)return;
+    if(scheduled||disposed||(!queue.length&&!pendingTask))return;
     scheduled=true;
     const run=()=>{
-      scheduled=false;if(disposed)return;
-      // Skip any region no longer near the player after rapid teleport.
+      scheduled=false;
+      if(disposed)return;
       const current=new Set(plannedRegions(focus.x,focus.z,
         {radius:PRELOAD_METRES}).map(r=>r.key));
-      while(queue.length){
-        const todo=queue.shift();
-        if(!current.has(todo.key)||
-           loaded.has(todo.key)||emptyRegions.has(todo.key))continue;
-        counters.building=todo.key;
-        try{buildRegion(todo.x,todo.z);}
-        catch(error){
-          console.error("[Buzun WorldGen] Falha no setor "+todo.key,error);
-          emptyRegions.add(todo.key);
-        }finally{counters.building=null;}
-        break;
+      if(pendingTask&&!current.has(pendingTask.key)){
+        pendingTask.runner.cancel();
+        pendingTask=null;
+        counters.cancelledBackgroundRegions++;
+        counters.building=null;
+        counters.buildStage=null;
       }
-      counters.queuedRegions=queue.length;
-      rebuildStats();
-      if(queue.length)schedule();
+      if(!pendingTask){
+        while(queue.length){
+          const todo=queue.shift();
+          if(!current.has(todo.key)||loaded.has(todo.key)||
+             emptyRegions.has(todo.key))continue;
+          const ways=regionIndex.select(todo.x,todo.z);
+          if(!ways.length){emptyRegions.add(todo.key);continue;}
+          const started=time();
+          pendingTask={
+            ...todo,started,
+            runner:createCooperativeRunner(createRoadSceneSteps(
+              scene,ways,sampleHeight,
+              {renderBounds:regionBounds(todo.x,todo.z)}),{
+              now:time,sliceMs:6,maxSteps:6
+            })
+          };
+          counters.building=todo.key;
+          break;
+        }
+      }
+      if(pendingTask){
+        const task=pendingTask;
+        try{
+          const step=task.runner.advance();
+          counters.cooperativeSlices++;
+          counters.maxCooperativeSliceMs=Math.max(
+            counters.maxCooperativeSliceMs,step.elapsed||0);
+          counters.cooperativeCpuMs+=step.elapsed||0;
+          counters.buildStage=step.progress?.stage||"finalizando";
+          if(step.done){
+            const scenery=step.value;
+            activateLoadedRoadRegion(scenery,
+              visibilityFocus.x,visibilityFocus.z);
+            const elapsed=time()-task.started;
+            counters.totalRegionBuildMs+=elapsed;
+            counters.maxRegionBuildMs=Math.max(
+              elapsed,counters.maxRegionBuildMs);
+            loaded.set(task.key,{x:task.x,z:task.z,scenery,ms:elapsed});
+            counters.readyRegions++;
+            counters.backgroundRegions++;
+            counters.loadedRegions=loaded.size;
+            pendingTask=null;
+            counters.building=null;
+            counters.buildStage=null;
+            rebuildStats();
+          }
+        }catch(error){
+          console.error("[Buzun WorldGen] Falha no setor "+task.key,error);
+          emptyRegions.add(task.key);
+          task.runner.cancel();
+          pendingTask=null;
+          counters.building=null;
+          counters.buildStage=null;
+        }
+      }
+      counters.queuedRegions=queue.length+(pendingTask?1:0);
+      if(queue.length||pendingTask)schedule();
     };
+    // requestIdleCallback merely schedules the NEXT short CPU slice;
+    // unlike v5.11–5.13, no single idle callback builds a whole region.
     if(typeof requestIdleCallback==="function")
-      requestIdleCallback(run,{timeout:350});
-    else setTimeout(run,35);
+      requestIdleCallback(run,{timeout:280});
+    else setTimeout(run,16);
   };
   function refreshQueue(x,z){
     const dx=x-focus.x,dz=z-focus.z;
@@ -299,6 +353,13 @@ export function createStreamingCityWorld(scene,map){
       // on approximate ground with invisible asphalt. This slow path
       // is only entered when prefetch did not meet the player in time.
       if(!loaded.has(key)&&!emptyRegions.has(key)){
+        if(pendingTask?.key===key){
+          pendingTask.runner.cancel();
+          pendingTask=null;
+          counters.cancelledBackgroundRegions++;
+          counters.building=null;
+          counters.buildStage=null;
+        }
         counters.urgentRegionLoads++;
         try{buildRegion(current.x,current.z);}
         catch(error){
@@ -333,6 +394,11 @@ export function createStreamingCityWorld(scene,map){
     closest:streets.closest,
     nearbySegments:(x,z,r=650)=>streets.candidates(x,z,r),
     update,graph,stats,bounds,
-    dispose(){disposed=true;queue=[];evict(Infinity,Infinity);}
+    dispose(){
+      disposed=true;queue=[];
+      pendingTask?.runner.cancel();
+      pendingTask=null;
+      evict(Infinity,Infinity);
+    }
   };
 }
