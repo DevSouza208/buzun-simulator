@@ -13,6 +13,7 @@ import { findSeparatedCarriagewayMedians } from "./median-islands.js";
 import { sealMeshSeams } from "./mesh-seams.js";
 import { planPedestrianCrossings,buildZebraBars }
   from "./pedestrian-crossings.js";
+import { buildCurbRampZones,createRampIndex } from "./curb-ramps.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -300,8 +301,25 @@ export function createRoadScene(scene,roads,sampleHeight) {
       (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
     addTri(chunkFor(mid).asphalt,...triangle);
   });
-  // Unlike the old side-road quads, sidewalks and curbs are now derived
-  // from ONE resolved pavement footprint in the same horizontal layer.
+  // Zebra paint is validated against the same draped road surface BEFORE
+  // we carve ramps. Only actually paintable crossings receive curb cuts.
+  const surface=createRoadSurfaceIndex(surfaceSegments);
+  const crossingStatistics={...pedestrianCrossings.stats,
+    crossingsPainted:0,barsPainted:0,rejectedSurface:0};
+  const verifiedRampSites=[];
+  for(const site of pedestrianCrossings.sites){
+    const bars=buildZebraBars(site,surface);
+    if(!bars.length){crossingStatistics.rejectedSurface++;continue;}
+    const buffer=chunkFor(site.point).white;
+    for(const [a,b,c,d] of bars)addQuad(buffer,a,b,c,d);
+    crossingStatistics.crossingsPainted++;
+    crossingStatistics.barsPainted+=bars.length;
+    verifiedRampSites.push(site);
+  }
+  const rampGeometry=buildCurbRampZones(verifiedRampSites);
+  const rampSurface=createRampIndex(rampGeometry.zones);
+  // Use the same accepted sidewalk polygon union. The ramp cutter removes
+  // the old flat sidewalk, emits graded cells, and opens the real curb wall.
   const roadsideStats=composeRoadsideMeshes(asphaltPatches,
     [...walkPatches,...medians.patches],
     (triangle,patch)=>{
@@ -313,18 +331,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
       const mid=[(wall[0][0]+wall[1][0])/2,
         (wall[0][2]+wall[1][2])/2];
       addQuad(chunkFor(mid).curb,...wall);
-    },{junctions:joints,bevelCurbs:true});
-  const surface=createRoadSurfaceIndex(surfaceSegments);
-  const crossingStatistics={...pedestrianCrossings.stats,
-    crossingsPainted:0,barsPainted:0,rejectedSurface:0};
-  for(const site of pedestrianCrossings.sites){
-    const bars=buildZebraBars(site,surface);
-    if(!bars.length){crossingStatistics.rejectedSurface++;continue;}
-    const buffer=chunkFor(site.point).white;
-    for(const [a,b,c,d] of bars)addQuad(buffer,a,b,c,d);
-    crossingStatistics.crossingsPainted++;
-    crossingStatistics.barsPainted+=bars.length;
-  }
+    },{junctions:joints,bevelCurbs:true,rampSites:verifiedRampSites});
   const tiles=[];
   const seamStats={sharedVertices:0,snappedVertices:0,
     independentLevels:0,degenerateTriangles:0};
@@ -363,7 +370,12 @@ export function createRoadScene(scene,roads,sampleHeight) {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
     surface,asphaltUnion,laneStatistics,roadsideStats,filletSurface,
     cornerStatistics:roundedCorners.stats,medianStatistics:medians.stats,
-    crossingStatistics,seamStatistics:seamStats,
+    crossingStatistics,rampStatistics:{
+      ...rampGeometry.stats,
+      cells:roadsideStats.rampCells,
+      triangles:roadsideStats.rampTriangles,
+      curbSegmentsLowered:roadsideStats.loweredCurbSegments
+    },rampSurface,seamStatistics:seamStats,
     gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
