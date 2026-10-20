@@ -91,10 +91,12 @@ export function createCityWorld(scene,map) {
     components:graph.components,junctions:scenery.junctions,
     knownWidths:map.roads.filter(r=>r.widthSource==="osm:width").length,
     asphaltUnion:scenery.asphaltUnion,
-    laneStatistics:scenery.laneStatistics
+    laneStatistics:scenery.laneStatistics,
+    roadsideStats:scenery.roadsideStats
   };
   console.info("[Buzun WorldGen] Asfalto unificado:",scenery.asphaltUnion);
   console.info("[Buzun WorldGen] Faixas inteligentes:",scenery.laneStatistics);
+  console.info("[Buzun WorldGen] Calçadas e meio-fios:",scenery.roadsideStats);
   scenery.updateVisibility(spawn.x,spawn.z);
   ground.update(spawn.x,spawn.z,12);
   return {
