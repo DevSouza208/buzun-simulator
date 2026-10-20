@@ -14,9 +14,10 @@ import {asphaltPriority,physicalLayer} from "./asphalt-union.js";
 import {sidewalkWidth} from "./road-corridor.js";
 import {connectorHeightAt} from "./worldgen-road-connectors.js";
 import {ROAD_RENDER_PROFILE} from "./worldgen-render-profile.js";
+import {conservativeGroundSupport} from "./worldgen-sheet-safety.js";
 
 export const SHEET_TILE_METRES=420;
-export const SHEET_GRID_SEGMENTS=84;
+export const SHEET_GRID_SEGMENTS=105;
 export const SHEET_GRID_STEP_METRES=SHEET_TILE_METRES/SHEET_GRID_SEGMENTS;
 export const SHEET_SHOULDER_BLEND_METRES=9;
 const CELL=75;
@@ -122,7 +123,7 @@ export function createWorldSheet(roads,naturalHeight,{
    * segments before calculating grades. Only the four nearest eligible ways
    * contribute; road meshes keep their independent OSM geometry.
    */
-  function roadHits(x,z){
+  function roadHits(x,z,maxWays=5){
     const candidates=cells.get(key(
       Math.floor(x/CELL),Math.floor(z/CELL)))||[];
     const byWay=new Map();
@@ -142,7 +143,7 @@ export function createWorldSheet(roads,naturalHeight,{
       (a.within?b.s.priority-a.s.priority:0)||
       a.distance-b.distance||
       String(a.s.road.id).localeCompare(String(b.s.road.id)));
-    return candidatesByWay.slice(0,5).map(({s,t,distance})=>{
+    return candidatesByWay.slice(0,maxWays).map(({s,t,distance})=>{
       const rows=sectionsFor(s.road);
       if(rows.length<2)return null;
       return {
@@ -175,6 +176,16 @@ export function createWorldSheet(roads,naturalHeight,{
     if(!hits.length)return natural;
     const owner=hits[0];
     let sum=0,total=0,lowestLane=Infinity,lowestWalk=Infinity;
+    // A grass triangle must never cover the footprint of any road
+    // actually drawn at ground level, even with incomplete OSM junctions.
+    // Topology controls BLENDING only; safety of the surface is universal.
+    for(const hit of roadHits(x,z,Infinity)){
+      if(hit.distance<=hit.halfWidth+.08)
+        lowestLane=Math.min(lowestLane,hit.base-.24);
+      else if(hit.distance<=hit.halfWidth+hit.walk)
+        lowestWalk=Math.min(lowestWalk,
+          hit.base+(hit.curbTop??.18)-.10);
+    }
     for(const hit of hits){
       if(!meetNear(owner.roadId,hit.roadId,x,z))continue;
       // Never combine unrelated vertical grades (e.g. missing OSM bridge
@@ -200,8 +211,18 @@ export function createWorldSheet(roads,naturalHeight,{
     else if(lowestWalk<Infinity)surface=Math.min(surface,lowestWalk);
     return surface;
   }
-  function tileSample(x,z){return height(x,z);}
-  return {height,roadAt,roadHits,sectionsFor,tileSample,
+  function meshHeight(x,z){
+    // Actual THREE.PlaneGeometry interpolates heights across triangles;
+    // a 4m triangle may otherwise bridge over a paved road without
+    // any vertex inside the lane. Expand its ground support by a full
+    // cell diagonal so the interpolated face stays beneath the pavement.
+    const original=height(x,z);
+    return conservativeGroundSupport(original,roadHits(x,z,Infinity),{
+      step:SHEET_GRID_STEP_METRES
+    });
+  }
+  function tileSample(x,z){return meshHeight(x,z);}
+  return {height,meshHeight,roadAt,roadHits,sectionsFor,tileSample,
     get stats(){return {sourceRoadSegments:segments.length,
       cachedProfiles:gradeCache.size,gridCellMetres:CELL};}};
 }
