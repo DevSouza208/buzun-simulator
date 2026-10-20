@@ -34,5 +34,16 @@ jobs:
           git add public/data/grajau-city-roads.json
           if ! git diff --cached --quiet; then
             git commit -m "data: snapshot completo de vias do Grajaú via OSM"
-            git push
+            # The version-bump workflow may have pushed a commit during the
+            # Overpass request. Rebase the new file on the current main.
+            for attempt in 1 2 3; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then
+                exit 0
+              fi
+              sleep 4
+            done
+            echo "Could not publish the new OSM snapshot after retries" >&2
+            exit 1
           fi
