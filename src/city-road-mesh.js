@@ -4,6 +4,7 @@ import { sidewalkWidth, createRoadCorridors,
 import { drapedSections, createRoadSurfaceIndex, coordinateKey }
   from "./draped-road.js";
 import { unionAsphaltPatches, asphaltPriority, physicalLayer } from "./asphalt-union.js";
+import { resolveLanePlan, paintIntervals } from "./road-lanes.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -80,27 +81,25 @@ function curbWall(target,sections,offset,heightAt){
       point(b,offset,.17,heightAt),point(a,offset,.17,heightAt));
   }
 }
-function paintedDash(target,sections,offset,heightAt) {
-  let accumulated=0;
-  for(let i=1;i<sections.length;i++){
-    const a=sections[i-1],b=sections[i],dist=Math.hypot(b.p[0]-a.p[0],b.p[1]-a.p[1]);
-    const cycle=13,visible=4.5;
-    let d=0;
-    while(d<dist-.01) {
-      const phase=(accumulated+d)%cycle;
-      const delta=Math.min(dist-d,phase<visible?visible-phase:cycle-phase);
-      if(phase<visible-.001&&delta>.025){
-        const at=t=>({
-          p:[lerp(a.p[0],b.p[0],t),lerp(a.p[1],b.p[1],t)],
-          normal:[lerp(a.normal[0],b.normal[0],t),lerp(a.normal[1],b.normal[1],t)]
-        });
-        const c=at(d/dist),e=at((d+delta)/dist);
-        addQuad(target,point(c,offset-.085,.082,heightAt),point(e,offset-.085,.082,heightAt),
-          point(e,offset+.085,.082,heightAt),point(c,offset+.085,.082,heightAt));
-      }
-      d+=Math.max(.001,delta);
-    }
-    accumulated+=dist;
+/**
+ * Paint a lane marking against the same draped grade as its road section.
+ * Dash phases advance in metres along the ENTIRE way, not per 5m piece.
+ */
+function paintLaneMarking(buffer,a,b,mark,metresFromStart,heightAt){
+  const distance=Math.hypot(b.p[0]-a.p[0],b.p[1]-a.p[1]);
+  if(distance<.02)return;
+  const at=t=>({
+    p:[lerp(a.p[0],b.p[0],t),lerp(a.p[1],b.p[1],t)],
+    normal:[lerp(a.normal[0],b.normal[0],t),
+      lerp(a.normal[1],b.normal[1],t)],
+    base:lerp(a.base,b.base,t)
+  });
+  for(const [from,to] of paintIntervals(metresFromStart,distance,mark.style)){
+    const p=at(from),q=at(to),half=mark.width/2,
+      offset=mark.offset;
+    addQuad(buffer[mark.color],
+      point(p,offset-half,.104,heightAt),point(q,offset-half,.104,heightAt),
+      point(q,offset+half,.104,heightAt),point(p,offset+half,.104,heightAt));
   }
 }
 function meshFrom(points,color,lambert=false) {
@@ -148,6 +147,8 @@ export function createRoadScene(scene,roads,sampleHeight) {
     return chunks.get(key);
   };
   const segments=[],surfaceSegments=[],asphaltPatches=[];
+  const laneStatistics={roadsByLaneCount:{},sourceCounts:{},
+    oneWayRoads:0,constrainedByWidth:0,ambiguousLaneTags:0};
   const corridors=createRoadCorridors(roads);
   const joints=getJunctions(roads);
   const fixedJunctions=new Set(joints.map(j=>coordinateKey(j.point)));
@@ -168,6 +169,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
   for(const road of roads){
     if(!road.p?.length)continue;
     const width=road.widthMeters||7,half=width/2,
+      lanePlan=resolveLanePlan(road),
       foot=sidewalkWidth(road),
       curbTop=.04+Math.max(0,Math.min(.4,
         Number.isFinite(Number(road.curbHeightMeters))
@@ -178,6 +180,14 @@ export function createRoadScene(scene,roads,sampleHeight) {
     const sections=getSections(drapedSections(road.p,sampleHeight,
       {fixedJunctions}),sampleHeight);
     if(sections.length<2)continue;
+    laneStatistics.roadsByLaneCount[lanePlan.total]=
+      (laneStatistics.roadsByLaneCount[lanePlan.total]||0)+1;
+    laneStatistics.sourceCounts[lanePlan.source]=
+      (laneStatistics.sourceCounts[lanePlan.source]||0)+1;
+    if(lanePlan.oneway)laneStatistics.oneWayRoads++;
+    if(lanePlan.limitedByWidth)laneStatistics.constrainedByWidth++;
+    if(lanePlan.ambiguousOSM)laneStatistics.ambiguousLaneTags++;
+    let travelled=0;
     // Exact sampled OSM centreline, physically separate raised sidewalks.
     for(let i=1;i<sections.length;i++){
       const a=sections[i-1],b=sections[i],buffer=chunkFor([
@@ -262,23 +272,15 @@ export function createRoadScene(scene,roads,sampleHeight) {
         // Their old uncut ribbons caused green strips through intersections.
         // Terrain carving handles the outer sidewalk transition instead.
       }
-      // Painting is topology-aware: no invented centre double yellow on
-      // one-way carriageways or residential side streets.
-      const isAvenue=["primary","secondary","tertiary"].includes(road.t);
-      if(isAvenue && !intersection) {
-        for(const side of [-1,1]){
-          const off=side*(half-.24);
-          addQuad(buffer.white,point(a,off-.06,.09,sampleHeight),
-            point(b,off-.06,.09,sampleHeight),point(b,off+.06,.09,sampleHeight),
-            point(a,off+.06,.09,sampleHeight));
-        }
-        if(!["yes","-1","true","1"].includes(String(road.o))){
-          for(const off of [-.19,.19])
-            addQuad(buffer.yellow,point(a,off-.055,.09,sampleHeight),
-              point(b,off-.055,.09,sampleHeight),point(b,off+.055,.09,sampleHeight),
-              point(a,off+.055,.09,sampleHeight));
-        }
-      }
+      // Lane markings are inferred from physical width and direction.
+      // Keep the whole intersection mouth blank: marks cannot run across
+      // a crossing, even if only a single end of this 5m quad is near it.
+      const clearOfJunction=!intersection &&
+        !nearJunction(a.p,.6)&&!nearJunction(b.p,.6);
+      if(clearOfJunction)
+        for(const mark of lanePlan.markings)
+          paintLaneMarking(buffer,a,b,mark,travelled,sampleHeight);
+      travelled+=Math.hypot(b.p[0]-a.p[0],b.p[1]-a.p[1]);
     }
     for(let i=1;i<road.p.length;i++){
       const a=road.p[i-1],b=road.p[i];
@@ -320,7 +322,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
   }
   return {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
-    surface,asphaltUnion,
+    surface,asphaltUnion,laneStatistics,
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
       for(const tile of tiles)
