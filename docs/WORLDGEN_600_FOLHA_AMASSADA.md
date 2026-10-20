@@ -47,7 +47,7 @@ carregar/descarregar qualquer chunk.
 | 6.0.3 | Asfalto e física consultam os mesmos perfis canônicos, inclusive sem chunk carregado | Implementado no piloto |
 | 6.0.4 | Inicialização com `?worldgen=sheet`, mantendo a versão estável como padrão | Implementado no piloto |
 | 6.1 | Perfil lateral em três zonas e influência de braços conectados no cruzamento (corte/aterro por hierarquia ainda pendente) | Piloto implementado |
-| 6.2 | Geometria adaptativa perto de asfalto e cruzamentos (densidade variável, redução de penetração do solo) | Pendente |
+| 6.2 | Grade 4 m com colar conservador para impedir chão passando por cima do asfalto (tesselação adaptativa depois) | Piloto implementado |
 | 6.3 | Cruzamentos: união topológica única e cota de concordância sem sobreposição ou buracos | Pendente |
 | 6.4 | Pintura/materiais viários na folha e correção de zebra, calçadas e bordas | Pendente |
 | 6.5 | LOD por distância; carregamento assíncrono, métricas de FPS e cache | Pendente |
@@ -121,3 +121,25 @@ anúncio de eliminação completa dos bugs dos screenshots.
 custo de geração da primeira região, FPS contínuo e faixa de pedestre.
 A 6.1 ainda **não une os polígonos de asfalto num único objeto topológico**:
 essa correção continua planejada na fase 6.3.
+
+
+## Correção 6.2 — solo atravessando pista (print v0.1.76)
+
+O visual da versão anterior mostrou uma **ponta triangular de chão atravessando o asfalto**. A malha de 5 m e o suporte restrito ao centro da pista não bastavam para prevenir interpolação de triângulos no espaço entre vértices.
+
+- Grade 420 m: 105 células de 4 m de cada lado (antes 84 células de 5 m).
+- Amostras do terreno adotam `sheet.tileSample(x,z)` e não só
+  `sheet.height(x,z)`.
+- O campo `meshHeight` utiliza um anel de segurança do tamanho da
+  diagonal de uma célula (`sqrt(2)*4+0.35 m`), reduzindo a malha sob
+  asfalto próximo e soltando gradualmente a influência após 5,5 m.
+- Todo asfalto térreo detectado no mesmo ponto limita a altitude
+  do terreno: proteção não depende de um único eixo escolhido nem
+  da presença de uma junção OSM.
+- A física fora da pista usa a mesma superfície de terreno mostrada,
+  preservando `roadAt` para piso da pista e calçadas.
+
+**Atenção:** mais polígonos custam processamento. Mesmo mantendo 32
+tiles possíveis, esta etapa deve ser conferida em jogo para decidir
+se será necessário LOD adaptativo em chão distante. A união global do
+asfalto e dos cruzamentos continua pendente na 6.3.
