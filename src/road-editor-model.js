@@ -98,8 +98,11 @@ export function withoutWayEdits(edits,road){
 export function editStats(edits){
   const e=normalizeEdits(edits);
   return {widths:Object.keys(e.widths).length,
-    profiles:Object.keys(e.profiles).length,
     nodes:Object.keys(e.nodes).length+Object.keys(e.localNodes).length};
+}
+export function meshEditCount(edits){
+  const e=normalizeEdits(edits);
+  return Object.keys(e.widths).length+Object.keys(e.profiles).length;
 }
 export function readSavedEdits(storage=globalThis.localStorage){
   try {
