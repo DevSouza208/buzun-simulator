@@ -2,6 +2,7 @@ import {sampleHeight} from "./terrain.js";
 import {createRoadScene,createRoadSceneSteps,getJunctions}
   from "./city-road-mesh.js";
 import {createCooperativeRunner} from "./worldgen-cooperative.js";
+import {createRegionGeometryCache} from "./worldgen-region-cache.js";
 import {createRoadCorridors} from "./road-corridor.js";
 import {createCarvedTerrain} from "./terrain-cutout.js";
 import {graphFromRoads} from "./grajau-osm.js";
@@ -93,6 +94,18 @@ export function createStreamingCityWorld(scene,map){
       -(next[1]-routeStart[1]))};
   const regionIndex=createRegionRoadIndex(map.roads);
   const loaded=new Map(),emptyRegions=new Set();
+  const disposeRegion=record=>{
+    for(const tile of record.scenery.tiles){
+      scene.remove(tile.group);
+      for(const mesh of Object.values(tile.meshes))
+        mesh.geometry.dispose();
+      // Road materials/textures are shared by every active region.
+      // Dispose ONLY geometry, never the shared material.
+    }
+  };
+  const cache=createRegionGeometryCache({
+    onEvict:(_,record)=>disposeRegion(record)
+  });
   // Regions are mounted while the user may be standing still on the
   // landing screen. They MUST receive LOD visibility immediately; waiting
   // for the next 10m player movement leaves every brand-new chunk visible
@@ -112,10 +125,33 @@ export function createStreamingCityWorld(scene,map){
     roadsideWorkerRegions:0,roadsideWorkerFallbacks:0,
     roadsideWorkerPrimitives:0,
     maxCooperativeStepMs:0,slowestCooperativeStage:null,
-    slowCooperativeSteps:0,asphaltWorkerWaitSlices:0};
+    slowCooperativeSteps:0,asphaltWorkerWaitSlices:0,
+    cachedRegions:0,cachedGeometryMiB:0,cachedRestores:0,
+    cacheDiscards:0,cacheRejects:0,cacheStores:0};
+  const syncCacheStats=()=>{
+    const status=cache.stats;
+    counters.cachedRegions=status.entries;
+    counters.cachedGeometryMiB=status.estimatedMiB;
+    counters.cacheDiscards=status.evictions;
+    counters.cacheRejects=status.rejects;
+    counters.cacheStores=status.stores;
+  };
   const buildRegion=(rx,rz)=>{
     const key=regionKey(rx,rz);
     if(loaded.has(key)||emptyRegions.has(key))return;
+    const restored=cache.take(key);
+    if(restored){
+      // The exact same draped grades, ramp indices and GPU geometries
+      // are reattached: no new OSM union or Worker job is launched.
+      for(const tile of restored.scenery.tiles)scene.add(tile.group);
+      activateLoadedRoadRegion(restored.scenery,
+        visibilityFocus.x,visibilityFocus.z);
+      loaded.set(key,restored);
+      counters.cachedRestores++;
+      counters.loadedRegions=loaded.size;
+      syncCacheStats();
+      return restored.scenery;
+    }
     const ways=regionIndex.select(rx,rz);
     if(!ways.length){emptyRegions.add(key);return;}
     const started=time();
@@ -246,6 +282,12 @@ export function createStreamingCityWorld(scene,map){
           const todo=queue.shift();
           if(!current.has(todo.key)||loaded.has(todo.key)||
              emptyRegions.has(todo.key))continue;
+          if(cache.has(todo.key)){
+            buildRegion(todo.x,todo.z);
+            rebuildStats();
+            // One reattachment per idle slice avoids frame spikes.
+            break;
+          }
           const ways=regionIndex.select(todo.x,todo.z);
           if(!ways.length){emptyRegions.add(todo.key);continue;}
           const started=time();
@@ -357,16 +399,14 @@ export function createStreamingCityWorld(scene,map){
     for(const key of removal){
       const record=loaded.get(key);
       if(!record)continue;
-      for(const tile of record.scenery.tiles){
-        scene.remove(tile.group);
-        for(const mesh of Object.values(tile.meshes))
-          mesh.geometry.dispose();
-        // DO NOT dispose cached road materials; they are shared
-        // across all currently visible regions.
-      }
+      // Stop rendering immediately. Cache owns the detached, fully
+      // constructed scene and its exact physical road surface index.
+      for(const tile of record.scenery.tiles)scene.remove(tile.group);
       loaded.delete(key);
+      cache.put(key,record); // LRU disposes oldest/oversize entries
       counters.unloadedRegions++;
     }
+    syncCacheStats();
     counters.loadedRegions=loaded.size;
     if(removal.size)rebuildStats();
   }
@@ -391,8 +431,14 @@ export function createStreamingCityWorld(scene,map){
           counters.building=null;
           counters.buildStage=null;
         }
-        counters.urgentRegionLoads++;
-        try{buildRegion(current.x,current.z);}
+        // Warm restoration is not an urgent rebuild; do not increment
+        // the emergency construction counter for a cache hit.
+        const warm=cache.has(key);
+        if(!warm)counters.urgentRegionLoads++;
+        try{
+          buildRegion(current.x,current.z);
+          rebuildStats();
+        }
         catch(error){
           console.error("[Buzun WorldGen] Falha na região atual",error);
           emptyRegions.add(key);
@@ -429,7 +475,12 @@ export function createStreamingCityWorld(scene,map){
       disposed=true;queue=[];
       pendingTask?.runner.cancel();
       pendingTask=null;
-      evict(Infinity,Infinity);
+      // World teardown always frees everything, not a warm LRU store.
+      for(const record of loaded.values())disposeRegion(record);
+      loaded.clear();
+      cache.clear();
+      syncCacheStats();
+      counters.loadedRegions=0;
     }
   };
 }
