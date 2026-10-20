@@ -23,6 +23,7 @@ let world, player, car, renderer, scene, camera, clock, roadData;
 let driving = false, cameraMode = 0, yawOrbit = 0, pitchOrbit = .15;
 let lastHud = 0, lastMinimap = 0, toastTimer = null;
 let pointerDown = false, lastPointerX = 0, lastPointerY = 0;
+let spawnIndex = 0, showcaseCamera = false;
 
 function showToast(message) {
   const el = $("toast");
@@ -112,12 +113,42 @@ function resetCar(announce = true) {
   const spawn = world.spawn;
   player.x = spawn.x; player.z = spawn.z;
   player.yaw = spawn.angle; player.speed = 0;
-  yawOrbit = 0; pitchOrbit = .15;
+  yawOrbit = spawn.cameraOrbit || 0; pitchOrbit = .15;
+  showcaseCamera = Math.abs(yawOrbit) > .04;
   car.position.set(player.x, world.heightAt(player.x,player.z), player.z);
   car.rotation.order = "YXZ";
   car.rotation.y = modelYawFromHeading(player.yaw);
   car.rotation.x = heightAlongHeading(player.x,player.z,player.yaw);
-  if (announce) showToast("Veículo reposicionado perto do Terminal Grajaú");
+  if (announce) showToast(spawn.label ? "Você está diante de: " + spawn.label : "Veículo reposicionado");
+}
+function visitFacade(nextIndex, announce = true) {
+  const places = world?.pilotSpawns || [];
+  if (!places.length) return false;
+  spawnIndex = (nextIndex % places.length + places.length) % places.length;
+  world.spawn = places[spawnIndex];
+  $("facade-choice").value = String(world.spawn.id);
+  if (player) resetCar(false);
+  if (announce) showToast("Modelo " + (spawnIndex + 1) + "/" + places.length + ": " + world.spawn.label);
+  return true;
+}
+async function refreshBuildVersion() {
+  // No-cache lets an iPhone display the version from the latest deployed
+  // version.json, rather than a stale service/browser cache.
+  try {
+    const res = await fetch("./public/data/version.json?ts=" + Date.now(), {cache:"no-store"});
+    if (!res.ok) return;
+    const build = await res.json();
+    if (!/^0\.1\.\d+$/.test(build.version)) return;
+    for (const id of ["brand-version","landing-version","footer-version"]) {
+      const el = $(id);
+      if (el) el.textContent = (id === "brand-version" ? "/ " : "") + "v" + build.version;
+    }
+    const header = $("header-version");
+    if (header) header.textContent = "LOW POLY · v" + build.version;
+    document.title = "Buzun Simulator · v" + build.version;
+  } catch (err) {
+    console.warn("Versão não disponível, mantendo fallback", err);
+  }
 }
 function advance(dt) {
   if (!driving) return;
@@ -138,6 +169,11 @@ function advance(dt) {
   if (previousSpeed > 0 && player.speed < 0 && ctrl.brake) player.speed = 0;
   if (previousSpeed < 0 && player.speed > 0 && ctrl.throttle) player.speed = 0;
   player.speed = THREE.MathUtils.clamp(player.speed, -10, onRoad ? 26 : 14);
+  // Initial showcase camera smoothly returns behind the moving car.
+  if (showcaseCamera && Math.abs(player.speed) > .85) {
+    yawOrbit *= Math.exp(-dt * 1.45);
+    if (Math.abs(yawOrbit) < .025) { yawOrbit = 0; showcaseCamera = false; }
+  }
 
   const steerFactor = Math.min(1, Math.abs(player.speed) / 6.7);
   player.yaw += ctrl.steer * Math.sign(player.speed) * steerFactor * 1.25 * dt /
@@ -258,6 +294,12 @@ function toggleHelp(force) {
 }
 function bindInputs() {
   mobileInput = bindTouchControls($("mobile-controls"), () => driving);
+  $("facade-choice").addEventListener("change", e => {
+    const places = world?.pilotSpawns || [];
+    const found = places.findIndex(place => String(place.id) === e.target.value);
+    if (found >= 0) visitFacade(found, driving);
+  });
+  $("next-facade").addEventListener("click", () => visitFacade(spawnIndex + 1));
   document.addEventListener("keydown", e => {
     if (["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))
       e.preventDefault();
@@ -274,7 +316,7 @@ function bindInputs() {
   document.addEventListener("visibilitychange", () => { if (document.hidden) { keys.clear(); mobileInput?.releaseAll(); } });
   canvas.addEventListener("pointerdown", e => {
     if (!driving) return;
-    pointerDown = true;lastPointerX = e.clientX;lastPointerY = e.clientY;
+    pointerDown = true;showcaseCamera = false;lastPointerX = e.clientX;lastPointerY = e.clientY;
     canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener("pointerup", () => pointerDown = false);
@@ -300,6 +342,7 @@ function bindInputs() {
 }
 async function start() {
   bindInputs();
+  refreshBuildVersion();
   try {
     status.textContent = "Buscando ruas reais e construções do OpenStreetMap...";
     // The original Grajaú neighborhood stays in place; the new Belmira
@@ -360,6 +403,7 @@ async function start() {
     scene.add(car);
     player = { x: world.spawn.x, z: world.spawn.z, yaw: world.spawn.angle,
       speed: 0, distance: 0, boundaryWarned: false };
+    if (world.pilotSpawns.length) visitFacade(0, false);
     // Source map outlines may overlap roads; choose a road segment without
     // building collision as a safer spawn, close to the requested terminal.
     if (world.collides(player.x, player.z)) {
@@ -383,7 +427,7 @@ async function start() {
     tick();
     $("map-status").textContent = world.stats.roads + " trechos reais";
     status.textContent = "Mundo pronto: " + world.stats.roads + " vias · " +
-      world.stats.pilotFacades + " fachadas piloto · relevo suave de demonstração.";
+      world.stats.pilotFacades + " fachadas piloto. Início em frente ao modelo selecionado.";
     startButton.disabled = false;
     startButton.textContent = "COMEÇAR A DIRIGIR  ↗";
   } catch (error) {
