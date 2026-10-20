@@ -3,7 +3,7 @@ import { sidewalkWidth, createRoadCorridors,
   clipSidewalkPolygon, visibleCurbIntervals } from "./road-corridor.js";
 import { drapedSections, createRoadSurfaceIndex, coordinateKey }
   from "./draped-road.js";
-import { unionAsphaltPatches } from "./asphalt-union.js";
+import { unionAsphaltPatches, asphaltPriority, physicalLayer } from "./asphalt-union.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -197,7 +197,8 @@ export function createRoadScene(scene,roads,sampleHeight) {
           point(a,half,.072,sampleHeight)]
       });
       surfaceSegments.push({a:a.p,b:b.p,h0:a.base,h1:b.base,
-        halfWidth:half,walk:foot,curbTop});
+        halfWidth:half,walk:foot,curbTop,
+        roadId:road.id,priority:asphaltPriority(road),layer:physicalLayer(road)});
       const middle=[(a.p[0]+b.p[0])/2,(a.p[1]+b.p[1])/2];
       // A sidewalk must end at a junction; never extend as a raised strip
       // through an intersecting asphalt carriageway.
