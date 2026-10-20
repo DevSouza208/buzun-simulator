@@ -200,7 +200,7 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   backgroundRoadside=backgroundAsphalt,
   // One city-wide junction/grade authority shared by every streamed chunk.
   globalGrades=null,globalFixedJunctions=null,
-  worldSheet=null
+  worldSheet=null,globalAsphaltAtlas=null
 }={}) {
   const profiler=makeWorldgenProfiler();
   const detail=renderProfile(renderBounds);
@@ -390,12 +390,26 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   // Only background regions use a Worker. The synchronous initial region,
   // emergency load and traditional full-city mode CANNOT wait on a worker:
   // blocking the event loop would prevent any onmessage from running.
-  const asphaltWorkerStats={requested:backgroundAsphalt,
+  const asphaltWorkerStats={requested:backgroundAsphalt&&!globalAsphaltAtlas,
     used:false,fallback:false,triangles:0,error:null};
   let asphaltUnion=null;
-  const job=backgroundAsphalt&&renderBounds?
+  // The global atlas owns ALL asphalt in the sheet preview. We still
+  // produce local lane marking, curb and sidewalk data, but the visible
+  // pavement is a clipped view of canonical citywide union cells.
+  const job=!globalAsphaltAtlas&&backgroundAsphalt&&renderBounds?
     startAsphaltWorkerJob(asphaltPatches):null;
-  try{
+  if(globalAsphaltAtlas&&renderBounds){
+    const atlas=globalAsphaltAtlas.composeRegionSteps(
+      renderBounds,emitAsphalt);
+    let next=atlas.next();
+    while(!next.done){
+      profiler.pause();
+      yield next.value;
+      profiler.resume();
+      next=atlas.next();
+    }
+    asphaltUnion=next.value;
+  }else try{
     if(job){
       const workerStarted=performance.now();
       while(job.status==="pending"){
