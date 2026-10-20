@@ -12,6 +12,7 @@ import {createRoadCorridors} from "./road-corridor.js";
 import {createCarvedTerrain} from "./terrain-cutout.js";
 import {createWorldSheet} from "./worldgen-sheet.js";
 import {createSheetTerrain} from "./worldgen-sheet-terrain.js";
+import {createGlobalAsphaltAtlas} from "./worldgen-global-asphalt.js";
 import {graphFromRoads} from "./grajau-osm.js";
 import {summarizeRoadSectors} from "./worldgen-diagnostics.js";
 import {createRegionRoadIndex,regionAt,regionKey,regionBounds,
@@ -122,7 +123,16 @@ export function createStreamingCityWorld(scene,map,{
       fixedJunctions:globalFixedJunctions,
       junctions:globalJunctions
     }):null;
-  const worldSource={globalGrades,globalFixedJunctions,worldSheet};
+  // All OSM streets are part of ONE canonical asphalt domain. Atlas
+  // cells are only render/cache partitions and never decide junctions.
+  const globalAsphaltAtlas=worldSheet?createGlobalAsphaltAtlas(
+    renderRoads,worldSheet,{
+      junctions:globalJunctions,
+      gradeModels:globalGrades,
+      naturalHeight:sampleHeight
+    }):null;
+  const worldSource={globalGrades,globalFixedJunctions,
+    worldSheet,globalAsphaltAtlas};
   const loaded=new Map(),emptyRegions=new Set();
   const disposeRegion=record=>{
     for(const tile of record.scenery.tiles){

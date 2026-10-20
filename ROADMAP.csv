@@ -81,7 +81,7 @@ WG600-03,WorldGen 6.0,Altura de carro e asfalto compartilhada com o campo global
 WG600-04,WorldGen 6.0,Modo de teste isolado worldgen=sheet,Implementado piloto,Testar FPS tempo inicial e comparativo antes de ativar como padrão
 WG601-01,WorldGen 6.1,Corte e aterro controlado usando inclinações reais de vias,Em construção,Preservar referências DEM confiáveis e níveis OSM
 WG602-01,WorldGen 6.2,Tesselação de 4 metros e proteção conservadora de triângulos contra invasão do asfalto,Implementado piloto,Validar cruzamentos da Belmira e impacto de FPS; malha adaptativa posterior
-WG603-01,WorldGen 6.3,União topológica global de cruzamentos,Planejado,Conservar ramificações e junções em diferentes níveis
+WG603-01,WorldGen 6.3,Atlas único global para a superfície de asfalto de todas as ruas,Implementado piloto,Validar cruzamentos da Belmira e continuidade por chunks e FPS
 WG604-01,WorldGen 6.4,Materiais road-sheet e sinalização na folha,Planejado,Verificar faixas e calçadas depois de remodelar cruzamentos
 WG605-01,WorldGen 6.5,LOD e métricas de streaming por altura compartilhada,Planejado,Comparar GPU RAM FPS com worldgen stream
 WG606-01,WorldGen 6.6,Promover folha ao modo padrão após validação visual,Planejado,Não quebrar produção
@@ -89,3 +89,7 @@ WG601-02,WorldGen 6.1,Perfil lateral em 3 zonas pista calçada e ombro,Implement
 WG601-03,WorldGen 6.1,Múltiplas vias em junções OSM com proteção a vias paralelas,Implementado piloto,Revisar cruzamentos inclinados e viadutos
 WG601-04,WorldGen 6.1,Grade de terreno 5 metros e todos os tiles visíveis cobertos,Implementado piloto,Medir FPS e RAM após 15 minutos jogando
 WG601-05,WorldGen 6.1,Teste visual real no percurso McDonalds Habibs,Pendente,Comparar imagens e corrigir interseções
+WG603-02,WorldGen 6.3,Recortar atlas global canônico em tiles de 220 metros com cache,Implementado piloto,Provar costuras e sem recomposição de junções por região
+WG603-03,WorldGen 6.3,Preservar níveis de viaduto e túnel e componentes OSM separados,Implementado piloto,Testar mapas reais em camadas
+WG603-04,WorldGen 6.3,Validar desempenho de atlas global sob streaming e movimento,Pendente,Medições de inicialização CPU VRAM e FPS
+WG603-05,WorldGen 6.3,Consolidar também bordas de calçadas pintura e fillets com mesma autoridade,Planejado,Unir renderização e física nas divisas
