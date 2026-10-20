@@ -26,6 +26,7 @@
       <span class="version" id="header-version">LOW POLY · v0.1.0</span>
       <button id="next-facade" class="icon-button" title="Ir para o próximo ponto da rota" aria-label="Ir para o próximo ponto da rota">⌂</button>
       <button id="reset-button" class="icon-button" title="Reposicionar veículo (R)" aria-label="Reposicionar veículo">↺</button>
+      <button id="admin-open" class="icon-button admin-top-button" title="Editor das ruas" aria-label="Abrir editor de ruas">⚙</button>
       <button id="help-button" class="icon-button" title="Ajuda" aria-label="Abrir controles">?</button>
     </div>
   </header>
@@ -111,6 +112,81 @@
       <button id="resume-button">VOLTAR A DIRIGIR</button>
     </section>
   </div>
+
+  <!-- Offline authoring only. Credentials are visible to any viewer of this
+       public static site and are NOT server-side authentication. -->
+  <div id="admin-login" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Entrar no editor do Buzun">
+    <form id="admin-login-form" class="admin-login-panel">
+      <div class="welcome-badge">BUZUN CREATE / ACESSO LOCAL</div>
+      <h2>Editor de ruas<span>.</span></h2>
+      <p>Entre para abrir a planta do Grajaú e corrigir as ruas antes de gerar a cidade.</p>
+      <label for="admin-username">USUÁRIO</label>
+      <input id="admin-username" name="username" autocomplete="username" required placeholder="Usuário" />
+      <label for="admin-password">SENHA</label>
+      <input id="admin-password" name="password" type="password" autocomplete="off" required placeholder="Senha" />
+      <p id="admin-error" class="admin-error" aria-live="polite"></p>
+      <div class="admin-login-actions">
+        <button id="admin-login-close" type="button">Voltar</button>
+        <button id="admin-login-submit" type="submit">ENTRAR NO EDITOR ↗</button>
+      </div>
+      <small>Acesso demonstrativo: a senha está no código público. Suas alterações ficam somente neste navegador e não modificam a API OSM ou o GitHub.</small>
+    </form>
+  </div>
+
+  <section id="admin-editor" class="admin-editor hidden" aria-label="Editor local das ruas do Grajaú">
+    <div class="admin-header">
+      <div class="admin-title"><div class="admin-icon">B.</div><div><strong>BUZUN CREATE</strong><span>EDITOR VIÁRIO · GRAJAÚ 1:1</span></div></div>
+      <div class="admin-header-actions">
+        <span id="admin-edits-count">0 larguras · 0 vértices editados</span>
+        <button id="admin-apply" class="admin-apply">APLICAR NO JOGO ↗</button>
+        <button id="admin-logout" title="Encerrar sessão de demonstração">Sair</button>
+        <button id="admin-close" title="Fechar editor" aria-label="Fechar editor">✕</button>
+      </div>
+    </div>
+    <div class="admin-workspace">
+      <div class="admin-map-area">
+        <div class="admin-toolbar" role="toolbar" aria-label="Ferramentas de edição">
+          <button data-admin-tool="select" class="active" title="Selecionar rua">◉ Selecionar</button>
+          <button data-admin-tool="pan" title="Mover mapa">✥ Navegar</button>
+          <button data-admin-tool="node" title="Mover vértices da rua">⌁ Editar pontos</button>
+          <span class="admin-tools-separator"></span>
+          <button id="admin-zoom-in" aria-label="Aproximar">＋</button>
+          <button id="admin-zoom-out" aria-label="Afastar">－</button>
+          <button id="admin-center">⌖ Meu carro</button>
+          <button id="admin-fit">▣ Ver região</button>
+        </div>
+        <canvas id="admin-map" aria-label="Mapa interativo das ruas do Grajaú, visto de cima"></canvas>
+        <div class="admin-map-bottom">
+          <span><i class="admin-dot"></i><span id="admin-visible-count">0 vias visíveis</span> · OpenStreetMap + Buzun WorldGen</span>
+          <span id="admin-map-status" role="status">Clique numa rua para começar</span>
+        </div>
+      </div>
+      <aside class="admin-sidebar">
+        <div class="admin-section-heading">PROPRIEDADES DA RUA <span>01 / EDITAR</span></div>
+        <h2 id="admin-road-name">Selecione uma rua</h2>
+        <p id="admin-road-meta">Clique em uma via no mapa para editar.</p>
+        <div class="admin-selection-status" id="admin-width-origin">Nenhuma via selecionada</div>
+        <div class="admin-fields">
+          <label for="admin-width">Largura do asfalto <small>metros</small></label>
+          <input id="admin-width" type="number" min="2" max="45" step="0.1" disabled />
+          <label for="admin-walk">Calçada por lado <small>metros</small></label>
+          <input id="admin-walk" type="number" min="0.6" max="5" step="0.1" disabled />
+          <button id="admin-width-save" disabled>✓ SALVAR MEDIDAS</button>
+          <button id="admin-road-reset" disabled>↶ Reverter esta rua</button>
+        </div>
+        <div class="admin-section-heading">ARQUIVO E HISTÓRICO <span>02 / LOCAL</span></div>
+        <div class="admin-file-actions">
+          <button id="admin-undo">↶ Desfazer</button>
+          <button id="admin-export">⇩ Exportar JSON</button>
+          <label for="admin-import" class="admin-import-label">⇧ Importar JSON</label>
+          <input id="admin-import" type="file" accept=".json,application/json" />
+          <button id="admin-clear">Limpar correções</button>
+        </div>
+        <p class="admin-sidebar-note">Selecione uma via, altere sua largura ou use <b>Editar pontos</b> para puxar os vértices. Alterações são salvas localmente; use <b>Aplicar no jogo</b> para reconstruir as ruas.</p>
+        <p class="admin-sidebar-note admin-safety">Este é um editor demonstrativo, não um painel seguro. Não publica dados no OSM nem no repositório. Exporte seu JSON para guardar as correções.</p>
+      </aside>
+    </div>
+  </section>
 
   <footer class="credits">© OpenStreetMap contributors · ODbL · <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noreferrer">Mapzen Terrain Tiles</a> <span>BUZUN SIMULATOR — <b id="footer-version">v0.1.0</b></span></footer>
   <script type="module" src="./src/main.js"></script>
