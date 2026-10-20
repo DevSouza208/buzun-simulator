@@ -66,3 +66,36 @@ html, body { overscroll-behavior: none; }
 #start-button, #help-button, #reset-button, .overlay button {
   touch-action: none;
 }
+
+/* Local de visita e versao da compilacao: compactos no iPhone. */
+.spawn-pick {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin: 0 0 13px; padding: 10px 12px;
+  background: rgba(15,36,43,.78); border: 1px solid rgba(211,247,148,.26);
+  border-radius: 12px;
+}
+.spawn-pick label { font-size: 10px; letter-spacing: .09em; font-weight: 800; color: #d2e7b6; white-space: nowrap; }
+.spawn-pick select {
+  min-width: 0; max-width: 65%; flex: 1; cursor: pointer;
+  background: #263e46; color: #f2f6e8;
+  border: 1px solid rgba(255,255,255,.22); border-radius: 8px;
+  font: 700 11px "DM Sans",system-ui,sans-serif; padding: 8px 6px;
+  -webkit-appearance: menulist; appearance: auto;
+}
+#next-facade { font-family: "Outfit",system-ui,sans-serif; font-weight: 800; font-size: 28px; }
+.overlay { overflow-y: auto; }
+.welcome { flex-shrink: 0; }
+@media (max-width: 570px) {
+  .spawn-pick { gap: 5px; }
+  .spawn-pick label { font-size: 8px; }
+  .spawn-pick select { max-width: 64%; font-size: 10px; }
+  .topbar { gap: 6px; }
+  #next-facade { font-size: 23px; }
+}
+@media (max-height: 700px) {
+  .welcome-logo { font-size: 58px; margin: 0; }
+  .welcome p { margin: 6px auto 9px; line-height: 1.45; }
+  .welcome-facts { padding: 8px 3px; margin-bottom: 8px; }
+  .welcome h1 { font-size: 23px; }
+  .spawn-pick { margin-bottom: 7px; padding: 6px; }
+}
