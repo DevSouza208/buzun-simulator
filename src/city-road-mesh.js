@@ -297,7 +297,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
     tiles.push({x:ch.x,z:ch.z,group});
   }
   return {
-    segments,tiles,junctions:joints.length,corridors,
+    segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
       for(const tile of tiles)
