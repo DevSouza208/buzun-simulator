@@ -2,6 +2,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import { clippedLine, closestSegment, pointInPolygon, roadWidth, seeded } from "./geo.js";
 import { sampleHeight } from "./terrain.js";
 import { buildPilotFacades } from "./world-engine.js";
+import { facadeRoadSpawns } from "./spawn.js";
 
 const palette = [
   "#e9b6a0", "#f1d1a2", "#b7d0c8", "#c0b7d8", "#c8d8a2",
@@ -213,6 +214,8 @@ export function createWorld(scene, map, options = {}) {
     return false;
   }
 
+  const pilotSpawns = facadeRoadSpawns(facades, segments, collides);
+
   // Instanced vegetation costs only two draw calls.
   const trunks = [], crowns = [];
   for (let i = 0; i < segments.length; i += 3) {
@@ -252,7 +255,8 @@ export function createWorld(scene, map, options = {}) {
   // Keep the starting point in Grajaú even after the Belmira Marin backbone
   // adds several kilometers of roads across the eastern neighborhoods.
   const start = closestSegment(x, z, segments) || closestSegment(0, 0, segments);
-  const spawn = start ? { x: start.x, z: start.z, angle: start.angle } : { x: 0, z: 0, angle: 0 };
+  const terminalSpawn = start ? { x: start.x, z: start.z, angle: start.angle } : { x: 0, z: 0, angle: 0 };
+  const spawn = pilotSpawns[0] || terminalSpawn;
   // Original prototype remains freely explorable inside its square. Beyond it,
   // we allow exploration in a broad corridor along authentic OSM roads.
   // Buildings in distant neighborhoods will arrive in future map expansions.
@@ -262,7 +266,7 @@ export function createWorld(scene, map, options = {}) {
     const nearby = closestSegment(x, z, segments);
     return !!nearby && nearby.distance <= 70;
   }
-  return { segments, spawn, collides, inExploreArea, heightAt:sampleHeight, facades,
+  return { segments, spawn, pilotSpawns, terminalSpawn, collides, inExploreArea, heightAt:sampleHeight, facades,
     closest: (x, z) => closestSegment(x, z, segments),
     stats: { roads: map.roads.length, buildings: stored.length, trees: trunks.length, pilotFacades:facades.length },
     terminal: { x, z } };
