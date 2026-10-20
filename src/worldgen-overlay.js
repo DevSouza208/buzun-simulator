@@ -62,7 +62,11 @@ export function mountWorldgenOverlay({
           "Streaming: "+r.streaming.loadedRegions+
             " regiões ativas · "+r.streaming.queuedRegions+" aguardando",
           "Primeira região: "+r.streaming.initialRegionMs.toFixed(1)+" ms",
-          "Próximo setor: "+(r.streaming.building||"em espera")
+          "Próximo setor: "+(r.streaming.building||"em espera"),
+          "Etapa: "+(r.streaming.buildStage||"em espera"),
+          "Lotes cooperativos: "+(r.streaming.cooperativeSlices||0),
+          "Maior lote: "+(r.streaming.maxCooperativeSliceMs||0).toFixed(1)+" ms",
+          "Regiões em segundo plano: "+(r.streaming.backgroundRegions||0)
         ]:[]),
         "Asfalto: "+(r.stages?.uniao_poligonal_asfalto??"?")+" ms",
         "Calçadas: "+(r.stages?.uniao_calcadas_guias_rampas??"?")+" ms",
