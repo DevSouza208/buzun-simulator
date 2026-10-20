@@ -66,7 +66,13 @@ export function mountWorldgenOverlay({
           "Etapa: "+(r.streaming.buildStage||"em espera"),
           "Lotes cooperativos: "+(r.streaming.cooperativeSlices||0),
           "Maior lote: "+(r.streaming.maxCooperativeSliceMs||0).toFixed(1)+" ms",
-          "Regiões em segundo plano: "+(r.streaming.backgroundRegions||0)
+          "Regiões em segundo plano: "+(r.streaming.backgroundRegions||0),
+          "Asfalto Worker: "+(r.streaming.asphaltWorkerRegions||0)+
+            " concluídas / "+(r.streaming.asphaltWorkerFallbacks||0)+
+            " fallback",
+          "Pior etapa: "+(r.streaming.maxCooperativeStepMs||0).toFixed(1)+
+            " ms ("+(r.streaming.slowestCooperativeStage||"—")+")",
+          "Lotes acima da meta: "+(r.streaming.slowCooperativeSteps||0)
         ]:[]),
         "Asfalto: "+(r.stages?.uniao_poligonal_asfalto??"?")+" ms",
         "Calçadas: "+(r.stages?.uniao_calcadas_guias_rampas??"?")+" ms",
