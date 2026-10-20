@@ -304,15 +304,22 @@ function drawMinimap(now) {
 }
 function resize() {
   if (!renderer || !camera) return;
-  const w = window.innerWidth, h = window.innerHeight;
+  const viewport=adminEditor?.viewport?.();
+  const w=viewport?.w||window.innerWidth,h=viewport?.h||window.innerHeight;
   renderer.setSize(w, h, false);
-  camera.aspect = w / h;
+  camera.aspect=w/h;
   camera.updateProjectionMatrix();
 }
 function tick() {
   requestAnimationFrame(tick);
   if (!clock || !world) return;
   const dt = Math.min(clock.getDelta(), .05);
+  if(adminEditor?.isEditing()){
+    const focus=adminEditor.focus();
+    world.update?.(focus.x,focus.z);
+    renderer.render(scene,adminEditor.getCamera());
+    return;
+  }
   advance(dt);
   world.update?.(player.x,player.z);
   updateCamera(dt);
@@ -333,6 +340,10 @@ function bindInputs() {
   adminEditor=mountRoadAdmin({
     getRoads:()=>sourceRoads,
     getPosition:()=>player,
+    getScene:()=>scene,
+    getGameCanvas:()=>canvas,
+    getHeightAt:(x,z)=>world?.heightAt(x,z)??0,
+    onResize:()=>resize(),
     whenOpen:()=>{driving=false;keys.clear();mobileInput?.releaseAll();},
     whenClose:()=>{
       driving=!!world&&landing.classList.contains("hidden")&&
