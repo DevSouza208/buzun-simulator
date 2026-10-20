@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {buildSmoothRoadConnectors,MAX_ROAD_JOIN_METRES}
+import {buildSmoothRoadConnectors,connectorHeightAt,MAX_ROAD_JOIN_METRES}
   from "../src/worldgen-road-connectors.js";
 import {regionBounds,createRegionRoadIndex}
   from "../src/worldgen-region-stream.js";
@@ -85,4 +85,32 @@ test("5.21: runtime uses connectors for BOTH mesh and the underlying terrain mas
   assert.match(content,/const renderRoads=\[\.\.\.map.roads,\.\.\.joinPlan.connectors\]/);
   assert.match(content,/createRegionRoadIndex\(renderRoads\)/);
   assert.match(content,/createRoadCorridors\(renderRoads\)/);
+});
+
+test("5.21: connector blends height and entry/exit tangent smoothly",()=>{
+  const roads=[
+    street("a",[[0,0],[15,0],[20,0]]),
+    street("b",[[24,0],[29,0],[40,0]])
+  ];
+  const height=(x)=>3+x*.08+.001*x*x;
+  const {connectors}=buildSmoothRoadConnectors(roads,height);
+  assert.equal(connectors.length,1);
+  const link=connectors[0];
+  const a=connectorHeightAt(link,20,0,height);
+  const b=connectorHeightAt(link,24,0,height);
+  assert.ok(Math.abs(a-height(20))<1e-8);
+  assert.ok(Math.abs(b-height(24))<1e-8);
+  for(let x=20.05;x<24;x+=.12){
+    const left=connectorHeightAt(link,x-.025,0,height);
+    const right=connectorHeightAt(link,x+.025,0,height);
+    assert.ok((right-left)/.05<.32);
+    assert.ok((right-left)/.05>-.32);
+  }
+  const epsilon=.0001;
+  const slopeAt=(x)=>
+    (connectorHeightAt(link,x+epsilon,0,height)-
+     connectorHeightAt(link,x-epsilon,0,height))/(2*epsilon);
+  assert.ok(Math.abs(slopeAt(20)-link.joinProfile.grade0)<.002);
+  assert.ok(Math.abs(slopeAt(24)-link.joinProfile.grade1)<.002);
+  assert.equal(connectorHeightAt({},5,5,()=>42),42);
 });
