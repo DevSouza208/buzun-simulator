@@ -123,45 +123,42 @@ export function planPedestrianCrossings(roads,junctions,{
   stats.crossingsPlanned=sites.length;
   return {sites,stats};
 }
-/** Uniformly spaced transverse zebra bars over the *actual* draped
- * carriageway. Validate center AND edges with the authoritative road
- * surface index, so no paint appears on the raised sidewalk or other way.
+/** Zebra stripes parallel to the approach direction, repeated ACROSS the
+ * carriageway. The previous implementation swapped these axes, producing
+ * horizontal ladder rungs instead of the requested pedestrian zebra layout.
+ * Keep the entire crossing footprint inside the known street and reject
+ * competing road ownership at every bar corner.
  */
 export function buildZebraBars(site,surface,{
   bars=6,barLength=.45,pitch=.76,margin=.55,height=.04
 }={}){
   const half=site.widthMeters/2-margin;
   if(half<2||bars<2)return [];
-  const out=[],count=bars,centerOffset=(count-1)*pitch/2;
-  for(let i=0;i<count;i++){
-    const at=(i-centerOffset/pitch)*pitch;
-    const centers=[at-barLength/2,at+barLength/2].map(t=>
-      add(site.point,scale(site.axis,t)));
-    const pairs=centers.map(center=>[
-      add(center,scale(site.normal,-half)),
-      add(center,scale(site.normal,half))
-    ]);
+  const out=[],step=(2*half-barLength)/(bars-1);
+  const alongHalf=((bars-1)*pitch+barLength)/2;
+  if(step<=barLength||alongHalf<=0)return [];
+  for(let i=0;i<bars;i++){
+    const across=-half+barLength/2+i*step;
+    const center=add(site.point,scale(site.normal,across));
+    const near=add(center,scale(site.axis,-alongHalf));
+    const far=add(center,scale(site.axis,alongHalf));
+    const edge=(p,t)=>add(p,scale(site.normal,t));
+    const pairs=[
+      [edge(near,-barLength/2),edge(near,barLength/2)],
+      [edge(far,-barLength/2),edge(far,barLength/2)]
+    ];
     const world=pairs.flat();
-    const h=surface.sample(...centers[0]);
-    const k=surface.sample(...centers[1]);
-    if(!h||!k||!same(h.roadId,site.roadId)||
-      !same(k.roadId,site.roadId)||
-      h.distance>h.halfWidth+.15||k.distance>k.halfWidth+.15)
-      return [];
-    // Check road ownership at the ends, not only at the center. This
-    // catches bends or overlapping approach ramps crossing a sidewalk.
-    for(const p of world){
-      const sample=surface.sample(...p);
-      if(!sample||!same(sample.roadId,site.roadId)||
-        sample.distance>sample.halfWidth+.15)
-        return [];
-    }
-    const y0=h.height+.072+height,y1=k.height+.072+height;
+    const samples=world.map(p=>surface.sample(...p));
+    if(samples.some(sample=>!sample||
+      !same(sample.roadId,site.roadId)||
+      sample.distance>sample.halfWidth+.15))return [];
+    const h0=(samples[0].height+samples[1].height)/2+.072+height;
+    const h1=(samples[2].height+samples[3].height)/2+.072+height;
     out.push([
-      [pairs[0][0][0],y0,pairs[0][0][1]],
-      [pairs[1][0][0],y1,pairs[1][0][1]],
-      [pairs[1][1][0],y1,pairs[1][1][1]],
-      [pairs[0][1][0],y0,pairs[0][1][1]]
+      [pairs[0][0][0],h0,pairs[0][0][1]],
+      [pairs[1][0][0],h1,pairs[1][0][1]],
+      [pairs[1][1][0],h1,pairs[1][1][1]],
+      [pairs[0][1][0],h0,pairs[0][1][1]]
     ]);
   }
   return out;

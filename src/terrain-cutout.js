@@ -1,4 +1,5 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+import {maskedCorridorHalfWidth} from "./terrain-road-mask.js";
 
 /**
  * Terrain is a guest outside the generated street corridor. Its fragments
@@ -30,7 +31,9 @@ function createMask(corridors,junctionPoints,x0,z0) {
   for(const s of near) {
     const dx=s.b[0]-s.a[0],dz=s.b[1]-s.a[1];
     if(Math.hypot(dx,dz)<.02)continue;
-    ctx.lineWidth=2*s.envelope*pixelsPerMetre;
+    // Keep natural ground beneath the outer sidewalk edge. The prior
+    // halfWidth + sidewalk + 0.65m mask exposed blue sky-sized gaps.
+    ctx.lineWidth=2*maskedCorridorHalfWidth(s)*pixelsPerMetre;
     ctx.beginPath();
     ctx.moveTo((s.a[0]-x0)*pixelsPerMetre,(s.a[1]-z0)*pixelsPerMetre);
     ctx.lineTo((s.b[0]-x0)*pixelsPerMetre,(s.b[1]-z0)*pixelsPerMetre);

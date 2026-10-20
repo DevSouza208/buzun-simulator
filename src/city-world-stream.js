@@ -1,4 +1,6 @@
 import {sampleHeight} from "./terrain.js";
+import {coordinateKey} from "./draped-road.js";
+import {buildIntersectionGradeModels} from "./intersection-grade.js";
 import {createRoadScene,createRoadSceneSteps,getJunctions}
   from "./city-road-mesh.js";
 import {createCooperativeRunner} from "./worldgen-cooperative.js";
@@ -95,6 +97,15 @@ export function createStreamingCityWorld(scene,map){
     angle:Math.atan2(next[0]-routeStart[0],
       -(next[1]-routeStart[1]))};
   const regionIndex=createRegionRoadIndex(map.roads);
+  // Model the city once, render it in parts. Global OSM junction planes and
+  // fixed height anchors keep a road's source profile identical for EVERY
+  // region, even when the compositor clips triangles into separate meshes.
+  const globalJunctions=getJunctions(map.roads);
+  const globalGrades=buildIntersectionGradeModels(
+    map.roads,globalJunctions,sampleHeight);
+  const globalFixedJunctions=new Set(
+    globalJunctions.map(j=>coordinateKey(j.point)));
+  const worldSource={globalGrades,globalFixedJunctions};
   const loaded=new Map(),emptyRegions=new Set();
   const disposeRegion=record=>{
     for(const tile of record.scenery.tiles){
@@ -163,7 +174,7 @@ export function createStreamingCityWorld(scene,map){
     // The full road compositor operates on ALL ways touching the halo;
     // clipping occurs only after every intersection has been resolved.
     const scenery=createRoadScene(scene,ways,sampleHeight,
-      {renderBounds:regionBounds(rx,rz)});
+      {renderBounds:regionBounds(rx,rz),...worldSource});
     activateLoadedRoadRegion(scenery,visibilityFocus.x,visibilityFocus.z);
     const elapsed=time()-started;
     counters.totalRegionBuildMs+=elapsed;
@@ -198,7 +209,6 @@ export function createStreamingCityWorld(scene,map){
       height:sampleHeight(nearest.x,nearest.z),
       distance:nearest.distance,halfWidth,walk:1.7,curbTop:.18};
   }};
-  const globalJunctions=getJunctions(map.roads);
   const ground=createCarvedTerrain(scene,corridors,globalJunctions,
     sampleHeight,bounds,roadSurfaceAdapter);
   const graph=graphFromRoads(map.roads);
@@ -302,7 +312,7 @@ export function createStreamingCityWorld(scene,map){
             runner:createCooperativeRunner(createRoadSceneSteps(
               scene,ways,sampleHeight,
               {renderBounds:regionBounds(todo.x,todo.z),
-                backgroundAsphalt:true}),{
+                backgroundAsphalt:true,...worldSource}),{
               now:time,sliceMs:6,maxSteps:6
             })
           };
