@@ -3,6 +3,8 @@ import {createRoadScene,createRoadSceneSteps,getJunctions}
   from "./city-road-mesh.js";
 import {createCooperativeRunner} from "./worldgen-cooperative.js";
 import {createRegionGeometryCache} from "./worldgen-region-cache.js";
+import {resolveRegionalHeight,resolveRegionalSurface,roadRegionAhead}
+  from "./worldgen-boundary-height.js";
 import {createRoadCorridors} from "./road-corridor.js";
 import {createCarvedTerrain} from "./terrain-cutout.js";
 import {graphFromRoads} from "./grajau-osm.js";
@@ -127,7 +129,10 @@ export function createStreamingCityWorld(scene,map){
     maxCooperativeStepMs:0,slowestCooperativeStage:null,
     slowCooperativeSteps:0,asphaltWorkerWaitSlices:0,
     cachedRegions:0,cachedGeometryMiB:0,cachedRestores:0,
-    cacheDiscards:0,cacheRejects:0,cacheStores:0};
+    cacheDiscards:0,cacheRejects:0,cacheStores:0,
+    boundaryHeightBlends:0,boundaryNeighborSamples:0,
+    boundaryPrefetches:0,boundaryUrgentLoads:0,
+    borderFallbackHeights:0};
   const syncCacheStats=()=>{
     const status=cache.stats;
     counters.cachedRegions=status.entries;
@@ -176,16 +181,15 @@ export function createStreamingCityWorld(scene,map){
   // Use the same full source for terrain cutouts, regardless of whether
   // region meshes happen to be present in the GPU at that instant.
   const corridors=createRoadCorridors(map.roads);
-  const surfaceAt=(x,z)=>{
-    const cell=regionAt(x,z);
-    return loaded.get(regionKey(cell.x,cell.z))?.scenery||null;
+  const regionScenery=(rx,rz)=>{
+    const key=regionKey(rx,rz);
+    return loaded.get(key)?.scenery||cache.peek(key)?.scenery||null;
   };
   const roadSurfaceAdapter={sample(x,z){
-    const model=surfaceAt(x,z);
-    const hit=model?.surface.sample(x,z);
+    // Near an 880m border, the adjacent fully-composed region often has
+    // the right pavement altitude even when our current cell is queued.
+    const hit=resolveRegionalSurface(x,z,regionScenery);
     if(hit)return hit;
-    // An unloaded area remains navigable with a cheap OSM centerline
-    // approximation; renderer prefetches at least 1260m ahead.
     const nearest=streets.closest(x,z);
     if(!nearest)return null;
     const halfWidth=nearest.segment.width/2;
@@ -204,22 +208,23 @@ export function createStreamingCityWorld(scene,map){
       roadPoint:road?[road.x,road.z]:loc.xy,confirmedFootprint:false};
   });
   function heightAt(x,z){
-    const scenery=surfaceAt(x,z);
-    if(scenery){
-      const road=scenery.surface.sample(x,z);
-      const corner=scenery.filletSurface.sample(x,z,0);
-      if(road&&road.distance<=road.halfWidth+.08)
-        return road.height+.072;
-      if(corner!==null)return corner;
-      const ramp=scenery.rampSurface.heightAt(x,z,scenery.surface);
-      if(ramp!==null)return ramp;
-      if(road&&road.distance<=road.halfWidth+road.walk)
-        return road.height+(road.curbTop??.18);
+    const sampled=resolveRegionalHeight(x,z,regionScenery,{
+      onBlend:()=>counters.boundaryHeightBlends++
+    });
+    if(sampled){
+      if(sampled.fromNeighbor)counters.boundaryNeighborSamples++;
+      return sampled.height;
     }
+    // Only when NO completed region in the boundary halo can supply the
+    // asphalt surface do we use an OSM + DEM approximation. This avoids
+    // snapping from a measured draped sheet to a raw height at the seam.
     const hit=roadSurfaceAdapter.sample(x,z);
-    if(hit&&hit.distance<=hit.halfWidth+.08)return hit.height+.072;
-    if(hit&&hit.distance<=hit.halfWidth+hit.walk)
-      return hit.height+(hit.curbTop??.18);
+    if(hit){
+      counters.borderFallbackHeights++;
+      if(hit.distance<=hit.halfWidth+.08)return hit.height+.072;
+      if(hit.distance<=hit.halfWidth+hit.walk)
+        return hit.height+(hit.curbTop??.18);
+    }
     return sampleHeight(x,z);
   }
   const geometryStatistics={...summarizeRoadSectors(first.tiles)};
@@ -262,6 +267,7 @@ export function createStreamingCityWorld(scene,map){
     scheduled=false,disposed=false,lastPlan=null,pendingTask=null;
   // Initial OSM heading helps neighbor loads favor the direction of travel.
   let driveHeading=[Math.sin(spawn.angle),-Math.cos(spawn.angle)];
+  let lastPrefetchKey=null;
   const schedule=()=>{
     if(scheduled||disposed||(!queue.length&&!pendingTask))return;
     scheduled=true;
@@ -382,6 +388,27 @@ export function createStreamingCityWorld(scene,map){
       heading:driveHeading,radius:PRELOAD_METRES});
     queue=wanted.filter(r=>!loaded.has(r.key)&&
       !emptyRegions.has(r.key));
+    // Predict the NEXT boundary crossing, not merely the nearest region
+    // center: a queued sector immediately ahead gets first opportunity
+    // to run its Workers while the car is still on visible asphalt.
+    const ahead=roadRegionAhead(x,z,driveHeading);
+    if(ahead?.key!==lastPrefetchKey)lastPrefetchKey=null;
+    if(ahead&&!loaded.has(ahead.key)&&
+       !emptyRegions.has(ahead.key)){
+      const idx=queue.findIndex(r=>r.key===ahead.key);
+      if(idx>=0){
+        const [item]=queue.splice(idx,1);
+        queue.unshift(item);
+      }else{
+        // This path should be rare, but ensure a diagonal crossing is
+        // not missed by any nearest-center ranking.
+        queue.unshift(ahead);
+      }
+      if(lastPrefetchKey!==ahead.key){
+        counters.boundaryPrefetches++;
+        lastPrefetchKey=ahead.key;
+      }
+    }
     counters.queuedRegions=queue.length;
     schedule();
   }
@@ -415,8 +442,11 @@ export function createStreamingCityWorld(scene,map){
     visibilityFocus={x,z};
     const current=regionAt(x,z);
     const key=regionKey(current.x,current.z);
-    if(key!==lastRegionKey||
-       !lastPlan||Math.hypot(x-lastPlan[0],z-lastPlan[1])>200){
+    const moved=!lastPlan?Infinity:
+      Math.hypot(x-lastPlan[0],z-lastPlan[1]);
+    // Track direction and re-rank forward regions sooner than the old
+    // 200m interval. This matters on short links near cell boundaries.
+    if(key!==lastRegionKey||moved>60){
       lastRegionKey=key;lastPlan=[x,z];
       refreshQueue(x,z);
       // Teleports or rapid movement can enter an area before idle
@@ -434,7 +464,10 @@ export function createStreamingCityWorld(scene,map){
         // Warm restoration is not an urgent rebuild; do not increment
         // the emergency construction counter for a cache hit.
         const warm=cache.has(key);
-        if(!warm)counters.urgentRegionLoads++;
+        if(!warm){
+          counters.urgentRegionLoads++;
+          counters.boundaryUrgentLoads++;
+        }
         try{
           buildRegion(current.x,current.z);
           rebuildStats();
