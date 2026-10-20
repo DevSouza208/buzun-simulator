@@ -31,7 +31,7 @@ test("Steep roads and sharp OSM bends automatically refine to 3m",()=>{
 });
 test("Adaptive grade stabilization suppresses fake DEM cliffs but keeps anchors",()=>{
   const road=[[0,0],[60,0]];
-  const altitude=(x)=>x*.05+4*Math.exp(-((x-30)/4)**2);
+  const altitude=(x)=>x*.05+4*Math.exp(-(((x-30)/4)**2));
   const samples=drapedSections(road,altitude,{
     step:9,adaptive:true,radius:18,maxSlope:.24
   });
