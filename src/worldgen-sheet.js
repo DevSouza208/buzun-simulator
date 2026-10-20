@@ -16,7 +16,7 @@ import {connectorHeightAt} from "./worldgen-road-connectors.js";
 import {ROAD_RENDER_PROFILE} from "./worldgen-render-profile.js";
 
 export const SHEET_TILE_METRES=420;
-export const SHEET_GRID_SEGMENTS=60;
+export const SHEET_GRID_SEGMENTS=84;
 export const SHEET_GRID_STEP_METRES=SHEET_TILE_METRES/SHEET_GRID_SEGMENTS;
 export const SHEET_SHOULDER_BLEND_METRES=9;
 const CELL=75;
@@ -43,12 +43,35 @@ function sampleGrade(rows,distance) {
  * Keeping lazy profiles avoids constructing 4,777 full render ribbons up front.
  */
 export function createWorldSheet(roads,naturalHeight,{
-  gradeModels=null,fixedJunctions=new Set(),blendMetres=SHEET_SHOULDER_BLEND_METRES,
+  gradeModels=null,fixedJunctions=new Set(),junctions=[],
+  blendMetres=SHEET_SHOULDER_BLEND_METRES,
   profile=ROAD_RENDER_PROFILE.streaming
 }={}){
   if(!Array.isArray(roads)||typeof naturalHeight!=="function")
     throw Error("WorldSheet requires OSM ways and an elevation function");
   const cells=new Map(),gradeCache=new Map();
+  // Only actual same-level OSM junctions may contribute several streets
+  // to one support surface. Parallel carriageways must not be blended.
+  const junctionLinks=new Map();
+  for(const joint of junctions){
+    if(!joint?.point||!joint.ways||joint.ways.size<2)continue;
+    const ways=[...joint.ways].map(String);
+    for(const id of ways){
+      if(!junctionLinks.has(id))junctionLinks.set(id,new Map());
+      const connections=junctionLinks.get(id);
+      for(const other of ways){
+        if(other===id)continue;
+        if(!connections.has(other))connections.set(other,[]);
+        connections.get(other).push(joint.point);
+      }
+    }
+  }
+  const meetNear=(a,b,x,z)=>{
+    if(a===b)return true;
+    const shared=junctionLinks.get(String(a))?.get(String(b));
+    return Boolean(shared?.some(p=>
+      Math.hypot(p[0]-x,p[1]-z)<26));
+  };
   const segments=[];
   function sectionsFor(road) {
     const id=String(road.id);
@@ -94,50 +117,91 @@ export function createWorldSheet(roads,naturalHeight,{
       }
     }
   }
-  function roadAt(x,z){
+  /**
+   * At the seam between two streets, deduplicate a polyline's neighboring
+   * segments before calculating grades. Only the four nearest eligible ways
+   * contribute; road meshes keep their independent OSM geometry.
+   */
+  function roadHits(x,z){
     const candidates=cells.get(key(
       Math.floor(x/CELL),Math.floor(z/CELL)))||[];
-    let closest=null;
+    const byWay=new Map();
     for(const i of candidates){
       const s=segments[i],r2=s.length*s.length;
       const t=clamp(((x-s.a[0])*s.dx+(z-s.a[1])*s.dz)/r2,0,1);
       const distance=Math.hypot(x-s.a[0]-t*s.dx,
         z-s.a[1]-t*s.dz);
-      const limit=s.halfWidth+s.walk+blendMetres;
-      if(distance>limit)continue;
-      const within=distance<=s.halfWidth+.1;
-      const previousWithin=closest?.within||false;
-      if(closest&&(
-        (!within&&previousWithin)||
-        (within===previousWithin&&
-          (within?((s.priority<closest.s.priority)||
-            (s.priority===closest.s.priority&&distance>=closest.distance)):
-            distance>=closest.distance))))continue;
-      closest={s,t,distance,within};
+      if(distance>s.halfWidth+s.walk+blendMetres)continue;
+      const id=String(s.road.id),existing=byWay.get(id);
+      if(!existing||distance<existing.distance)
+        byWay.set(id,{s,t,distance,
+          within:distance<=s.halfWidth+.1});
     }
-    if(!closest)return null;
-    const {s,t,distance}=closest,rows=sectionsFor(s.road);
-    if(rows.length<2)return null;
-    return {
-      roadId:s.road.id,layer:0,base:sampleGrade(rows,s.at+s.length*t),
-      distance,halfWidth:s.halfWidth,walk:s.walk,
-      curbTop:.18,priority:s.priority
-    };
+    const candidatesByWay=[...byWay.values()].sort((a,b)=>
+      Number(b.within)-Number(a.within)||
+      (a.within?b.s.priority-a.s.priority:0)||
+      a.distance-b.distance||
+      String(a.s.road.id).localeCompare(String(b.s.road.id)));
+    return candidatesByWay.slice(0,5).map(({s,t,distance})=>{
+      const rows=sectionsFor(s.road);
+      if(rows.length<2)return null;
+      return {
+        roadId:s.road.id,layer:0,
+        base:sampleGrade(rows,s.at+s.length*t),
+        distance,halfWidth:s.halfWidth,walk:s.walk,
+        curbTop:.18,priority:s.priority
+      };
+    }).filter(Boolean);
+  }
+  function roadAt(x,z){return roadHits(x,z)[0]||null;}
+
+  /** Ground support follows road, footway and natural shoulder separately.
+   * Every zone joins its neighbor continuously in height AND slope.
+   */
+  function roadSupportHeight(hit,natural){
+    const d=hit.distance,lane=hit.halfWidth,
+      outer=lane+hit.walk;
+    const laneGround=hit.base-.16;
+    const sidewalkGround=hit.base+(hit.curbTop??.18)-.045;
+    if(d<=lane)return laneGround;
+    if(d<=outer)
+      return lerp(laneGround,sidewalkGround,
+        smooth((d-lane)/Math.max(hit.walk,.01)));
+    return lerp(sidewalkGround,natural,
+      smooth((d-outer)/Math.max(blendMetres,.01)));
   }
   function height(x,z){
-    const natural=naturalHeight(x,z),hit=roadAt(x,z);
-    if(!hit)return natural;
-    // The pavement's geometric surface is at base + .072; its underlying
-    // world sheet is depressed by .34 m. A continuous shoulder eases back
-    // into natural terrain without alpha masks or transparent gaps.
-    const beneath=hit.base-.34;
-    const edge=hit.halfWidth+hit.walk;
-    const t=smooth((hit.distance-(edge-.55))/
-      (blendMetres+.55));
-    return lerp(beneath,natural,t);
+    const natural=naturalHeight(x,z),hits=roadHits(x,z);
+    if(!hits.length)return natural;
+    const owner=hits[0];
+    let sum=0,total=0,lowestLane=Infinity,lowestWalk=Infinity;
+    for(const hit of hits){
+      if(!meetNear(owner.roadId,hit.roadId,x,z))continue;
+      // Never combine unrelated vertical grades (e.g. missing OSM bridge
+      // layer metadata) just because projected roads are geographically near.
+      if(Math.abs(hit.base-owner.base)>.65)continue;
+      const outer=hit.halfWidth+hit.walk;
+      const w=hit.distance<=outer?1:
+        1-smooth((hit.distance-outer)/Math.max(blendMetres,.01));
+      if(w<=0)continue;
+      sum+=roadSupportHeight(hit,natural)*w;
+      total+=w;
+      if(hit.distance<=hit.halfWidth+.08)
+        lowestLane=Math.min(lowestLane,hit.base-.12);
+      if(hit.distance<=outer)
+        lowestWalk=Math.min(lowestWalk,
+          hit.base+(hit.curbTop??.18)-.04);
+    }
+    if(!total)return natural;
+    let surface=sum/total;
+    // At real crossings the base sheet must stay UNDER every asphalt
+    // strip, even if its intersecting sidewalk has a higher curb.
+    if(lowestLane<Infinity)surface=Math.min(surface,lowestLane);
+    else if(lowestWalk<Infinity)surface=Math.min(surface,lowestWalk);
+    return surface;
   }
   function tileSample(x,z){return height(x,z);}
-  return {height,roadAt,sectionsFor,tileSample,
+  return {height,roadAt,roadHits,sectionsFor,tileSample,
     get stats(){return {sourceRoadSegments:segments.length,
       cachedProfiles:gradeCache.size,gridCellMetres:CELL};}};
 }

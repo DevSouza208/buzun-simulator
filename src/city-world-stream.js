@@ -119,7 +119,8 @@ export function createStreamingCityWorld(scene,map,{
   const worldSheet=sheetPreview?createWorldSheet(
     renderRoads,sampleHeight,{
       gradeModels:globalGrades,
-      fixedJunctions:globalFixedJunctions
+      fixedJunctions:globalFixedJunctions,
+      junctions:globalJunctions
     }):null;
   const worldSource={globalGrades,globalFixedJunctions,worldSheet};
   const loaded=new Map(),emptyRegions=new Set();

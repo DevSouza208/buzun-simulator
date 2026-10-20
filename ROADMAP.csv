@@ -79,9 +79,13 @@ WG600-01,WorldGen 6.0,Fonte global H(x z) com DEM e perfis canônicos viários,I
 WG600-02,WorldGen 6.0,Superfície de terreno contínua por chunks de 420m sem máscara de vazios,Implementado piloto,Verificar divisas e terra sob todos os asfaltos
 WG600-03,WorldGen 6.0,Altura de carro e asfalto compartilhada com o campo global,Implementado piloto,Validar colisão sem saltos em junções e antes dos setores
 WG600-04,WorldGen 6.0,Modo de teste isolado worldgen=sheet,Implementado piloto,Testar FPS tempo inicial e comparativo antes de ativar como padrão
-WG601-01,WorldGen 6.1,Corte e aterro controlado usando inclinações reais de vias,Planejado,Preservar referências DEM confiáveis e níveis OSM
+WG601-01,WorldGen 6.1,Corte e aterro controlado usando inclinações reais de vias,Em construção,Preservar referências DEM confiáveis e níveis OSM
 WG602-01,WorldGen 6.2,Tesselação adaptativa e alinhamento de terreno às bordas de rua,Planejado,Evitar solo atravessando asfalto em curvas estreitas
 WG603-01,WorldGen 6.3,União topológica global de cruzamentos,Planejado,Conservar ramificações e junções em diferentes níveis
 WG604-01,WorldGen 6.4,Materiais road-sheet e sinalização na folha,Planejado,Verificar faixas e calçadas depois de remodelar cruzamentos
 WG605-01,WorldGen 6.5,LOD e métricas de streaming por altura compartilhada,Planejado,Comparar GPU RAM FPS com worldgen stream
 WG606-01,WorldGen 6.6,Promover folha ao modo padrão após validação visual,Planejado,Não quebrar produção
+WG601-02,WorldGen 6.1,Perfil lateral em 3 zonas pista calçada e ombro,Implementado piloto,Comparar encostas e calçadas com os mesmos prints
+WG601-03,WorldGen 6.1,Múltiplas vias em junções OSM com proteção a vias paralelas,Implementado piloto,Revisar cruzamentos inclinados e viadutos
+WG601-04,WorldGen 6.1,Grade de terreno 5 metros e limite de 18 tiles ativos,Implementado piloto,Medir FPS e RAM após 15 minutos jogando
+WG601-05,WorldGen 6.1,Teste visual real no percurso McDonalds Habibs,Pendente,Comparar imagens e corrigir interseções
