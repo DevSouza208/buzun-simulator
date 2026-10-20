@@ -262,19 +262,21 @@ export function createRoadScene(scene,roads,sampleHeight) {
           oneway:road.o,widthSource:road.widthSource});
     }
   }
-  // Junction caps: cover overlaps between asphalt ribbons and continuous
-  // sidewalk strips. Caps only at true shared OSM nodes, not false crossings.
+  // Junction caps reference the same draped grade as the asphalt.
+  // Never put an independent DEM-sampled triangular mountain on the road.
+  const surface=createRoadSurfaceIndex(surfaceSegments);
   for(const j of joints) {
     const center=j.point,r=Math.max(2.8,j.maxWidth/2+.38),
       b=chunkFor(center);
-    const c=[center[0],sampleHeight(...center)+.065,center[1]];
+    const heightAt=p=>surface.sample(...p)?.height??sampleHeight(...p);
+    const c=[center[0],heightAt(center)+.065,center[1]];
     const count=12;
     for(let i=0;i<count;i++){
       const t1=i*Math.PI*2/count,t2=(i+1)*Math.PI*2/count;
       const a=[center[0]+r*Math.cos(t1),center[1]+r*Math.sin(t1)];
       const d=[center[0]+r*Math.cos(t2),center[1]+r*Math.sin(t2)];
-      addTri(b.caps,c,[a[0],sampleHeight(...a)+.065,a[1]],
-        [d[0],sampleHeight(...d)+.065,d[1]]);
+      addTri(b.caps,c,[a[0],heightAt(a)+.065,a[1]],
+        [d[0],heightAt(d)+.065,d[1]]);
     }
   }
   const tiles=[];
@@ -300,7 +302,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
   }
   return {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
-    surface:createRoadSurfaceIndex(surfaceSegments),
+    surface,
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
       for(const tile of tiles)
