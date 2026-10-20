@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#101e2a" />
-  <meta name="description" content="Buzun Simulator: dirija pela Avenida Dona Belmira Marin e pelas vias do Cocaia em um Grajaú real e low poly." />
-  <title>Buzun Simulator | Belmira Marin e Cocaia</title>
+  <meta name="description" content="Buzun Simulator: trecho real da Avenida Dona Belmira Marin entre McDonald’s e Habib’s, com relevo SRTM e fachadas low poly." />
+  <title>Buzun Simulator | McDonald's → Habib's</title>
   <link rel="stylesheet" href="./src/styles.css" />
 </head>
 <body>
@@ -73,14 +73,14 @@
       <div class="welcome-badge"><span class="live-dot"></span> PRIMEIRA VERSÃO JOGÁVEL · <span id="landing-version">v0.1.0</span></div>
       <div class="welcome-logo">BUZUN<span>.</span></div>
       <h1>O mundo real.<br/><i>Uma nova estrada.</i></h1>
-      <p>Agora você pode seguir pela <b>Av. Dona Belmira Marin</b> e explorar os eixos do <b>Canal de Cocaia, Pedro Escobar e Rubens de Oliveira</b>. Ruas reais do OpenStreetMap em um mundo low poly.</p>
-      <div class="welcome-facts"><span><b>01</b> CARRO</span><span><b>04</b> VIAS PRINCIPAIS</span><span><b>3D</b> LOW POLY</span></div>
+      <p>Dirija do <b>McDonald’s ao Habib’s</b> pela <b>Av. Dona Belmira Marin</b>. A ladeira usa dados reais de altitude SRTM, com esquinas e fachadas low poly construídas a partir do OpenStreetMap.</p>
+      <div class="welcome-facts"><span><b>01</b> CARRO</span><span><b>1,2 KM</b> DE AVENIDA</span><span><b>3D</b> LOW POLY</span></div>
       <div class="spawn-pick">
-        <label for="facade-choice">COMEÇAR EM FRENTE A:</label>
+        <label for="facade-choice">COMEÇAR EM:</label>
         <select id="facade-choice" aria-label="Escolher fachada de início">
-          <option value="619054952">01 — Casa com portão</option>
-          <option value="618875333">02 — Comércio estilizado</option>
-          <option value="618869167">03 — Sobrado estilizado</option>
+          <option value="mcdonalds">01 — McDonald’s</option>
+          <option value="habibs">02 — Habib’s</option>
+          
         </select>
       </div>
       <div id="load-status" class="load-status">Preparando a cidade...</div>
