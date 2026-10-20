@@ -106,7 +106,9 @@ export function createStreamingCityWorld(scene,map){
     urgentRegionLoads:0,travelDirection:[0,0],
     backgroundRegions:0,cooperativeSlices:0,
     maxCooperativeSliceMs:0,cooperativeCpuMs:0,
-    cancelledBackgroundRegions:0,buildStage:null};
+    cancelledBackgroundRegions:0,buildStage:null,
+    asphaltWorkerRegions:0,asphaltWorkerFallbacks:0,
+    asphaltWorkerTriangles:0};
   const buildRegion=(rx,rz)=>{
     const key=regionKey(rx,rz);
     if(loaded.has(key)||emptyRegions.has(key))return;
@@ -247,7 +249,8 @@ export function createStreamingCityWorld(scene,map){
             ...todo,started,
             runner:createCooperativeRunner(createRoadSceneSteps(
               scene,ways,sampleHeight,
-              {renderBounds:regionBounds(todo.x,todo.z)}),{
+              {renderBounds:regionBounds(todo.x,todo.z),
+                backgroundAsphalt:true}),{
               now:time,sliceMs:6,maxSteps:6
             })
           };
@@ -276,6 +279,13 @@ export function createStreamingCityWorld(scene,map){
             counters.readyRegions++;
             counters.backgroundRegions++;
             counters.loadedRegions=loaded.size;
+            if(scenery.asphaltWorkerStats?.used){
+              counters.asphaltWorkerRegions++;
+              counters.asphaltWorkerTriangles+=
+                scenery.asphaltWorkerStats.triangles;
+            }else if(scenery.asphaltWorkerStats?.fallback){
+              counters.asphaltWorkerFallbacks++;
+            }
             pendingTask=null;
             counters.building=null;
             counters.buildStage=null;
