@@ -41,3 +41,13 @@ WENG-06,World Engine,Editor de seleção de região e botão Create,Futuro,Após
 TERR-01,Relevo,Adicionar altura aproximada só na região inicial,Implementado,Conferir encostas sem buracos e desempenho
 TERR-02,Relevo,Aplicar mesma altura a ruas árvores prédios carro e câmera,Implementado,Verificar visualmente alinhamentos e rampas
 TERR-03,Relevo,Substituir terreno demonstrativo por DEM real,Futuro,Selecionar e validar fonte de altitude
+COR-01,Corredor Belmira,Localizar McDonalds 1277 e Habibs 111 com OSM,Concluído,Coordenadas verificadas com documentos oficiais e endereço OSM
+COR-02,Corredor Belmira,Calcular trajetória real entre estabelecimentos,Concluído,1168.3 metros e 60 pontos OSM com 9 IDs de via
+COR-03,Corredor Belmira,Recortar bocas de ruas laterais existentes,Concluído,21 fragmentos OSM até 50m da rota
+COR-04,Corredor Belmira,Preservar pacote de prédios e POIs do recorte,Concluído,619 polígonos 44 fragmentos de via e 7 POIs preexistentes
+COR-05,Corredor Belmira,Documentar e criar script reproduzível do recorte,Concluído,docs/BELMIRA_CREATE_PIPELINE.md + scripts/build-belmira-corridor.mjs
+COR-06,Corredor Belmira,Aplicar perfil DEM e testar declive no carro,Pendente,Etapa 2
+COR-07,Corredor Belmira,Renderizar 619 contornos com limite móvel e calçadas,Pendente,Etapa 3
+COR-08,Corredor Belmira,Modelar McDonalds e Habibs low poly e esquinas,Pendente,Etapa 3
+COR-09,Corredor Belmira,Adicionar introdução percurso e spawn no McDonalds,Pendente,Etapa 4
+COR-10,World Engine,Generalizar roteiro para seleção e botão Create,Futuro,Depois de validar as quatro etapas
