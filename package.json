@@ -6,9 +6,11 @@
   "description": "Low-poly São Paulo driving prototype with real OpenStreetMap geometry.",
   "scripts": {
     "start": "python3 -m http.server 5173",
-    "check": "node --check src/geo.js && node --check src/world.js && node --check src/main.js",
+    "check": "node scripts/check-source.mjs",
     "test": "node --test tests/*.test.js",
-    "verify": "npm run check && npm test"
+    "verify": "npm run check && npm test",
+    "world:route": "node scripts/build-belmira-corridor.mjs",
+    "world:blocks": "node scripts/build-osm-blocks.mjs"
   },
   "license": "UNLICENSED"
 }
