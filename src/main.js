@@ -5,6 +5,7 @@ import { modelYawFromHeading } from "./driving.js";
 import { heightAlongHeading, configureTerrain, getTerrainMode } from "./terrain.js";
 import { slopeAlongHeading, slopeAcceleration, gradeLabel } from "./grade.js";
 import { progressAlongRoute } from "./route-progress.js";
+import { auditMetricCorridor } from "./metric-audit.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -130,7 +131,7 @@ function visitFacade(nextIndex, announce = true) {
   world.spawn = places[spawnIndex];
   $("facade-choice").value = String(world.spawn.id);
   if (player) resetCar(false);
-  if (announce) showToast("Modelo " + (spawnIndex + 1) + "/" + places.length + ": " + world.spawn.label);
+  if (announce) showToast("Ponto " + (spawnIndex + 1) + "/" + places.length + ": " + world.spawn.label);
   return true;
 }
 async function refreshBuildVersion() {
@@ -214,14 +215,19 @@ function updateCamera(dt) {
   let target, desired;
   const terrainY = world.heightAt(player.x,player.z);
   if (cameraMode === 0) {
-    target = new THREE.Vector3(player.x, terrainY + 1.6, player.z);
-    desired = new THREE.Vector3(
-      player.x - forward.x * 12,
-      terrainY + 5.4 + pitchOrbit * 8,
-      player.z - forward.z * 12,
+    // Closer, lower 3rd-person camera: the road keeps its true metre scale.
+    const followDistance = 6.8, lookAhead = 5.2;
+    target = new THREE.Vector3(
+      player.x + forward.x * lookAhead,
+      terrainY + 1.3 + pitchOrbit,
+      player.z + forward.z * lookAhead
     );
-    // Keep the chase camera above nearby terrain on steep slopes.
-    desired.y = Math.max(desired.y, world.heightAt(desired.x,desired.z) + 2.5);
+    desired = new THREE.Vector3(
+      player.x - forward.x * followDistance,
+      terrainY + 2.9 + pitchOrbit * 2,
+      player.z - forward.z * followDistance,
+    );
+    desired.y = Math.max(desired.y, world.heightAt(desired.x,desired.z) + 1.8);
     car.visible = true;
   } else {
     const facing = new THREE.Vector3(Math.sin(player.yaw), 0, -Math.cos(player.yaw));
@@ -250,13 +256,13 @@ function hud(now) {
   const grade = slopeAlongHeading(player.x, player.z, player.yaw, world.heightAt);
   terrainLabel.textContent = near && near.distance > near.segment.width / 2 + 4
     ? "FORA DA VIA • VOLTE AO ASFALTO"
-    : "BELMIRA · " + gradeLabel(grade);
+    : "VIAS 1:1 · " + gradeLabel(grade);
   const goal=$("route-progress"),progress=progressAlongRoute(roadData?.route,player.x,player.z);
   if(goal&&progress){
     goal.textContent=progress.remaining<28 && progress.offRoute<30
       ? "DESTINO: HABIB'S · CHEGOU!"
       : progress.offRoute>70 ? "FORA DO CORREDOR · RETORNE À BELMIRA"
-        : "HABIB'S · "+Math.round(progress.remaining/10)*10+" m RESTANTES";
+        : "HABIB'S · "+Math.round(progress.remaining)+" m RESTANTES";
   }
 }
 function drawMinimap(now) {
@@ -369,26 +375,27 @@ async function start() {
     // Marin street geometry extends the same local coordinate system.
     // Importing a road backbone first avoids downloading thousands of
     // distant building meshes on mobile before neighborhood tiles exist.
-    const [mapResponse, elevationResponse, facadeResponse] = await Promise.all([
+    const [mapResponse, elevationResponse] = await Promise.all([
       fetch("./public/data/belmira-corridor.json"),
       fetch("./public/data/belmira-elevation.json"),
-      fetch("./public/data/facade-pilot.json"),
     ]);
-    if (!mapResponse.ok || !elevationResponse.ok || !facadeResponse.ok)
+    if (!mapResponse.ok || !elevationResponse.ok)
       throw new Error("Não foi possível carregar o corredor Belmira e os dados de altitude.");
-    const [corridor, elevation, pilot] = await Promise.all([
-      mapResponse.json(), elevationResponse.json(), facadeResponse.json(),
+    const [corridor, elevation] = await Promise.all([
+      mapResponse.json(), elevationResponse.json(),
     ]);
     if(!Array.isArray(corridor.roads) || corridor.roads.length<25 ||
-       !Array.isArray(corridor.buildings) || corridor.buildings.length<100)
-      throw new Error("O recorte da Belmira está incompleto.");
+       !Array.isArray(corridor.route) || corridor.route.length<25)
+      throw new Error("O recorte das vias da Belmira está incompleto.");
     if (corridor.origin.lat!==elevation.origin.lat ||
         corridor.origin.lon!==elevation.origin.lon)
       throw new Error("As coordenadas do mapa e do terreno não coincidem.");
     configureTerrain(elevation);
     roadData = corridor;
-
-    status.textContent = "Construindo ruas e fachadas low poly...";
+    const routeAudit = auditMetricCorridor(corridor);
+    if(Math.abs(routeAudit.routeLengthMeters-corridor.routeLengthMeters)>1)
+      throw new Error("A metragem do percurso não confere com o OSM.");
+    status.textContent = "Montando vias OSM em escala 1:1, sem construções...";
     await new Promise(resolve => setTimeout(resolve, 25));
     scene = new THREE.Scene();
     scene.background = new THREE.Color("#a9ced0");
@@ -403,9 +410,9 @@ async function start() {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.55;
-    camera = new THREE.PerspectiveCamera(67, 1, .1, 1600);
+    camera = new THREE.PerspectiveCamera(60, 1, .1, 1600);
     resize();
-    world = createWorld(scene, roadData, { facadePilot:pilot });
+    world = createWorld(scene, roadData, { roadsOnly:true });
     car = createCar();
     scene.add(car);
     player = { x: world.spawn.x, z: world.spawn.z, yaw: world.spawn.angle,
@@ -456,13 +463,19 @@ async function start() {
       }
     }
     resetCar(false);
-    camera.position.set(player.x, world.heightAt(player.x,player.z)+5, player.z + 15);
-    camera.lookAt(player.x, world.heightAt(player.x,player.z)+1, player.z);
+    const behindX = player.x-Math.sin(player.yaw)*6.8;
+    const behindZ = player.z+Math.cos(player.yaw)*6.8;
+    camera.position.set(behindX,
+      Math.max(world.heightAt(player.x,player.z)+3.2,world.heightAt(behindX,behindZ)+1.8),
+      behindZ);
+    camera.lookAt(player.x, world.heightAt(player.x,player.z)+1.3, player.z);
     clock = new THREE.Clock();
     tick();
-    $("map-status").textContent = world.stats.roads + " trechos reais";
-    status.textContent = "Belmira pronta: McDonald’s → Habib’s · " +
-      world.stats.buildings + " construções · relevo " + (getTerrainMode()==="srtm30m"?"SRTM real.":"experimental.");
+    $("map-status").textContent = world.stats.roads + " vias OSM · escala 1:1";
+    status.textContent = "Modo vias 1:1 · " +
+      routeAudit.routeLengthMeters.toFixed(1).replace(".",",") +
+      " m de percurso · 0 construções · largura viária estimada · relevo " +
+      (getTerrainMode()==="srtm30m"?"SRTM.":"experimental.");
     startButton.disabled = false;
     startButton.textContent = "COMEÇAR A DIRIGIR  ↗";
   } catch (error) {

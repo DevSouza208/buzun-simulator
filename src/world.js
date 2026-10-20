@@ -2,6 +2,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import { clippedLine, closestSegment, pointInPolygon, roadWidth, seeded } from "./geo.js";
 import { sampleHeight, getTerrainBounds } from "./terrain.js";
 import { terrainBandQuads } from "./road-geometry.js";
+import { roadDimensions, auditMetricCorridor } from "./metric-audit.js";
 import { avenueMarkings } from "./road-markings.js";
 import { chooseStreetFront, facadeRecipe } from "./facade-kit.js";
 import { frontagePanels } from "./facade-detail.js";
@@ -69,6 +70,7 @@ function simpleSign(text, backdrop = "#142b38") {
   return sp;
 }
 export function createWorld(scene, map, options = {}) {
+  const roadsOnly = options.roadsOnly === true;
   // Single terrain height source powers the road, ground, cars and buildings.
   // This works both for the early artificial preview and for the measured SRTM.
   const bounds=getTerrainBounds();
@@ -115,7 +117,7 @@ export function createWorld(scene, map, options = {}) {
   }
   const segments = [];
   for (const road of map.roads) {
-    const width = roadWidth(road.t);
+    const width = roadDimensions(road).widthMeters;
     // Authentic OSM polyline; only the paint/lane layout is approximate.
     for(const mark of avenueMarkings(road,width)){
       band(mark.color==="yellow"?laneYellows:laneWhites,
@@ -155,6 +157,9 @@ export function createWorld(scene, map, options = {}) {
     }
   }
   for(const joint of crossings.values()){
+    // During the geometric audit do not draw synthetic intersection discs;
+    // the asphalt remains on the original metre-scale OSM centreline.
+    if (roadsOnly) break;
     if(joint.arms.length<3||joint.names.size<2)continue;
     const radius=Math.max(...joint.arms.map(s=>s.width))/2+.18;
     const [x,z]=joint.p,y=sampleHeight(x,z)+.046;
@@ -168,6 +173,50 @@ export function createWorld(scene, map, options = {}) {
   for(const b of [shoulders, roads, junctions, stripes, laneYellows, laneWhites]) {
     const mesh = materialMesh(b);
     if (mesh) scene.add(mesh);
+  }
+
+  // Temporary one-to-one ROAD SURVEY mode: retain real metre-space road
+  // and altitude geometry, but skip every building, label, pole, tree and
+  // generated facade without deleting any OSM data or scene assets.
+  if (roadsOnly) {
+    const metricAudit = auditMetricCorridor(map);
+    const routeStart = map.route?.[0] || [0,0];
+    const routeNext = map.route?.[1] || [0,-1];
+    const nearest = closestSegment(...routeStart, segments);
+    const angle = Math.atan2(routeNext[0]-routeStart[0],
+      -(routeNext[1]-routeStart[1]));
+    const spawn = {
+      x: nearest?.x ?? routeStart[0],
+      z: nearest?.z ?? routeStart[1],
+      angle
+    };
+    const corridorLandmarks = (map.landmarks || []).map(loc => {
+      const road = closestSegment(...loc.xy, segments);
+      return {
+        key:loc.key, label:loc.label, xy:loc.xy,
+        buildingId:loc.buildingId || null,
+        roadPoint:road ? [road.x,road.z] : loc.xy,
+        confirmedFootprint:false
+      };
+    });
+    const inExploreArea = (x,z) => {
+      if(Math.abs(x)>6100 || Math.abs(z)>6100)return false;
+      const nearby=closestSegment(x,z,segments);
+      return !!nearby && nearby.distance<50;
+    };
+    return {
+      segments, spawn, terminalSpawn:spawn, pilotSpawns:[],
+      collides:()=>false, inExploreArea, heightAt:sampleHeight,
+      facades:[],corridorLandmarks,
+      closest:(x,z)=>closestSegment(x,z,segments),
+      stats:{
+        roads:map.roads.length,buildings:0,trees:0,
+        pilotFacades:0,landmarks:corridorLandmarks.length,
+        fictionalStores:0,utilityPoles:0,
+        metricAudit
+      },
+      terminal:{x:spawn.x,z:spawn.z}
+    };
   }
 
   // Keep source OSM building IDs intact: a future facade editor can store

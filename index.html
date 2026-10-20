@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#101e2a" />
-  <meta name="description" content="Buzun Simulator: trecho real da Avenida Dona Belmira Marin entre McDonald’s e Habib’s, com relevo SRTM e fachadas low poly." />
+  <meta name="description" content="Buzun Simulator: base viária do corredor Belmira Marin em escala nominal 1:1, sem construções, com curvas OSM e relevo SRTM." />
   <title>Buzun Simulator | McDonald's → Habib's</title>
   <link rel="stylesheet" href="./src/styles.css" />
 </head>
@@ -24,7 +24,7 @@
     </div>
     <div class="top-actions">
       <span class="version" id="header-version">LOW POLY · v0.1.0</span>
-      <button id="next-facade" class="icon-button" title="Visitar próxima fachada modelada" aria-label="Ir para a próxima fachada modelada">⌂</button>
+      <button id="next-facade" class="icon-button" title="Ir para o próximo ponto da rota" aria-label="Ir para o próximo ponto da rota">⌂</button>
       <button id="reset-button" class="icon-button" title="Reposicionar veículo (R)" aria-label="Reposicionar veículo">↺</button>
       <button id="help-button" class="icon-button" title="Ajuda" aria-label="Abrir controles">?</button>
     </div>
@@ -74,8 +74,8 @@
       <div class="welcome-badge"><span class="live-dot"></span> PRIMEIRA VERSÃO JOGÁVEL · <span id="landing-version">v0.1.0</span></div>
       <div class="welcome-logo">BUZUN<span>.</span></div>
       <h1>O mundo real.<br/><i>Uma nova estrada.</i></h1>
-      <p>Dirija do <b>McDonald’s ao Habib’s</b> pela <b>Av. Dona Belmira Marin</b>. A ladeira usa dados reais de altitude SRTM, com esquinas e fachadas low poly construídas a partir do OpenStreetMap.</p>
-      <div class="welcome-facts"><span><b>01</b> CARRO</span><span><b>1,2 KM</b> DE AVENIDA</span><span><b>3D</b> LOW POLY</span></div>
+      <p>Teste a geometria das <b>vias em escala 1:1</b> da <b>Av. Dona Belmira Marin</b>. O percurso mede aproximadamente <b>1.159 metros</b> no traçado OSM. Prédios e objetos estão ocultos temporariamente; as larguras da pista ainda são estimadas.</p>
+      <div class="welcome-facts"><span><b>01</b> CARRO</span><span><b>1.159 M</b> DE TRAJETO</span><span><b>1:1</b> ESCALA NOMINAL</span></div>
       <div class="spawn-pick">
         <label for="facade-choice">COMEÇAR EM:</label>
         <select id="facade-choice" aria-label="Escolher fachada de início">
@@ -86,7 +86,7 @@
       </div>
       <div id="load-status" class="load-status">Preparando a cidade...</div>
       <button id="start-button" disabled>CARREGANDO MAPA…</button>
-      <small>Protótipo técnico • Sem corridas, passageiros ou progressão ainda.</small>
+      <small>Modo somente vias • 1 unidade = 1 m • larguras estimadas • relevo SRTM.</small>
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Dados © colaboradores do OpenStreetMap</a>
     </section>
     <div class="welcome-corner">DEV BUILD / GRAJAÚ 001</div>
@@ -107,7 +107,7 @@
         <span><b>Gamepad</b></span><span>Analógico esquerdo + gatilhos</span>
         <span><b>Celular</b></span><span>Segure as setas e pedais ao mesmo tempo</span>
       </div>
-      <p>Esta é a primeira prova técnica. A geometria das ruas vem do mapa real, mas prédios e alturas ainda são estilizados. Algumas vias, cruzamentos e colisões são simplificados.</p>
+      <p>Modo temporário 1:1: sem prédios, fachadas e elementos decorativos. A rota e as curvas usam o recorte OSM em metros; larguras das pistas ainda são estimadas, e o relevo SRTM não tem precisão de levantamento topográfico.</p>
       <button id="resume-button">VOLTAR A DIRIGIR</button>
     </section>
   </div>
