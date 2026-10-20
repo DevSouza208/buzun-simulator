@@ -23,6 +23,7 @@ export function physicalLayer(road){
 }
 export function asphaltPriority(road){
   // Corner fillets are additive fill, never allowed to cut a real road.
+  if(road.isMedian)return 1e6;
   if(road.isFillet)return -1e6;
   return (CLASS_PRIORITY[road.t]||30)*100+
     Math.min(49,Number(road.widthMeters)||7);
@@ -140,7 +141,9 @@ export function unionAsphaltPatches(patches,emit,{cellSize=28}={}){
     const already=new Set();
     for(const key of keys(patch))
       for(const other of cells.get(key)||[]){
-        if(other.id===patch.id||already.has(other))continue;
+        // Pieces of the SAME OSM way can overlap at tight turns or
+        // duplicated sections. They must be unioned as well.
+        if(already.has(other))continue;
         already.add(other);
         if(!intersects(patch.bounds,other.bounds))continue;
         const previous=pieces.reduce((n,p)=>n+absArea(p),0);

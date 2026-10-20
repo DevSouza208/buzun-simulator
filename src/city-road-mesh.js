@@ -9,6 +9,8 @@ import { buildIntersectionGradeModels,reconcileRoadGrade }
   from "./intersection-grade.js";
 import { buildJunctionFillets,createFilletSurfaceIndex }
   from "./junction-fillets.js";
+import { findSeparatedCarriagewayMedians } from "./median-islands.js";
+import { sealMeshSeams } from "./mesh-seams.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -16,7 +18,7 @@ import { buildJunctionFillets,createFilletSurfaceIndex }
  * Each cross-section is in game metres.
  */
 export const STREET_PALETTE=Object.freeze({
-  asphalt:"#364250",walk:"#d6d0c6",curb:"#eee1cf",shoulder:"#a5b89d",
+  asphalt:"#364250",walk:"#d6d0c6",curb:"#eee1cf",median:"#7b956e",shoulder:"#a5b89d",
   white:"#eee8dc",yellow:"#e9c86c",ground:"#a5b89d"
 });
 const SPACING=5; // metre-to-metre tessellation; no coordinate scaling
@@ -122,7 +124,7 @@ function chunkKey(p,size=440){
   return Math.floor(p[0]/size)+":"+Math.floor(p[1]/size);
 }
 function emptyChunk(x,z){
-  return {x,z,asphalt:[],walk:[],curb:[],white:[],yellow:[],caps:[],shoulder:[]};
+  return {x,z,asphalt:[],walk:[],curb:[],median:[],white:[],yellow:[],caps:[],shoulder:[]};
 }
 function streetNodeKey(p){
   return p.map(v=>Math.round(v*10)).join(":");
@@ -158,6 +160,9 @@ export function createRoadScene(scene,roads,sampleHeight) {
   const gradeModels=buildIntersectionGradeModels(roads,joints,sampleHeight);
   const roundedCorners=buildJunctionFillets(roads,joints,sampleHeight,
     {gradeModels:gradeModels.models});
+  // Only OSM-confirmed dual one-way carriageways produce planted medians.
+  // Crossroads cut these islands through the same asphalt polygon mask.
+  const medians=findSeparatedCarriagewayMedians(roads,sampleHeight);
   const filletSurface=createFilletSurfaceIndex(roundedCorners.patches);
   const fixedJunctions=new Set(joints.map(j=>coordinateKey(j.point)));
   const junctionCells=new Map();
@@ -269,11 +274,12 @@ export function createRoadScene(scene,roads,sampleHeight) {
   });
   // Unlike the old side-road quads, sidewalks and curbs are now derived
   // from ONE resolved pavement footprint in the same horizontal layer.
-  const roadsideStats=composeRoadsideMeshes(asphaltPatches,walkPatches,
-    (triangle)=>{
+  const roadsideStats=composeRoadsideMeshes(asphaltPatches,
+    [...walkPatches,...medians.patches],
+    (triangle,patch)=>{
       const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
         (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
-      addTri(chunkFor(mid).walk,...triangle);
+      addTri(chunkFor(mid)[patch.isMedian?"median":"walk"],...triangle);
     },
     (wall)=>{
       const mid=[(wall[0][0]+wall[1][0])/2,
@@ -282,9 +288,12 @@ export function createRoadScene(scene,roads,sampleHeight) {
     },{junctions:joints,bevelCurbs:true});
   const surface=createRoadSurfaceIndex(surfaceSegments);
   const tiles=[];
+  const seamStats={sharedVertices:0,snappedVertices:0,
+    independentLevels:0,degenerateTriangles:0};
   const hues=[
     ["asphalt",STREET_PALETTE.asphalt],
     ["walk",STREET_PALETTE.walk],
+    ["median",STREET_PALETTE.median],
     ["curb",STREET_PALETTE.curb],
     ["caps",STREET_PALETTE.asphalt],
     ["white",STREET_PALETTE.white],
@@ -292,6 +301,16 @@ export function createRoadScene(scene,roads,sampleHeight) {
     ["shoulder",STREET_PALETTE.shoulder]
   ];
   for(const ch of chunks.values()){
+    // Snap and reconcile neighboring vertices AFTER all geometric clipping.
+    // Identical X/Z points in asphalt, walks and curbs now have consistent
+    // coordinates; real vertical steps/overpasses stay independent.
+    for(const key of ["asphalt","walk","median","curb"]){
+      // Vertical bevel tiers in curbs are intentional; don't smooth away
+      // those details while reconciling nearby asphalt elevations.
+      const health=sealMeshSeams(ch[key],
+        {heightTolerance:key==="curb"?1e-6:.085});
+      for(const k of Object.keys(seamStats))seamStats[k]+=health[k]||0;
+    }
     const group=new THREE.Group();
     group.name="Buzun_RoadTile_"+ch.x+"_"+ch.z;
     for(const [key,color] of hues){
@@ -305,7 +324,8 @@ export function createRoadScene(scene,roads,sampleHeight) {
   return {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
     surface,asphaltUnion,laneStatistics,roadsideStats,filletSurface,
-    cornerStatistics:roundedCorners.stats,
+    cornerStatistics:roundedCorners.stats,medianStatistics:medians.stats,
+    seamStatistics:seamStats,
     gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
