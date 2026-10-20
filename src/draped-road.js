@@ -74,7 +74,7 @@ export function createRoadSurfaceIndex(surfaceSegments,cellSize=75){
       const distance=Math.hypot(x-s.a[0]-dx*t,z-s.a[1]-dz*t);
       if(best===null||distance<best.distance)
         best={distance,height:lerp(s.h0,s.h1,t),
-          halfWidth:s.halfWidth,walk:s.walk};
+          halfWidth:s.halfWidth,walk:s.walk,curbTop:s.curbTop??.18};
     }
     return best;
   }
