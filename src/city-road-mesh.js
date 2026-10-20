@@ -1,9 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 import { sidewalkWidth, createRoadCorridors } from "./road-corridor.js";
-import { composeRoadsideMeshes } from "./sidewalk-union.js";
+import { composeRoadsideSteps } from "./sidewalk-union.js";
 import { drapedSections, createRoadSurfaceIndex, coordinateKey }
   from "./draped-road.js";
-import { unionAsphaltPatches, asphaltPriority, physicalLayer } from "./asphalt-union.js";
+import { unionAsphaltSteps, asphaltPriority, physicalLayer } from "./asphalt-union.js";
 import { resolveLanePlan, paintIntervals } from "./road-lanes.js";
 import { buildIntersectionGradeModels,reconcileRoadGrade }
   from "./intersection-grade.js";
@@ -186,8 +186,12 @@ export function getJunctions(roads){
   }
   return [...touches.values()].filter(j=>j.ways.size>1);
 }
-export function createRoadScene(scene,roads,sampleHeight,{
-  renderBounds=null
+/** Generator-driven world creation shared by both run modes.
+ * Streaming drives a few steps per animation frame. The legacy wrapper
+ * below runs the SAME generator to completion, synchronously.
+ */
+export function* createRoadSceneSteps(scene,roads,sampleHeight,{
+  renderBounds=null,roadBatchSize=4
 }={}) {
   const profiler=makeWorldgenProfiler();
   const detail=renderProfile(renderBounds);
@@ -253,6 +257,7 @@ export function createRoadScene(scene,roads,sampleHeight,{
     return false;
   };
   profiler.mark("cruzamentos_terreno_planejamento");
+  let roadProcessed=0;
   for(const road of roads){
     if(!road.p?.length)continue;
     const width=road.widthMeters||7,half=width/2,
@@ -335,6 +340,12 @@ export function createRoadScene(scene,roads,sampleHeight,{
         segments.push({a,b,width,name:road.n,type:road.t,id:road.id,
           oneway:road.o,widthSource:road.widthSource});
     }
+    // Yield only after a COMPLETE road's geometry has been buffered.
+    if(++roadProcessed%roadBatchSize===0){
+      profiler.pause();
+      yield {stage:"roads",done:roadProcessed,total:roads.length};
+      profiler.resume();
+    }
   }
   // Union all asphalt sheets in 2D before sending triangles to WebGL.
   // Junction circles formerly covered seams but produced extra overlap and
@@ -345,11 +356,12 @@ export function createRoadScene(scene,roads,sampleHeight,{
   // rounded curb decorations without adding their road surface.
   profiler.mark("amostragem_vias_e_pintura");
   asphaltPatches.push(...roundedCorners.patches);
-  const asphaltUnion=unionAsphaltPatches(asphaltPatches,(triangle)=>{
+  const asphaltUnion=yield* paceGeometry(unionAsphaltSteps(
+    asphaltPatches,(triangle)=>{
     const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
       (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
     addTri(chunkFor(mid).asphalt,...triangle);
-  });
+  }),profiler);
   profiler.mark("uniao_poligonal_asfalto");
   // Zebra paint is validated against the same draped road surface BEFORE
   // we carve ramps. Only actually paintable crossings receive curb cuts.
@@ -371,7 +383,7 @@ export function createRoadScene(scene,roads,sampleHeight,{
   const rampSurface=createRampIndex(rampGeometry.zones);
   // Use the same accepted sidewalk polygon union. The ramp cutter removes
   // the old flat sidewalk, emits graded cells, and opens the real curb wall.
-  const roadsideStats=composeRoadsideMeshes(asphaltPatches,
+  const roadsideStats=yield* paceGeometry(composeRoadsideSteps(asphaltPatches,
     [...walkPatches,...medians.patches],
     (triangle,patch)=>{
       const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
@@ -389,7 +401,7 @@ export function createRoadScene(scene,roads,sampleHeight,{
         const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
           (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
         addTri(chunkFor(mid).tactile,...triangle);
-      }});
+      }}),profiler);
   profiler.mark("uniao_calcadas_guias_rampas");
   const tiles=[];
   const seamStats={sharedVertices:0,snappedVertices:0,
@@ -409,8 +421,12 @@ export function createRoadScene(scene,roads,sampleHeight,{
     // Geometry was composed with halo roads, and only now cut to the
     // authoritative region edge. Neighboring regions each own their own
     // nonoverlapping half, including draped interpolation at cut vertices.
-    if(renderBounds)for(const [key] of hues)
+    if(renderBounds)for(const [key] of hues){
       ch[key]=clipMeshBufferToRegion(ch[key],renderBounds);
+      profiler.pause();
+      yield {stage:"region_clip",material:key};
+      profiler.resume();
+    }
     // Snap and reconcile neighboring vertices AFTER all geometric clipping.
     // Identical X/Z points in asphalt, walks and curbs now have consistent
     // coordinates; real vertical steps/overpasses stay independent.
@@ -421,6 +437,9 @@ export function createRoadScene(scene,roads,sampleHeight,{
         {heightTolerance:
           key==="curb"||key==="tactile"?1e-6:.085});
       for(const k of Object.keys(seamStats))seamStats[k]+=health[k]||0;
+      profiler.pause();
+      yield {stage:"seam",material:key};
+      profiler.resume();
     }
     const budget=geometryBudget(ch);
     if(budget.triangles===0)continue;
@@ -433,7 +452,11 @@ export function createRoadScene(scene,roads,sampleHeight,{
         detail.cameraFrustumCulling);
       if(m){m.name="Buzun_"+key;group.add(m);meshes[key]=m;}
       ch[key].length=0;
+      profiler.pause();
+      yield {stage:"mesh",material:key};
+      profiler.resume();
     }
+    // Do not reveal half-built regions; add only finished render groups.
     scene.add(group);
     tiles.push({x:ch.x,z:ch.z,bounds:ch.bounds,
       group,meshes,budget});
@@ -474,4 +497,26 @@ export function createRoadScene(scene,roads,sampleHeight,{
       lastVisibility={x,z,radius};
     }
   };
+}
+
+/** The legacy API runs all phases at once; the streaming API explicitly
+ * consumes yielded checkpoints via the browser's cooperative scheduler.
+ */
+export function createRoadScene(scene,roads,sampleHeight,options={}){
+  const steps=createRoadSceneSteps(scene,roads,sampleHeight,options);
+  let current=steps.next();
+  while(!current.done)current=steps.next();
+  return current.value;
+}
+
+/** Keep active CPU timings separate from the idle time between frames. */
+function* paceGeometry(iterator,profiler){
+  let step=iterator.next();
+  while(!step.done){
+    profiler.pause();
+    yield step.value;
+    profiler.resume();
+    step=iterator.next();
+  }
+  return step.value;
 }
