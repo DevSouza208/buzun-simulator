@@ -70,6 +70,9 @@ export function mountWorldgenOverlay({
           "Asfalto Worker: "+(r.streaming.asphaltWorkerRegions||0)+
             " concluídas / "+(r.streaming.asphaltWorkerFallbacks||0)+
             " fallback",
+          "Calçadas Worker: "+(r.streaming.roadsideWorkerRegions||0)+
+            " concluídas / "+(r.streaming.roadsideWorkerFallbacks||0)+
+            " fallback",
           "Pior etapa: "+(r.streaming.maxCooperativeStepMs||0).toFixed(1)+
             " ms ("+(r.streaming.slowestCooperativeStage||"—")+")",
           "Lotes acima da meta: "+(r.streaming.slowCooperativeSteps||0)
