@@ -118,7 +118,7 @@ export function retreatCurbAtJunctions(a,b,junctions,retreat=0){
  * by unionAsphaltPatches, not raw unsampled OSM ways.
  */
 export function composeRoadsideMeshes(asphaltPatches,walkPatches,
-  onSidewalk,onCurb,{cellSize=28,junctions=[]}={}){
+  onSidewalk,onCurb,{cellSize=28,junctions=[],bevelCurbs=false}={}){
   const asphalt=new PlanarIndex(cellSize),sidewalks=new PlanarIndex(cellSize);
   for(const patch of asphaltPatches){
     const layer=physicalLayer(patch);
@@ -175,12 +175,11 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
       }
     }
   }
-  // Polygon boundaries after ALL subtraction are now the curb candidates.
-  // Internal triangulation edges never border asphalt and are excluded.
-  for(const row of sidewalks.cells.values()){
-    // Cells repeat objects. The dedup set is assembled only once below.
-  }
-  const visited=new Set();
+  // After all polygon subtraction, only the edges bordering asphalt are
+  // curb candidates. A small bevel gives the raised edge a rounded profile
+  // without shifting the actual asphalt perimeter or creating a curb across
+  // a junction. It extends INTO the sidewalk, never into the road.
+  const visited=new Set();let curbFaces=0;
   for(const rows of sidewalks.cells.values())for(const item of rows){
     if(visited.has(item))continue;
     visited.add(item);
@@ -198,15 +197,42 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
       if(before===after)continue;
       const h=patch.curbTop??.18;
       if(h<=.042)continue;
+      const sidewalkDir=before?-1:1;
+      const inset=(p,m)=>[p[0]+nx*sidewalkDir*m,p[1]+nz*sidewalkDir*m];
       for(const [start,end] of retreatCurbAtJunctions(a,b,
         junctionsByWay.get(String(patch.id)),
         patch.cornerClearanceMeters||0)){
-        onCurb([lift(patch,start,.04),lift(patch,end,.04),
-          lift(patch,end,h),lift(patch,start,h)],patch);
+        if(!bevelCurbs || h<=.08){
+          onCurb([lift(patch,start,.04),lift(patch,end,.04),
+            lift(patch,end,h),lift(patch,start,h)],patch);
+          curbFaces++;
+        }else{
+          // Concave rounded bevel approx. 3 continuous longitudinal strips.
+          // At m=0 the curb meets the real asphalt boundary exactly; at
+          // m=.08 it fades into the existing sidewalk top. This creates no
+          // additional asphalt, calçada, or independent corner caps.
+          const shoulder=Math.min(.045,(h-.04)*.33);
+          const profile=[
+            {m:0,y:.04},
+            {m:0,y:h-shoulder},
+            {m:.035,y:h-.011},
+            {m:.08,y:h+.002}
+          ];
+          for(let k=1;k<profile.length;k++){
+            const first=profile[k-1],last=profile[k];
+            onCurb([
+              lift(patch,inset(start,first.m),first.y),
+              lift(patch,inset(end,first.m),first.y),
+              lift(patch,inset(end,last.m),last.y),
+              lift(patch,inset(start,last.m),last.y)
+            ],patch);
+            curbFaces++;
+          }
+        }
         curbSegments++;
       }
     }
   }
-  return {sidewalkPolygons:groundPieces,curbSegments,
+  return {sidewalkPolygons:groundPieces,curbSegments,curbFaces,
     droppedAgainstAsphalt:discarded,clipOperations};
 }
