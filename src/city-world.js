@@ -55,7 +55,7 @@ export function createCityWorld(scene,map) {
   const roadHeightAt=(x,z)=>{
     const road=scenery.surface.sample(x,z);
     if(road&&road.distance<=road.halfWidth+.25)return road.height+.072;
-    if(road&&road.distance<=road.halfWidth+road.walk)return road.height+.18;
+    if(road&&road.distance<=road.halfWidth+road.walk)return road.height+(road.curbTop??.18);
     return sampleHeight(x,z);
   };
   const index=makeSpatialIndex(scenery.segments);

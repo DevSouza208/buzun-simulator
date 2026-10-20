@@ -186,7 +186,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
         point(b,-half,.072,sampleHeight),point(b,half,.072,sampleHeight),
         point(a,half,.072,sampleHeight));
       surfaceSegments.push({a:a.p,b:b.p,h0:a.base,h1:b.base,
-        halfWidth:half,walk:foot});
+        halfWidth:half,walk:foot,curbTop});
       const middle=[(a.p[0]+b.p[0])/2,(a.p[1]+b.p[1])/2];
       // A sidewalk must end at a junction; never extend as a raised strip
       // through an intersecting asphalt carriageway.
