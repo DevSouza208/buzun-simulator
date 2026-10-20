@@ -51,3 +51,17 @@ COR-07,Corredor Belmira,Renderizar 619 contornos com limite móvel e calçadas,P
 COR-08,Corredor Belmira,Modelar McDonalds e Habibs low poly e esquinas,Pendente,Etapa 3
 COR-09,Corredor Belmira,Adicionar introdução percurso e spawn no McDonalds,Pendente,Etapa 4
 COR-10,World Engine,Generalizar roteiro para seleção e botão Create,Futuro,Depois de validar as quatro etapas
+
+BEL-01,Corredor McDonalds-Habibs,Verificar endereços oficiais e coordenadas,Concluído,Reconfirmar apenas se estabelecimentos mudarem de endereço
+BEL-02,Corredor McDonalds-Habibs,Recortar rota real da Belmira com OSM,Concluído,Conferir navegação no browser em ambas as direções
+BEL-03,Corredor McDonalds-Habibs,Extrair quarteirões e entradas de ruas laterais,Concluído,44 fragmentos e 619 edifícios identificados no primeiro recorte
+BEL-04,Corredor McDonalds-Habibs,Carregar DEM SRTM com 320 amostras,Implementado,Verificar aderência do asfalto ao terreno e viadutos
+BEL-05,Corredor McDonalds-Habibs,Gerar fachada low poly Habibs usando contorno OSM,Implementado,Revisão visual de modelo e posicionamento
+BEL-06,Corredor McDonalds-Habibs,Colocar marco McDonalds por endereço verificado,Implementado,Confirmar qual prédio OSM corresponde à loja
+BEL-07,Corredor McDonalds-Habibs,Identificar comércio bancos e mercado pelas tags OSM,Implementado,Verificar textos legíveis e contexto correto
+BEL-08,Corredor McDonalds-Habibs,Spawn McDonalds rota até Habibs e progresso HUD,Implementado,Testar no iPhone e PC
+BEL-09,Corredor McDonalds-Habibs,Ajustar esquinas e bordas do asfalto com relevo,Implementado,Validar visualmente cruzamentos em descida
+BEL-10,World Engine,Documentar receita para o botão Create,Concluído,docs/WORLD_ENGINE_BELMIRA.md
+BEL-11,World Engine,Conectar imagens de rua com permissão de uso,Futuro,Depende da cobertura e do licenciamento
+BEL-12,World Engine,Converter referências em texturas neutras e R2,Futuro,Depende de aprovação de referência e pipeline de assets
+BEL-13,World Engine,Criar ferramenta UI de seleção e botão Create,Futuro,Depois da revisão visual deste corredor
