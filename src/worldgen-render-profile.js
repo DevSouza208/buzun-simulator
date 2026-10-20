@@ -7,11 +7,13 @@
 export const ROAD_RENDER_PROFILE=Object.freeze({
   complete:Object.freeze({
     sampleMetres:5,tactileColumns:7,tactileRows:2,
-    mergeByRegion:false
+    mergeByRegion:false,visualRadiusMetres:850,
+    cameraFrustumCulling:false
   }),
   streaming:Object.freeze({
     sampleMetres:9,tactileColumns:3,tactileRows:1,
-    mergeByRegion:true
+    mergeByRegion:true,visualRadiusMetres:670,
+    cameraFrustumCulling:true
   })
 });
 export function renderProfile(regionBounds=null){
