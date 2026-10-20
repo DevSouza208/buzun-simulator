@@ -67,6 +67,10 @@ export function mountWorldgenOverlay({
           "Lotes cooperativos: "+(r.streaming.cooperativeSlices||0),
           "Maior lote: "+(r.streaming.maxCooperativeSliceMs||0).toFixed(1)+" ms",
           "Regiões em segundo plano: "+(r.streaming.backgroundRegions||0),
+          "Cache: "+(r.streaming.cachedRegions||0)+" regiões ("+
+            (r.streaming.cachedGeometryMiB||0).toFixed(1)+" MiB)",
+          "Retornos sem reconstrução: "+(r.streaming.cachedRestores||0)+
+            " · descartes: "+(r.streaming.cacheDiscards||0),
           "Asfalto Worker: "+(r.streaming.asphaltWorkerRegions||0)+
             " concluídas / "+(r.streaming.asphaltWorkerFallbacks||0)+
             " fallback",

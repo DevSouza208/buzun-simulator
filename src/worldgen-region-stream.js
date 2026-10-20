@@ -150,6 +150,8 @@ export function clipMeshBufferToRegion(buffer,bounds){
 export function activateLoadedRoadRegion(scenery,focusX,focusZ){
   if(typeof scenery?.updateVisibility!=="function")
     throw Error("Região 3D sem atualização de visibilidade");
-  scenery.updateVisibility(focusX,focusZ);
+  // Force refresh on cache restores even when the same focus was sampled
+  // before a region was detached from the world.
+  scenery.updateVisibility(focusX,focusZ,undefined,true);
   return scenery.lodStatistics;
 }
