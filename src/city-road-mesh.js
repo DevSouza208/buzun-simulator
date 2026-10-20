@@ -305,7 +305,10 @@ export function createRoadScene(scene,roads,sampleHeight) {
     // Identical X/Z points in asphalt, walks and curbs now have consistent
     // coordinates; real vertical steps/overpasses stay independent.
     for(const key of ["asphalt","walk","median","curb"]){
-      const health=sealMeshSeams(ch[key]);
+      // Vertical bevel tiers in curbs are intentional; don't smooth away
+      // those details while reconciling nearby asphalt elevations.
+      const health=sealMeshSeams(ch[key],
+        {heightTolerance:key==="curb"?1e-6:.085});
       for(const k of Object.keys(seamStats))seamStats[k]+=health[k]||0;
     }
     const group=new THREE.Group();
