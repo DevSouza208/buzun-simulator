@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#101e2a" />
-  <meta name="description" content="Buzun Simulator: base viária do corredor Belmira Marin em escala nominal 1:1, sem construções, com curvas OSM e relevo SRTM." />
+  <meta name="description" content="Buzun Simulator: ruas e calçadas low poly do Grajaú em escala 1:1, traçado OpenStreetMap, relevo Mapzen/SRTM." />
   <title>Buzun Simulator | McDonald's → Habib's</title>
   <link rel="stylesheet" href="./src/styles.css" />
 </head>
@@ -74,8 +74,8 @@
       <div class="welcome-badge"><span class="live-dot"></span> PRIMEIRA VERSÃO JOGÁVEL · <span id="landing-version">v0.1.0</span></div>
       <div class="welcome-logo">BUZUN<span>.</span></div>
       <h1>O mundo real.<br/><i>Uma nova estrada.</i></h1>
-      <p>Teste a geometria das <b>vias em escala 1:1</b> da <b>Av. Dona Belmira Marin</b>. O percurso mede aproximadamente <b>1.159 metros</b> no traçado OSM. Prédios e objetos estão ocultos temporariamente; as larguras da pista ainda são estimadas.</p>
-      <div class="welcome-facts"><span><b>01</b> CARRO</span><span><b>1.159 M</b> DE TRAJETO</span><span><b>1:1</b> ESCALA NOMINAL</span></div>
+      <p>Explore ruas conectadas do <b>Grajaú e da Cocaia em escala 1:1</b>. A malha usa dados do <b>OpenStreetMap</b> e gera asfalto, calçadas, meio-fios e relevo em estilo low poly. Os prédios ficam ocultos nesta fase; algumas larguras são estimadas.</p>
+      <div class="welcome-facts"><span><b>01</b> CARRO</span><span><b>GRAJAÚ</b> E COCAIA</span><span><b>1:1</b> ESCALA NOMINAL</span></div>
       <div class="spawn-pick">
         <label for="facade-choice">COMEÇAR EM:</label>
         <select id="facade-choice" aria-label="Escolher fachada de início">
@@ -86,7 +86,7 @@
       </div>
       <div id="load-status" class="load-status">Preparando a cidade...</div>
       <button id="start-button" disabled>CARREGANDO MAPA…</button>
-      <small>Modo somente vias • 1 unidade = 1 m • larguras estimadas • relevo SRTM.</small>
+      <small>1 unidade = 1 metro • via OSM com largura estimada onde não há medição • relevo público.</small>
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Dados © colaboradores do OpenStreetMap</a>
     </section>
     <div class="welcome-corner">DEV BUILD / GRAJAÚ 001</div>
@@ -107,12 +107,12 @@
         <span><b>Gamepad</b></span><span>Analógico esquerdo + gatilhos</span>
         <span><b>Celular</b></span><span>Segure as setas e pedais ao mesmo tempo</span>
       </div>
-      <p>Modo temporário 1:1: sem prédios, fachadas e elementos decorativos. A rota e as curvas usam o recorte OSM em metros; larguras das pistas ainda são estimadas, e o relevo SRTM não tem precisão de levantamento topográfico.</p>
+      <p>Modo Grajaú ampliado: vias conectadas por nós OSM, calçadas e meio-fios low poly. Importação via Overpass quando acessível, com recortes OSM de reserva. Larguras sem medição são estimadas, e altitudes Mapzen/SRTM não são levantamento topográfico.</p>
       <button id="resume-button">VOLTAR A DIRIGIR</button>
     </section>
   </div>
 
-  <footer class="credits">© OpenStreetMap contributors · ODbL <span>BUZUN SIMULATOR — <b id="footer-version">v0.1.0</b></span></footer>
+  <footer class="credits">© OpenStreetMap contributors · ODbL · <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noreferrer">Mapzen Terrain Tiles</a> <span>BUZUN SIMULATOR — <b id="footer-version">v0.1.0</b></span></footer>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
