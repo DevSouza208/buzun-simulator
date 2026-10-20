@@ -2,11 +2,12 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import { createWorld } from "./world.js";
 import { bindTouchControls } from "./touch-controls.js";
 import { modelYawFromHeading } from "./driving.js";
-import { heightAlongHeading, configureTerrain, getTerrainMode } from "./terrain.js";
+import { heightAlongHeading, configureTerrain, configureCityTerrain, getTerrainMode } from "./terrain.js";
 import { slopeAlongHeading, slopeAcceleration, gradeLabel } from "./grade.js";
 import { progressAlongRoute } from "./route-progress.js";
 import { auditMetricCorridor } from "./metric-audit.js";
-import { fetchGrajauRoads, combineLegacyRoads } from "./grajau-osm.js";
+import { fetchGrajauRoads, combineLegacyRoads, GRAJAU_BBOX } from "./grajau-osm.js";
+import { loadCityElevations } from "./terrain-tiles.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -395,13 +396,21 @@ async function start() {
       throw Error("Origem do relevo não coincide com a rota");
     configureTerrain(elevation);
     const fallback=combineLegacyRoads(local,spine,cocaia,corridor);
-    const imported=await fetchGrajauRoads({
-      fallback,onStatus:message=>{status.textContent=message;}
-    });
+    const [imported,tiles]=await Promise.all([
+      fetchGrajauRoads({
+        fallback,onStatus:message=>{status.textContent=message;}
+      }),
+      loadCityElevations(GRAJAU_BBOX).catch(error=>{
+        console.warn("Relief outside saved SRTM was unavailable:",error);
+        return null;
+      })
+    ]);
+    configureCityTerrain(tiles,corridor.origin);
     roadData={
       origin:corridor.origin,route:corridor.route,landmarks:corridor.landmarks,
       roads:imported.roads,buildings:[],pois:[],
-      mapSource:imported.source,upToDate:imported.upToDate
+      mapSource:imported.source,upToDate:imported.upToDate,
+      reliefSource:tiles?.source||"SRTM local Belmira"
     };
     if(roadData.roads.length<70)throw Error("Mapa grande de ruas incompleto");
     status.textContent="Construindo "+roadData.roads.length+" vias do Grajaú · malha 1:1 e calçadas low poly...";
@@ -483,7 +492,7 @@ async function start() {
     $("map-status").textContent = world.stats.roads + " vias · " + roadData.mapSource;
     status.textContent = "Grajaú · "+world.stats.roads+" vias OSM · "+
       world.stats.nodes+" nós · "+world.stats.junctions+" cruzamentos · "+
-      "escala 1:1 · ruas e calçadas · relevo SRTM disponível na Belmira.";
+      "escala 1:1 · ruas e calçadas · relevo "+roadData.reliefSource+".";
     startButton.disabled = false;
     startButton.textContent = "COMEÇAR A DIRIGIR  ↗";
   } catch (error) {
