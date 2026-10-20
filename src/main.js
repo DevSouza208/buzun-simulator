@@ -3,6 +3,7 @@ import { createWorld } from "./world.js";
 import { bindTouchControls } from "./touch-controls.js";
 import { modelYawFromHeading } from "./driving.js";
 import { heightAlongHeading, configureTerrain, getTerrainMode } from "./terrain.js";
+import { slopeAlongHeading, slopeAcceleration, gradeLabel } from "./grade.js";
 import { progressAlongRoute } from "./route-progress.js";
 
 const $ = id => document.getElementById(id);
@@ -161,6 +162,12 @@ function advance(dt) {
   let acceleration = 0;
   if (ctrl.throttle) acceleration += player.speed < -0.2 ? 12 * ctrl.throttle : 6.8 * ctrl.throttle;
   if (ctrl.brake) acceleration -= player.speed > 0.2 ? 12 * ctrl.brake : 4.8 * ctrl.brake;
+  // Gravity assists descents and resists climbs, while an automatic
+  // parking hold keeps the car from drifting while controls are released.
+  if (Math.abs(player.speed) > .45 || ctrl.throttle || ctrl.brake) {
+    const grade = slopeAlongHeading(player.x, player.z, player.yaw, world.heightAt);
+    acceleration += slopeAcceleration(grade);
+  }
   player.speed += acceleration * dt;
   if (!ctrl.throttle && !ctrl.brake) {
     const drag = (1.5 + .008 * player.speed * player.speed) * dt;
@@ -213,6 +220,8 @@ function updateCamera(dt) {
       terrainY + 5.4 + pitchOrbit * 8,
       player.z - forward.z * 12,
     );
+    // Keep the chase camera above nearby terrain on steep slopes.
+    desired.y = Math.max(desired.y, world.heightAt(desired.x,desired.z) + 2.5);
     car.visible = true;
   } else {
     const facing = new THREE.Vector3(Math.sin(player.yaw), 0, -Math.cos(player.yaw));
@@ -238,7 +247,10 @@ function hud(now) {
   distanceText.textContent = (player.distance / 1000).toFixed(2) + " km";
   const near = world.closest(player.x, player.z);
   streetText.textContent = near?.segment.name || "Ruas do Grajaú";
-  terrainLabel.textContent = near && near.distance > near.segment.width / 2 + 4 ? "FORA DA VIA • VOLTE AO ASFALTO" : "BELMIRA: McDONALD'S → HABIB'S";
+  const grade = slopeAlongHeading(player.x, player.z, player.yaw, world.heightAt);
+  terrainLabel.textContent = near && near.distance > near.segment.width / 2 + 4
+    ? "FORA DA VIA • VOLTE AO ASFALTO"
+    : "BELMIRA · " + gradeLabel(grade);
   const goal=$("route-progress"),progress=progressAlongRoute(roadData?.route,player.x,player.z);
   if(goal&&progress){
     goal.textContent=progress.remaining<28 && progress.offRoute<30
