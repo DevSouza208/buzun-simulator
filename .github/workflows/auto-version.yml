@@ -1,0 +1,42 @@
+name: Increment visible game version
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+concurrency:
+  group: buzun-auto-version-main
+  cancel-in-progress: false
+jobs:
+  increment:
+    if: github.actor != 'github-actions[bot]' && !startsWith(github.event.head_commit.message, 'chore: auto-bump game version')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Increment version on latest main and push
+        shell: bash
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git checkout -B main origin/main
+            node scripts/bump-version.mjs
+            git add public/data/version.json
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m "chore: auto-bump game version [skip ci]"
+            if git push origin HEAD:main; then
+              echo "Version updated successfully"
+              exit 0
+            fi
+            echo "Main moved during the bump, retrying..."
+          done
+          echo "Failed to push the bumped version"
+          exit 1
