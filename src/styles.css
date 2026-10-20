@@ -53,3 +53,16 @@
   .speed-track{margin:4px 0 7px}
   .topbar{padding:9px 14px}
 }
+
+/* O jogo nao e um documento: sem selecao azul ou callout no toque longo. */
+html, body, body *, body *::before, body *::after {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body { overscroll-behavior: none; }
+#game, .mobile-controls, .mobile-controls *, .topbar button,
+#start-button, #help-button, #reset-button, .overlay button {
+  touch-action: none;
+}
