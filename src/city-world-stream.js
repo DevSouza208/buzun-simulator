@@ -139,7 +139,8 @@ export function createStreamingCityWorld(scene,map){
       height:sampleHeight(nearest.x,nearest.z),
       distance:nearest.distance,halfWidth,walk:1.7,curbTop:.18};
   }};
-  const ground=createCarvedTerrain(scene,corridors,getJunctions(map.roads),
+  const globalJunctions=getJunctions(map.roads);
+  const ground=createCarvedTerrain(scene,corridors,globalJunctions,
     sampleHeight,bounds,roadSurfaceAdapter);
   const graph=graphFromRoads(map.roads);
   const corridorLandmarks=(map.landmarks||[]).map(loc=>{
@@ -167,12 +168,15 @@ export function createStreamingCityWorld(scene,map){
     return sampleHeight(x,z);
   }
   const geometryStatistics={...summarizeRoadSectors(first.tiles)};
-  const lodStatistics=first.lodStatistics;
+  // Aggregate diagnostic counters must NOT alias the first scenery's
+  // mutable local counters; otherwise resetting totals erases that
+  // sector's own visibility measurements.
+  const lodStatistics={...first.lodStatistics};
   const stats={
     roads:map.roads.length,buildings:0,trees:0,pilotFacades:0,
     landmarks:corridorLandmarks.length,fictionalStores:0,utilityPoles:0,
     nodes:graph.nodes.length,edges:graph.edges.length,
-    components:graph.components,junctions:graph.nodes.length,
+    components:graph.components,junctions:globalJunctions.length,
     knownWidths:map.roads.filter(r=>r.widthSource==="osm:width").length,
     asphaltUnion:first.asphaltUnion,laneStatistics:first.laneStatistics,
     roadsideStats:first.roadsideStats,gradeStatistics:first.gradeStatistics,
