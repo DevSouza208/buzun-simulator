@@ -23,6 +23,7 @@ export function physicalLayer(road){
 }
 export function asphaltPriority(road){
   // Corner fillets are additive fill, never allowed to cut a real road.
+  if(road.isMedian)return 1e6;
   if(road.isFillet)return -1e6;
   return (CLASS_PRIORITY[road.t]||30)*100+
     Math.min(49,Number(road.widthMeters)||7);
