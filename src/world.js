@@ -42,13 +42,12 @@ function band(buf, a, b, halfWidth, height, tint) {
   const dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
   if (len < .01) return;
   const nx = (-dz / len) * halfWidth, nz = (dx / len) * halfWidth;
-  const ay = height + sampleHeight(a[0], a[1]);
-  const by = height + sampleHeight(b[0], b[1]);
-  quad(buf,
-    [a[0] + nx, ay, a[1] + nz],
-    [b[0] + nx, by, b[1] + nz],
-    [b[0] - nx, by, b[1] - nz],
-    [a[0] - nx, ay, a[1] - nz], tint);
+  // The left/right asphalt edges sample actual terrain independently.
+  // Otherwise measured cross-slopes could bury a road edge in the hillside.
+  const vertex=(p,side)=>[p[0]+nx*side,
+    height+sampleHeight(p[0]+nx*side,p[1]+nz*side),
+    p[1]+nz*side];
+  quad(buf,vertex(a,1),vertex(b,1),vertex(b,-1),vertex(a,-1),tint);
 }
 function simpleSign(text, backdrop = "#142b38") {
   const canvas = document.createElement("canvas");
