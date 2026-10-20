@@ -109,6 +109,8 @@ export function createStreamingCityWorld(scene,map){
     cancelledBackgroundRegions:0,buildStage:null,
     asphaltWorkerRegions:0,asphaltWorkerFallbacks:0,
     asphaltWorkerTriangles:0,
+    roadsideWorkerRegions:0,roadsideWorkerFallbacks:0,
+    roadsideWorkerPrimitives:0,
     maxCooperativeStepMs:0,slowestCooperativeStage:null,
     slowCooperativeSteps:0,asphaltWorkerWaitSlices:0};
   const buildRegion=(rx,rz)=>{
@@ -297,6 +299,13 @@ export function createStreamingCityWorld(scene,map){
                 scenery.asphaltWorkerStats.triangles;
             }else if(scenery.asphaltWorkerStats?.fallback){
               counters.asphaltWorkerFallbacks++;
+            }
+            if(scenery.roadsideWorkerStats?.used){
+              counters.roadsideWorkerRegions++;
+              counters.roadsideWorkerPrimitives+=
+                scenery.roadsideWorkerStats.primitives;
+            }else if(scenery.roadsideWorkerStats?.fallback){
+              counters.roadsideWorkerFallbacks++;
             }
             pendingTask=null;
             counters.building=null;
