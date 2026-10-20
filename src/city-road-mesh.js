@@ -14,6 +14,7 @@ import { sealMeshSeams } from "./mesh-seams.js";
 import { planPedestrianCrossings,buildZebraBars }
   from "./pedestrian-crossings.js";
 import { buildCurbRampZones,createRampIndex } from "./curb-ramps.js";
+import { streetTexturePixels,streetUv } from "./street-materials.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -21,7 +22,8 @@ import { buildCurbRampZones,createRampIndex } from "./curb-ramps.js";
  * Each cross-section is in game metres.
  */
 export const STREET_PALETTE=Object.freeze({
-  asphalt:"#364250",walk:"#d6d0c6",curb:"#eee1cf",median:"#7b956e",shoulder:"#a5b89d",
+  asphalt:"#3f484e",walk:"#ccc4b6",curb:"#eee1cf",median:"#76946c",shoulder:"#a5b89d",
+  tactile:"#d4b65c",
   white:"#eee8dc",yellow:"#e9c86c",ground:"#a5b89d"
 });
 const SPACING=5; // metre-to-metre tessellation; no coordinate scaling
@@ -111,15 +113,44 @@ function paintLaneMarking(buffer,a,b,mark,metresFromStart,heightAt){
       point(q,offset+half,.104,heightAt),point(p,offset+half,.104,heightAt));
   }
 }
-function meshFrom(points,color,lambert=false) {
+// Exactly three 64px textures shared by ALL streaming road chunks.
+const materialCache=new Map();
+function createStreetMaterial(kind,color,lambert){
+  if(materialCache.has(kind))return materialCache.get(kind);
+  let map=null;
+  if(["asphalt","walk","median"].includes(kind)){
+    const spec=streetTexturePixels(kind);
+    map=new THREE.DataTexture(spec.data,spec.size,spec.size,
+      THREE.RGBAFormat,THREE.UnsignedByteType);
+    map.wrapS=map.wrapT=THREE.RepeatWrapping;
+    map.magFilter=THREE.LinearFilter;
+    map.minFilter=THREE.LinearMipmapLinearFilter;
+    map.generateMipmaps=true;
+    map.colorSpace=THREE.SRGBColorSpace;
+    map.needsUpdate=true;
+  }
+  const options={color:map?"#ffffff":color,side:THREE.DoubleSide,
+    ...(map?{map}:{})};
+  const mat=(lambert||kind==="median")
+    ? new THREE.MeshLambertMaterial({...options,flatShading:true})
+    : new THREE.MeshBasicMaterial(options);
+  materialCache.set(kind,mat);
+  return mat;
+}
+function meshFrom(points,color,lambert=false,kind=""){
   if(!points.length)return null;
   const g=new THREE.BufferGeometry();
   g.setAttribute("position",new THREE.Float32BufferAttribute(points,3));
+  if(["asphalt","walk","median"].includes(kind)){
+    // Global metric UVs: fragments from different OSM roads show one
+    // seamless pavement pattern after polygon union/clipping.
+    const uvs=[];
+    for(let i=0;i<points.length;i+=3)
+      uvs.push(...streetUv(points[i],points[i+2],kind));
+    g.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
+  }
   g.computeVertexNormals();
-  const mat=lambert
-    ? new THREE.MeshLambertMaterial({color,side:THREE.DoubleSide,flatShading:true})
-    : new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide});
-  const obj=new THREE.Mesh(g,mat);
+  const obj=new THREE.Mesh(g,createStreetMaterial(kind,color,lambert));
   obj.frustumCulled=false;
   return obj;
 }
@@ -127,7 +158,8 @@ function chunkKey(p,size=440){
   return Math.floor(p[0]/size)+":"+Math.floor(p[1]/size);
 }
 function emptyChunk(x,z){
-  return {x,z,asphalt:[],walk:[],curb:[],median:[],white:[],yellow:[],caps:[],shoulder:[]};
+  return {x,z,asphalt:[],walk:[],curb:[],median:[],
+    tactile:[],white:[],yellow:[],caps:[],shoulder:[]};
 }
 function streetNodeKey(p){
   return p.map(v=>Math.round(v*10)).join(":");
@@ -331,7 +363,12 @@ export function createRoadScene(scene,roads,sampleHeight) {
       const mid=[(wall[0][0]+wall[1][0])/2,
         (wall[0][2]+wall[1][2])/2];
       addQuad(chunkFor(mid).curb,...wall);
-    },{junctions:joints,bevelCurbs:true,rampSites:verifiedRampSites});
+    },{junctions:joints,bevelCurbs:true,rampSites:verifiedRampSites,
+      onTactile:(triangle)=>{
+        const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
+          (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
+        addTri(chunkFor(mid).tactile,...triangle);
+      }});
   const tiles=[];
   const seamStats={sharedVertices:0,snappedVertices:0,
     independentLevels:0,degenerateTriangles:0};
@@ -340,6 +377,7 @@ export function createRoadScene(scene,roads,sampleHeight) {
     ["walk",STREET_PALETTE.walk],
     ["median",STREET_PALETTE.median],
     ["curb",STREET_PALETTE.curb],
+    ["tactile",STREET_PALETTE.tactile],
     ["caps",STREET_PALETTE.asphalt],
     ["white",STREET_PALETTE.white],
     ["yellow",STREET_PALETTE.yellow],
@@ -349,17 +387,19 @@ export function createRoadScene(scene,roads,sampleHeight) {
     // Snap and reconcile neighboring vertices AFTER all geometric clipping.
     // Identical X/Z points in asphalt, walks and curbs now have consistent
     // coordinates; real vertical steps/overpasses stay independent.
-    for(const key of ["asphalt","walk","median","curb"]){
+    for(const key of ["asphalt","walk","median","curb","tactile"]){
       // Vertical bevel tiers in curbs are intentional; don't smooth away
       // those details while reconciling nearby asphalt elevations.
       const health=sealMeshSeams(ch[key],
-        {heightTolerance:key==="curb"?1e-6:.085});
+        {heightTolerance:
+          key==="curb"||key==="tactile"?1e-6:.085});
       for(const k of Object.keys(seamStats))seamStats[k]+=health[k]||0;
     }
     const group=new THREE.Group();
     group.name="Buzun_RoadTile_"+ch.x+"_"+ch.z;
     for(const [key,color] of hues){
-      const m=meshFrom(ch[key],color,key==="walk"||key==="curb");
+      const m=meshFrom(ch[key],color,
+        key==="walk"||key==="curb"||key==="tactile",key);
       if(m)group.add(m);
       ch[key].length=0;
     }
@@ -376,6 +416,12 @@ export function createRoadScene(scene,roads,sampleHeight) {
       triangles:roadsideStats.rampTriangles,
       curbSegmentsLowered:roadsideStats.loweredCurbSegments
     },rampSurface,seamStatistics:seamStats,
+    finishStatistics:{
+      textures:["asphalt","walk","median"],
+      texelsPerTexture:64*64,
+      tactileTriangles:roadsideStats.tactileTriangles,
+      tactileFragments:roadsideStats.tactileFragments
+    },
     gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
