@@ -99,13 +99,17 @@ export function createCityWorld(scene,map) {
     laneStatistics:scenery.laneStatistics,
     roadsideStats:scenery.roadsideStats,
     gradeStatistics:scenery.gradeStatistics,
-    cornerStatistics:scenery.cornerStatistics
+    cornerStatistics:scenery.cornerStatistics,
+    medianStatistics:scenery.medianStatistics,
+    seamStatistics:scenery.seamStatistics
   };
   console.info("[Buzun WorldGen] Asfalto unificado:",scenery.asphaltUnion);
   console.info("[Buzun WorldGen] Faixas inteligentes:",scenery.laneStatistics);
   console.info("[Buzun WorldGen] Calçadas e meio-fios:",scenery.roadsideStats);
   console.info("[Buzun WorldGen] Concordância de nível:",scenery.gradeStatistics);
   console.info("[Buzun WorldGen] Curvas de esquina:",scenery.cornerStatistics);
+  console.info("[Buzun WorldGen] Canteiros entre pistas:",scenery.medianStatistics);
+  console.info("[Buzun WorldGen] Integridade de costuras:",scenery.seamStatistics);
   scenery.updateVisibility(spawn.x,spawn.z);
   ground.update(spawn.x,spawn.z,12);
   return {
