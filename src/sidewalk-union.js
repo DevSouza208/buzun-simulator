@@ -197,12 +197,21 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
       if(before===after)continue;
       const h=patch.curbTop??.18;
       if(h<=.042)continue;
+      // Detailed finish is only needed in intersections. On long straight
+      // streets a simple single wall avoids tripling GPU triangles for
+      // kilometres of sidewalk.
+      const localJunctions=junctionsByWay.get(String(patch.id))||[];
+      const nearJunction=localJunctions.some(j=>
+        Math.hypot(midpoint[0]-j.point[0],
+          midpoint[1]-j.point[1])<
+          Math.max(13,(j.maxWidth||6)/2+8));
+      const softened=bevelCurbs&&nearJunction;
       const sidewalkDir=before?-1:1;
       const inset=(p,m)=>[p[0]+nx*sidewalkDir*m,p[1]+nz*sidewalkDir*m];
       for(const [start,end] of retreatCurbAtJunctions(a,b,
         junctionsByWay.get(String(patch.id)),
         patch.cornerClearanceMeters||0)){
-        if(!bevelCurbs || h<=.08){
+        if(!softened || h<=.08){
           onCurb([lift(patch,start,.04),lift(patch,end,.04),
             lift(patch,end,h),lift(patch,start,h)],patch);
           curbFaces++;
