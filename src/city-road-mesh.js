@@ -199,7 +199,8 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   renderBounds=null,roadBatchSize=4,backgroundAsphalt=false,
   backgroundRoadside=backgroundAsphalt,
   // One city-wide junction/grade authority shared by every streamed chunk.
-  globalGrades=null,globalFixedJunctions=null
+  globalGrades=null,globalFixedJunctions=null,
+  worldSheet=null
 }={}) {
   const profiler=makeWorldgenProfiler();
   const detail=renderProfile(renderBounds);
@@ -288,13 +289,16 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
     // share EXACTLY the same sampled road heights.
     const roadHeight=road.visualConnector?
       (x,z)=>connectorHeightAt(road,x,z,sampleHeight):sampleHeight;
-    const sectionGrades=reconcileRoadGrade(
-      drapedSections(road.p,roadHeight,{
-        fixedJunctions,step:detail.sampleMetres,
-        radius:detail.gradeSmoothMetres,
-        adaptive:detail.adaptiveSampling,
-        maxSlope:detail.maxRoadSlope}),
-      gradeModels.byWay.get(String(road.id)));
+    // Sheet mode uses the exact same complete-way height samples as the
+    // road-aware terrain and driving physics, regardless of loaded chunks.
+    const sectionGrades=worldSheet?
+      worldSheet.sectionsFor(road):reconcileRoadGrade(
+        drapedSections(road.p,roadHeight,{
+          fixedJunctions,step:detail.sampleMetres,
+          radius:detail.gradeSmoothMetres,
+          adaptive:detail.adaptiveSampling,
+          maxSlope:detail.maxRoadSlope}),
+        gradeModels.byWay.get(String(road.id)));
     const sections=getSections(sectionGrades,sampleHeight);
     if(sections.length<2)continue;
     laneStatistics.roadsByLaneCount[lanePlan.total]=

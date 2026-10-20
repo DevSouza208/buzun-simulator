@@ -490,7 +490,10 @@ async function start() {
     // Load only the initial region before the player enters. The full-city
     // compositor can still be tested explicitly with ?worldgen=legacy.
     const {progressive,showWorldgen}=resolveWorldgenMode(location.search);
-    world = createWorld(scene,roadData,{cityRoads:true,progressive});
+    world = createWorld(scene,roadData,{
+      cityRoads:true,progressive,
+      sheetPreview:new URLSearchParams(location.search).get("worldgen")==="sheet"
+    });
     worldgenOverlay?.dispose();
     worldgenOverlay=mountWorldgenOverlay({enabled:showWorldgen});
     if(worldgenOverlay)window.buzunWorldgenReport=

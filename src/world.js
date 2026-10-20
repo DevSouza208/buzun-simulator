@@ -74,7 +74,9 @@ function simpleSign(text, backdrop = "#142b38") {
 export function createWorld(scene, map, options = {}) {
   if(options.cityRoads===true)
     return options.progressive===true?
-      createStreamingCityWorld(scene,map):createCityWorld(scene,map);
+      createStreamingCityWorld(scene,map,{
+        sheetPreview:options.sheetPreview===true
+      }):createCityWorld(scene,map);
   const roadsOnly = options.roadsOnly === true;
   // Single terrain height source powers the road, ground, cars and buildings.
   // This works both for the early artificial preview and for the measured SRTM.
