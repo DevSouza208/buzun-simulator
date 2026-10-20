@@ -2,10 +2,12 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import { createWorld } from "./world.js";
 import { bindTouchControls } from "./touch-controls.js";
 import { modelYawFromHeading } from "./driving.js";
-import { heightAlongHeading, configureTerrain, getTerrainMode } from "./terrain.js";
+import { heightAlongHeading, configureTerrain, configureCityTerrain, getTerrainMode } from "./terrain.js";
 import { slopeAlongHeading, slopeAcceleration, gradeLabel } from "./grade.js";
 import { progressAlongRoute } from "./route-progress.js";
 import { auditMetricCorridor } from "./metric-audit.js";
+import { fetchGrajauRoads, combineLegacyRoads, GRAJAU_BBOX } from "./grajau-osm.js";
+import { loadCityElevations } from "./terrain-tiles.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -278,7 +280,7 @@ function drawMinimap(now) {
   ctx.translate(-player.x, -player.z);
 
   ctx.lineCap = "round";
-  for (const segment of world.segments) {
+  for (const segment of (world.nearbySegments?.(player.x,player.z,700) || world.segments)) {
     if (Math.abs((segment.a[0] + segment.b[0]) / 2 - player.x) > 630 ||
         Math.abs((segment.a[1] + segment.b[1]) / 2 - player.z) > 520) continue;
     ctx.strokeStyle = "#627e7d"; ctx.lineWidth = Math.max(3, segment.width * .73);
@@ -305,6 +307,7 @@ function tick() {
   if (!clock || !world) return;
   const dt = Math.min(clock.getDelta(), .05);
   advance(dt);
+  world.update?.(player.x,player.z);
   updateCamera(dt);
   renderer.render(scene, camera);
   hud(performance.now());
@@ -375,28 +378,43 @@ async function start() {
     // Marin street geometry extends the same local coordinate system.
     // Importing a road backbone first avoids downloading thousands of
     // distant building meshes on mobile before neighborhood tiles exist.
-    const [mapResponse, elevationResponse] = await Promise.all([
+    // Versioned OSM extracts are the offline fallback for an API timeout.
+    const [corridorResponse,elevationResponse,localResponse,spineResponse,cocaiaResponse]=await Promise.all([
       fetch("./public/data/belmira-corridor.json"),
       fetch("./public/data/belmira-elevation.json"),
+      fetch("./public/data/grajau.json"),
+      fetch("./public/data/belmira-marin.json"),
+      fetch("./public/data/cocaia-corredores.json")
     ]);
-    if (!mapResponse.ok || !elevationResponse.ok)
-      throw new Error("Não foi possível carregar o corredor Belmira e os dados de altitude.");
-    const [corridor, elevation] = await Promise.all([
-      mapResponse.json(), elevationResponse.json(),
+    if([corridorResponse,elevationResponse,localResponse,spineResponse,cocaiaResponse].some(r=>!r.ok))
+      throw Error("Falha ao carregar o mapa OSM de reserva");
+    const [corridor,elevation,local,spine,cocaia]=await Promise.all([
+      corridorResponse.json(),elevationResponse.json(),localResponse.json(),
+      spineResponse.json(),cocaiaResponse.json()
     ]);
-    if(!Array.isArray(corridor.roads) || corridor.roads.length<25 ||
-       !Array.isArray(corridor.route) || corridor.route.length<25)
-      throw new Error("O recorte das vias da Belmira está incompleto.");
-    if (corridor.origin.lat!==elevation.origin.lat ||
-        corridor.origin.lon!==elevation.origin.lon)
-      throw new Error("As coordenadas do mapa e do terreno não coincidem.");
+    if(corridor.origin.lat!==elevation.origin.lat||corridor.origin.lon!==elevation.origin.lon)
+      throw Error("Origem do relevo não coincide com a rota");
     configureTerrain(elevation);
-    roadData = corridor;
-    const routeAudit = auditMetricCorridor(corridor);
-    if(Math.abs(routeAudit.routeLengthMeters-corridor.routeLengthMeters)>1)
-      throw new Error("A metragem do percurso não confere com o OSM.");
-    status.textContent = "Montando vias OSM em escala 1:1, sem construções...";
-    await new Promise(resolve => setTimeout(resolve, 25));
+    const fallback=combineLegacyRoads(local,spine,cocaia,corridor);
+    const [imported,tiles]=await Promise.all([
+      fetchGrajauRoads({
+        fallback,onStatus:message=>{status.textContent=message;}
+      }),
+      loadCityElevations(GRAJAU_BBOX).catch(error=>{
+        console.warn("Relief outside saved SRTM was unavailable:",error);
+        return null;
+      })
+    ]);
+    configureCityTerrain(tiles,corridor.origin);
+    roadData={
+      origin:corridor.origin,route:corridor.route,landmarks:corridor.landmarks,
+      roads:imported.roads,buildings:[],pois:[],
+      mapSource:imported.source,upToDate:imported.upToDate,
+      reliefSource:tiles?.source||"SRTM local Belmira"
+    };
+    if(roadData.roads.length<70)throw Error("Mapa grande de ruas incompleto");
+    status.textContent="Construindo "+roadData.roads.length+" vias do Grajaú · malha 1:1 e calçadas low poly...";
+    await new Promise(resolve=>setTimeout(resolve,25));
     scene = new THREE.Scene();
     scene.background = new THREE.Color("#a9ced0");
     scene.fog = new THREE.FogExp2("#a9ced0", .00095);
@@ -410,9 +428,9 @@ async function start() {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.55;
-    camera = new THREE.PerspectiveCamera(60, 1, .1, 1600);
+    camera = new THREE.PerspectiveCamera(60, 1, .1, 1550);
     resize();
-    world = createWorld(scene, roadData, { roadsOnly:true });
+    world = createWorld(scene, roadData, { cityRoads:true });
     car = createCar();
     scene.add(car);
     player = { x: world.spawn.x, z: world.spawn.z, yaw: world.spawn.angle,
@@ -471,11 +489,10 @@ async function start() {
     camera.lookAt(player.x, world.heightAt(player.x,player.z)+1.3, player.z);
     clock = new THREE.Clock();
     tick();
-    $("map-status").textContent = world.stats.roads + " vias OSM · escala 1:1";
-    status.textContent = "Modo vias 1:1 · " +
-      routeAudit.routeLengthMeters.toFixed(1).replace(".",",") +
-      " m de percurso · 0 construções · largura viária estimada · relevo " +
-      (getTerrainMode()==="srtm30m"?"SRTM.":"experimental.");
+    $("map-status").textContent = world.stats.roads + " vias · " + roadData.mapSource;
+    status.textContent = "Grajaú · "+world.stats.roads+" vias OSM · "+
+      world.stats.nodes+" nós · "+world.stats.junctions+" cruzamentos · "+
+      "escala 1:1 · ruas e calçadas · relevo "+roadData.reliefSource+".";
     startButton.disabled = false;
     startButton.textContent = "COMEÇAR A DIRIGIR  ↗";
   } catch (error) {

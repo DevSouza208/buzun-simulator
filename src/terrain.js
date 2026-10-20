@@ -16,6 +16,12 @@ const wave = (x,z) => (
 );
 const zero = wave(0,0);
 let activeDEM = null;
+let cityDEM = null;
+let cityOrigin = null;
+export function configureCityTerrain(source,origin) {
+  cityDEM=source?.pointSample ? source : null;
+  cityOrigin=cityDEM ? origin : null;
+}
 export function configureTerrain(source) {
   if (source === null) { activeDEM = null; return; }
   if (source?.dataset !== "srtm30m" || !source.grid ||
@@ -28,11 +34,16 @@ export function configureTerrain(source) {
   activeDEM = source;
 }
 export function getTerrainBounds() {
+  if(cityDEM&&cityOrigin) {
+    const b=cityDEM.bbox,kx=111320*Math.cos(cityOrigin.lat*Math.PI/180);
+    return {minX:(b.west-cityOrigin.lon)*kx,maxX:(b.east-cityOrigin.lon)*kx,
+      minZ:(cityOrigin.lat-b.north)*111132,maxZ:(cityOrigin.lat-b.south)*111132};
+  }
   if (!activeDEM) return {minX:-630,maxX:630,minZ:-630,maxZ:630};
   const {x0,z0,step,nx,nz} = activeDEM.grid;
   return {minX:x0,maxX:x0+step*(nx-1),minZ:z0,maxZ:z0+step*(nz-1)};
 }
-export function getTerrainMode() { return activeDEM ? "srtm30m" : "preview"; }
+export function getTerrainMode() { return cityDEM ? "terrarium" : activeDEM ? "srtm30m" : "preview"; }
 function bilinearHeight(x,z) {
   const {grid,heights,baseElevationMeters}=activeDEM;
   const u=(x-grid.x0)/grid.step,v=(z-grid.z0)/grid.step;
@@ -49,8 +60,12 @@ function bilinearHeight(x,z) {
 }
 
 /** Local X and Z in metres. Returns a *relative* height in metres. */
-export function sampleHeight(x, z, mode = activeDEM ? "srtm30m" : TERRAIN_MODE) {
-  if (mode === "srtm30m" && activeDEM) {
+export function sampleHeight(x, z, mode = cityDEM ? "terrarium" : activeDEM ? "srtm30m" : TERRAIN_MODE) {
+  if(mode==="terrarium"&&cityDEM) {
+    const height=cityDEM.pointSample(x,z,cityOrigin,780);
+    if(height!=null&&Number.isFinite(height))return height;
+  }
+  if (activeDEM && (mode === "srtm30m" || mode === "terrarium")) {
     const b = getTerrainBounds();
     if(x<b.minX||x>b.maxX||z<b.minZ||z>b.maxZ) return 0;
     return bilinearHeight(x,z);

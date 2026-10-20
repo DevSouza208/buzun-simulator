@@ -3,6 +3,7 @@ import { clippedLine, closestSegment, pointInPolygon, roadWidth, seeded } from "
 import { sampleHeight, getTerrainBounds } from "./terrain.js";
 import { terrainBandQuads } from "./road-geometry.js";
 import { roadDimensions, auditMetricCorridor } from "./metric-audit.js";
+import { createCityWorld } from "./city-world.js";
 import { avenueMarkings } from "./road-markings.js";
 import { chooseStreetFront, facadeRecipe } from "./facade-kit.js";
 import { frontagePanels } from "./facade-detail.js";
@@ -70,6 +71,7 @@ function simpleSign(text, backdrop = "#142b38") {
   return sp;
 }
 export function createWorld(scene, map, options = {}) {
+  if(options.cityRoads===true)return createCityWorld(scene,map);
   const roadsOnly = options.roadsOnly === true;
   // Single terrain height source powers the road, ground, cars and buildings.
   // This works both for the early artificial preview and for the measured SRTM.
