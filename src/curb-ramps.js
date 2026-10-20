@@ -117,6 +117,23 @@ export function createRampIndex(zones,{cellSize=28}={}){
   };
   for(const z of zones)addZone(z);
   return {
+    /** Height of reconstructed ramp surface at an X/Z coordinate.
+     * This lets the car / physics sample the same geometry as the mesh.
+     */
+    heightAt(x,z,roadSurface){
+      const k=Math.floor(x/cellSize)+":"+Math.floor(z/cellSize);
+      const sample=roadSurface.sample(x,z);
+      if(!sample||sample.distance<=sample.halfWidth+.01)return null;
+      const roadId=String(sample.roadId);
+      for(const zone of cells.get(roadId+":"+k)||[]){
+        const p=[x,z],loc=rampCoordinates(zone,p);
+        if(Math.abs(loc.along)>zone.outerHalf+EPS||
+          loc.into< -EPS||loc.into>zone.depth+EPS)continue;
+        return sample.height+rampTopOffset(zone,p,
+          sample.curbTop??.18);
+      }
+      return null;
+    },
     query(poly,roadId){
       const b=bounds(poly),seen=new Set(),result=[];
       for(let x=Math.floor(b.minX/cellSize);x<=Math.floor(b.maxX/cellSize);x++)
