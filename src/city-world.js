@@ -51,7 +51,13 @@ export function createCityWorld(scene,map) {
   // Asphalt + sidewalks own their footprint. Ground is clipped under them
   // at fragment level, not just placed a few centimetres lower.
   const ground=createCarvedTerrain(scene,scenery.corridors,
-    scenery.junctionPoints,sampleHeight,bounds);
+    scenery.junctionPoints,sampleHeight,bounds,scenery.surface);
+  const roadHeightAt=(x,z)=>{
+    const road=scenery.surface.sample(x,z);
+    if(road&&road.distance<=road.halfWidth+.25)return road.height+.072;
+    if(road&&road.distance<=road.halfWidth+road.walk)return road.height+.18;
+    return sampleHeight(x,z);
+  };
   const index=makeSpatialIndex(scenery.segments);
   const graph=graphFromRoads(map.roads);
   function closest(x,z) {
@@ -91,7 +97,7 @@ export function createCityWorld(scene,map) {
     segments:scenery.segments,spawn,terminalSpawn:spawn,pilotSpawns:empty,
     collides:()=>false,
     inExploreArea:(x,z)=>x>bounds.minX&&x<bounds.maxX&&z>bounds.minZ&&z<bounds.maxZ&&(closest(x,z)?.distance??Infinity)<62,
-    heightAt:sampleHeight,facades:empty,corridorLandmarks,
+    heightAt:roadHeightAt,facades:empty,corridorLandmarks,
     closest,
     nearbySegments:(x,z,r=650)=>index.candidates(x,z,r),
     update:(x,z)=>{scenery.updateVisibility(x,z);ground.update(x,z);},
