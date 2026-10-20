@@ -65,3 +65,8 @@ BEL-10,World Engine,Documentar receita para o botão Create,Concluído,docs/WORL
 BEL-11,World Engine,Conectar imagens de rua com permissão de uso,Futuro,Depende da cobertura e do licenciamento
 BEL-12,World Engine,Converter referências em texturas neutras e R2,Futuro,Depende de aprovação de referência e pipeline de assets
 BEL-13,World Engine,Criar ferramenta UI de seleção e botão Create,Futuro,Depois da revisão visual deste corredor
+WG520-01,WorldGen 5.20,Corrigir orientação das barras da faixa de pedestres,Implementado,Conferir cruzamentos capturados em vídeo e as faixas inferidas no OSM
+WG520-02,WorldGen 5.20,Altura canônica da cidade compartilhada entre geradores de chunks,Implementado,Comparar costuras e trajetos de dois setores no navegador
+WG520-03,WorldGen 5.20,Terreno sobreposto sob calçadas sem frestas vazias,Implementado,Verificar bordas em rampas e cruzamentos com câmera baixa
+WG520-04,WorldGen 5.20,Testar FPS e cruzamentos da Belmira Marin no navegador,Pendente,Conferir FPS inicial e desempenho depois de preencher regiões
+WG520-05,WorldGen 5.20,Unificação global topológica de polígonos anterior ao recorte em chunks,Planejado,Avaliar compositor incremental mantendo orçamento de memória
