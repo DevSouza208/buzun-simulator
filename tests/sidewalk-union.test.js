@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {composeRoadsideMeshes} from "../src/sidewalk-union.js";
+import {composeRoadsideMeshes,retreatCurbAtJunctions} from "../src/sidewalk-union.js";
 
 const within=(v,a,b)=>v>=a-1e-5&&v<=b+1e-5;
 const signed=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-
@@ -99,4 +99,15 @@ test("Sidewalk heights follow slope 1:1 and curbs meet same shared grade",()=>{
     assert.ok(Math.abs(wall[2][1]-wall[1][1]-.16)<1e-5);
     assert.ok(Math.abs(wall[3][1]-wall[0][1]-.16)<1e-5);
   }
+});
+
+test("Buzun Create corner-recess only trims curb edges near real junctions",()=>{
+  const a=[-15,-6],b=[15,-6];
+  const nodes=[{point:[0,0],maxWidth:8}];
+  const original=retreatCurbAtJunctions(a,b,nodes,0);
+  const receded=retreatCurbAtJunctions(a,b,nodes,4);
+  assert.equal(original.length,1);
+  assert.equal(receded.length,2);
+  assert.ok(receded[0][1][0]<0&&receded[1][0][0]>0);
+  assert.deepEqual(retreatCurbAtJunctions(a,b,[],4),[[a,b]]);
 });
