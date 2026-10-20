@@ -110,7 +110,8 @@ export function buildPilotFacades(scene,map,manifest,{sampleHeight,nearestStreet
     const base=drawShell(group,plan,sampleHeight);
     paintGate(group,front,base,plan);
     scene.add(group);
-    complete.push({osmId:plan.osmId,preset:plan.preset,label:plan.label,frontLength:Math.round(front.length*10)/10});
+    complete.push({osmId:plan.osmId,preset:plan.preset,label:plan.label,frontLength:Math.round(front.length*10)/10,
+      frontMid:[(front.a[0]+front.b[0])/2,(front.a[1]+front.b[1])/2]});
   }
   return complete;
 }
