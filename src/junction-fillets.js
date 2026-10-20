@@ -146,7 +146,7 @@ export function buildJunctionFillets(roads,junctions,heightAt,
         const heightB=heightA+model.grade*10;
         patches.push({
           id:"round:"+layer+":"+diagnostics.junctionsExamined+":"+i,
-          t:"service",widthMeters:0,layer,
+          isFillet:true,t:"service",widthMeters:0,layer,
           a:junction.point,b:along,h0:heightA,h1:heightB,
           polygons,junctionPoint:junction.point,corner,radius
         });
