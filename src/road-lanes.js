@@ -55,11 +55,11 @@ export function resolveLanePlan(road){
     // both directions. Guessing 2+1 from "lanes=3" would be fictitious.
     if(taggedForward&&taggedBackward){
       const requestedTotal=taggedForward+taggedBackward;
-      if(requestedTotal<=maxTotal){
-        forward=Math.min(taggedForward,maxSide);
-        backward=Math.min(taggedBackward,maxSide);
+      if(requestedTotal<=maxTotal &&
+         taggedForward<=maxSide&&taggedBackward<=maxSide){
+        forward=taggedForward;
+        backward=taggedBackward;
         source="osm-directions";
-        limitedByWidth=taggedForward>maxSide||taggedBackward>maxSide;
       }else{
         limitedByWidth=true;source="width-constrained";
       }
