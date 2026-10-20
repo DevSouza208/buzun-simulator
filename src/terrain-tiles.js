@@ -50,12 +50,21 @@ export async function loadCityElevations(bbox,{zoom=13,timeoutMs=16000}={}) {
         const data=await loadPNG(x,y,zoom,controller.signal);
         tiles.set(x+":"+y,data);
       }));
+    const pixel=(gx,gy)=>{
+      const tx=Math.floor(gx/256),ty=Math.floor(gy/256);
+      const data=tiles.get(tx+":"+ty);
+      if(!data)return null;
+      const x=((gx%256)+256)%256,y=((gy%256)+256)%256;
+      const i=(y*256+x)*4;
+      return terrariumHeight(data[i],data[i+1],data[i+2]);
+    };
     const sampleAbsolute=(lat,lon)=>{
-      const p=resolveTilePixel(lat,lon,zoom);
-      const pixels=tiles.get(p.x+":"+p.y);
-      if(!pixels)return null;
-      const i=(p.py*256+p.px)*4;
-      return terrariumHeight(pixels[i],pixels[i+1],pixels[i+2]);
+      const q=tileXY(lat,lon,zoom),fx=q.x*256-.5,fy=q.y*256-.5;
+      const x=Math.floor(fx),y=Math.floor(fy),tx=fx-x,tz=fy-y;
+      const a=pixel(x,y),b=pixel(x+1,y),c=pixel(x,y+1),d=pixel(x+1,y+1);
+      if(a==null)return b??c??d??null;
+      if(b==null||c==null||d==null)return a;
+      return (a*(1-tx)+b*tx)*(1-tz)+(c*(1-tx)+d*tx)*tz;
     };
     const pointSample=(x,z,origin,base=780)=>{
       // Coordinates use the same projection as src/grajau-osm.js.
