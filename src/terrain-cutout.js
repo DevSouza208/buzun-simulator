@@ -36,16 +36,9 @@ function createMask(corridors,junctionPoints,x0,z0) {
     ctx.lineTo((s.b[0]-x0)*pixelsPerMetre,(s.b[1]-z0)*pixelsPerMetre);
     ctx.stroke();
   }
-  // Cover the synthetic asphalt junction caps too. Cap positions come
-  // exclusively from shared OSM road topology, not crossing projections.
-  for(const j of junctionPoints) {
-    const [x,z]=j.point,r=Math.max(2.8,j.maxWidth/2+.55);
-    if(x+r<x0||x-r>x0+TILE||z+r<z0||z-r>z0+TILE)continue;
-    ctx.beginPath();
-    ctx.arc((x-x0)*pixelsPerMetre,(z-z0)*pixelsPerMetre,
-      r*pixelsPerMetre,0,Math.PI*2);
-    ctx.fill();
-  }
+  // Terrain exclusion follows actual ribbon corridors. Old circular junction
+  // caps were removed by planar asphalt union; retaining their masks would
+  // expose empty holes between the road and natural terrain.
   const tex=new THREE.CanvasTexture(canvas);
   tex.generateMipmaps=false;
   tex.minFilter=THREE.LinearFilter;
