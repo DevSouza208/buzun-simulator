@@ -139,3 +139,71 @@ export function clipSidewalkPolygon(polygon,ownRoad,nearby) {
   }
   return pieces;
 }
+
+
+/**
+ * Clip a curb EDGE (not a whole sidewalk quad) to the parts that remain
+ * outside crossing roads and the asphalt roundout around shared OSM nodes.
+ * Returns sorted [start, end] intervals along the 0..1 curb segment.
+ * This prevents the old "test only the midpoint" from letting the curb
+ * protrude through a junction when only its tip intersected the road.
+ */
+function curbLineInsideRoad(a,b,s,clearance=.14) {
+  const polygon=roadRectangle(s,clearance);
+  if(!polygon)return null;
+  const sign=Math.sign(signedArea(polygon))||1;
+  let start=0,end=1;
+  for(let i=0;i<polygon.length;i++) {
+    const v=polygon[i],w=polygon[(i+1)%polygon.length];
+    const signed=p=>sign*((w[0]-v[0])*(p[1]-v[1])-
+      (w[1]-v[1])*(p[0]-v[0]));
+    const f0=signed(a),f1=signed(b);
+    if(f0<0&&f1<0)return null;
+    if(f0>=0&&f1>=0)continue;
+    const at=f0/(f0-f1);
+    if(f0<0)start=Math.max(start,at);
+    else end=Math.min(end,at);
+    if(start>=end)return null;
+  }
+  return [start,end];
+}
+function curbLineInsideCircle(a,b,center,radius) {
+  const dx=b[0]-a[0],dz=b[1]-a[1];
+  const sx=a[0]-center[0],sz=a[1]-center[1];
+  const A=dx*dx+dz*dz;
+  if(A<1e-9)return null;
+  const B=2*(sx*dx+sz*dz),C=sx*sx+sz*sz-radius*radius;
+  const discriminant=B*B-4*A*C;
+  if(discriminant<=0)return null;
+  const root=Math.sqrt(discriminant);
+  const t0=Math.max(0,(-B-root)/(2*A));
+  const t1=Math.min(1,(-B+root)/(2*A));
+  return t1>t0?[t0,t1]:null;
+}
+export function visibleCurbIntervals(a,b,ownRoad,nearby=[],junctions=[]) {
+  if(Math.hypot(b[0]-a[0],b[1]-a[1])<.02)return [];
+  const excluded=[];
+  for(const s of nearby){
+    if(String(s.id)===String(ownRoad.id)||
+       (s.layer||0)!==(ownRoad.layer||0))continue;
+    const interval=curbLineInsideRoad(a,b,s);
+    if(interval)excluded.push(interval);
+  }
+  for(const j of junctions) {
+    const radius=Math.max(2.8,j.maxWidth/2+.43);
+    const interval=curbLineInsideCircle(a,b,j.point,radius);
+    if(interval)excluded.push(interval);
+  }
+  excluded.sort((a,b)=>a[0]-b[0]);
+  const visible=[];
+  let cursor=0;
+  for(const [from,to] of excluded){
+    if(from>cursor+1e-5)visible.push([cursor,from]);
+    cursor=Math.max(cursor,to);
+    if(cursor>=1)break;
+  }
+  if(cursor<1-1e-5)visible.push([cursor,1]);
+  // Do not produce tiny curb slivers that flicker at a corner.
+  const total=Math.hypot(b[0]-a[0],b[1]-a[1]);
+  return visible.filter(([start,end])=>(end-start)*total>.1);
+}
