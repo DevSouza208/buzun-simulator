@@ -80,7 +80,7 @@ test("6.0: junction grade authority reused between two crossing roads",()=>{
     gradeModels
   });
   const a=sheet.sectionsFor(main).find(s=>s.p[0]===60);
-  const b=sheet.sectionsFor(side).find(s=>s.p[1]===0);
+  const b=sheet.sectionsFor(side).find(s=>s.p[0]===60&&s.p[1]===0);
   assert.ok(a&&b);
   assert.ok(close(a.base,b.base));
   assert.ok(close(sheet.roadAt(60,0).base,a.base));
@@ -92,10 +92,12 @@ test("6.0: integration remains opt-in and old worldgen unaffected",()=>{
     "../src/city-world-stream.js",import.meta.url),"utf8");
   const terrain=readFileSync(new URL(
     "../src/worldgen-sheet-terrain.js",import.meta.url),"utf8");
+  const mesh=readFileSync(new URL(
+    "../src/city-road-mesh.js",import.meta.url),"utf8");
   assert.match(main,/get\("worldgen"\)==="sheet"/);
   assert.match(world,/sheetPreview:options.sheetPreview===true/);
   assert.match(stream,/sheetPreview=false/);
   assert.match(stream,/createSheetTerrain\(scene,worldSheet,bounds\)/);
-  assert.match(stream,/worldSheet.sectionsFor\(road\)/);
+  assert.match(mesh,/worldSheet.sectionsFor\(road\)/);
   assert.doesNotMatch(terrain,/alphaMap:|alphaTest:|createMask\(/);
 });
