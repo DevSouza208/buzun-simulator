@@ -69,8 +69,9 @@ test("Soft curb creates three strips, stays on sidewalk side of asphalt",()=>{
   const walk={...road,curbTop:.18,quad:[
     [0,4],[20,4],[20,6],[0,6]]};
   const faces=[];
+  const junctions=[{point:[10,0],ways:new Set([30]),maxWidth:8}];
   const stats=composeRoadsideMeshes([road],[walk],()=>{},
-    (wall)=>faces.push(wall),{bevelCurbs:true});
+    (wall)=>faces.push(wall),{bevelCurbs:true,junctions});
   assert.ok(stats.curbSegments>=1);
   assert.equal(stats.curbFaces,stats.curbSegments*3);
   assert.equal(stats.curbFaces,faces.length);
@@ -79,4 +80,16 @@ test("Soft curb creates three strips, stays on sidewalk side of asphalt",()=>{
   assert.ok(faces.some(w=>w.some(p=>p[2]>4.07)),
     "Round-over ends a few centimetres INSIDE the sidewalk");
   assert.ok(faces.every(w=>w.every(p=>p.every(Number.isFinite))));
+});
+
+test("Straight curb miles away from junctions remain one inexpensive wall",()=>{
+  const road=quad({id:31,t:"residential",widthMeters:8,
+    p:[[0,0],[20,0]]},4);
+  const walk={...road,curbTop:.18,quad:[
+    [0,4],[20,4],[20,6],[0,6]]};
+  let faces=0;
+  const stats=composeRoadsideMeshes([road],[walk],()=>{},()=>faces++,
+    {bevelCurbs:true,junctions:[]});
+  assert.equal(faces,stats.curbSegments);
+  assert.equal(stats.curbFaces,stats.curbSegments);
 });
