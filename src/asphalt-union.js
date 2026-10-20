@@ -22,6 +22,8 @@ export function physicalLayer(road){
   return layer || (road.bridge?1:road.tunnel?-1:0);
 }
 export function asphaltPriority(road){
+  // Corner fillets are additive fill, never allowed to cut a real road.
+  if(road.isFillet)return -1e6;
   return (CLASS_PRIORITY[road.t]||30)*100+
     Math.min(49,Number(road.widthMeters)||7);
 }
@@ -88,6 +90,8 @@ function intersects(a,b){
     a.minZ<b.maxZ-EPS && b.minZ<a.maxZ-EPS;
 }
 function originalTriangles(patch){
+  if(patch.polygons)return patch.polygons
+    .map(poly=>cleanPolygon(poly)).filter(poly=>poly.length===3);
   const q=patch.quad;
   if(!q||q.length!==4)return [];
   // Every input vertex is [x,y,z]; all other coordinates are unchanged.

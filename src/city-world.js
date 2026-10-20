@@ -54,7 +54,12 @@ export function createCityWorld(scene,map) {
     scenery.junctionPoints,sampleHeight,bounds,scenery.surface);
   const roadHeightAt=(x,z)=>{
     const road=scenery.surface.sample(x,z);
-    if(road&&road.distance<=road.halfWidth+.25)return road.height+.072;
+    // Rounded corner fills are REAL drivable asphalt beyond the original
+    // centerline rectangles. Give them asphalt elevation, not sidewalk
+    // height. At a true road ribbon its original grade still takes priority.
+    const corner=scenery.filletSurface.sample(x,z,0);
+    if(road&&road.distance<=road.halfWidth+.08)return road.height+.072;
+    if(corner!==null)return corner;
     if(road&&road.distance<=road.halfWidth+road.walk)return road.height+(road.curbTop??.18);
     return sampleHeight(x,z);
   };
@@ -93,12 +98,14 @@ export function createCityWorld(scene,map) {
     asphaltUnion:scenery.asphaltUnion,
     laneStatistics:scenery.laneStatistics,
     roadsideStats:scenery.roadsideStats,
-    gradeStatistics:scenery.gradeStatistics
+    gradeStatistics:scenery.gradeStatistics,
+    cornerStatistics:scenery.cornerStatistics
   };
   console.info("[Buzun WorldGen] Asfalto unificado:",scenery.asphaltUnion);
   console.info("[Buzun WorldGen] Faixas inteligentes:",scenery.laneStatistics);
   console.info("[Buzun WorldGen] Calçadas e meio-fios:",scenery.roadsideStats);
   console.info("[Buzun WorldGen] Concordância de nível:",scenery.gradeStatistics);
+  console.info("[Buzun WorldGen] Curvas de esquina:",scenery.cornerStatistics);
   scenery.updateVisibility(spawn.x,spawn.z);
   ground.update(spawn.x,spawn.z,12);
   return {

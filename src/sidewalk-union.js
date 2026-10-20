@@ -26,8 +26,9 @@ const bounds=poly=>{
 };
 const intersects=(a,b)=>a.minX<b.maxX-EPS&&a.maxX>b.minX+EPS&&
   a.minZ<b.maxZ-EPS&&a.maxZ>b.minZ+EPS;
-const triangles=quad=>{
-  const p=quad.map(v=>[v[0],v.length===3?v[2]:v[1]]);
+const triangles=patch=>{
+  if(patch.polygons)return patch.polygons.filter(p=>absArea(p)>EPS);
+  const p=patch.quad.map(v=>[v[0],v.length===3?v[2]:v[1]]);
   return [[p[0],p[1],p[2]],[p[0],p[2],p[3]]]
     .filter(x=>absArea(x)>EPS);
 };
@@ -122,7 +123,7 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
   const asphalt=new PlanarIndex(cellSize),sidewalks=new PlanarIndex(cellSize);
   for(const patch of asphaltPatches){
     const layer=physicalLayer(patch);
-    for(const poly of triangles(patch.quad))
+    for(const poly of triangles(patch))
       asphalt.add(poly,{layer});
   }
   // Priority ensures broad avenue sidewalk wins where pedestrian corridors
@@ -139,7 +140,7 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
   let groundPieces=0,clipOperations=0,curbSegments=0,discarded=0;
   for(const patch of sorted){
     const layer=physicalLayer(patch);
-    for(const subject of triangles(patch.quad)){
+    for(const subject of triangles(patch)){
       let pieces=[subject];
       const mask=asphalt.query(bounds(subject),layer);
       for(const blocker of mask){

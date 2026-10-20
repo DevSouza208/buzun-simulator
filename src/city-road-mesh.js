@@ -7,6 +7,8 @@ import { unionAsphaltPatches, asphaltPriority, physicalLayer } from "./asphalt-u
 import { resolveLanePlan, paintIntervals } from "./road-lanes.js";
 import { buildIntersectionGradeModels,reconcileRoadGrade }
   from "./intersection-grade.js";
+import { buildJunctionFillets,createFilletSurfaceIndex }
+  from "./junction-fillets.js";
 
 /**
  * A single joined cross-section per sampled centreline.
@@ -154,6 +156,9 @@ export function createRoadScene(scene,roads,sampleHeight) {
   const corridors=createRoadCorridors(roads);
   const joints=getJunctions(roads);
   const gradeModels=buildIntersectionGradeModels(roads,joints,sampleHeight);
+  const roundedCorners=buildJunctionFillets(roads,joints,sampleHeight,
+    {gradeModels:gradeModels.models});
+  const filletSurface=createFilletSurfaceIndex(roundedCorners.patches);
   const fixedJunctions=new Set(joints.map(j=>coordinateKey(j.point)));
   const junctionCells=new Map();
   const cellSize=40;
@@ -253,6 +258,10 @@ export function createRoadScene(scene,roads,sampleHeight) {
   // Junction circles formerly covered seams but produced extra overlap and
   // white/green islands at T-junctions; resolved road ribbons now own the
   // entire common footprint without arbitrary discs.
+  // Corner fillets share the SAME planar footprint with the asphalt
+  // compositor and the sidewalk subtraction; never draw free-standing
+  // rounded curb decorations without adding their road surface.
+  asphaltPatches.push(...roundedCorners.patches);
   const asphaltUnion=unionAsphaltPatches(asphaltPatches,(triangle)=>{
     const mid=[(triangle[0][0]+triangle[1][0]+triangle[2][0])/3,
       (triangle[0][2]+triangle[1][2]+triangle[2][2])/3];
@@ -295,7 +304,8 @@ export function createRoadScene(scene,roads,sampleHeight) {
   }
   return {
     segments,tiles,junctions:joints.length,junctionPoints:joints,corridors,
-    surface,asphaltUnion,laneStatistics,roadsideStats,
+    surface,asphaltUnion,laneStatistics,roadsideStats,filletSurface,
+    cornerStatistics:roundedCorners.stats,
     gradeStatistics:{sharedJunctionPlanes:gradeModels.models.length},
     // Spatial tile visibility keeps the full-city scene playable in-browser.
     updateVisibility(x,z,radius=850) {
