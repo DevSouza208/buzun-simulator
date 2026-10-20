@@ -4,7 +4,8 @@ import {readFileSync} from "node:fs";
 import {REGION_METRES,REGION_HALO_METRES,regionAt,
   regionBounds,regionDistance,regionKey,plannedRegions,
   createRegionRoadIndex,clip3DTriangle,
-  clipMeshBufferToRegion} from "../src/worldgen-region-stream.js";
+  clipMeshBufferToRegion,activateLoadedRoadRegion}
+  from "../src/worldgen-region-stream.js";
 
 const area=tri=>{
   const [a,b,c]=tri;
@@ -118,4 +119,30 @@ test("Real Grajaú centerline needs only a fraction of 4,777 ways at spawn",()=>
     initialFraction:+(near.length/roads.length).toFixed(3),
     plannedNeighborRegions:ordered.length,
     selectionMs:+ms.toFixed(2)}));
+});
+
+test("Every newly assembled region receives visibility rules BEFORE it is shown",()=>{
+  const meshes=[
+    {visible:true,kind:"asphalt"},
+    {visible:true,kind:"tactile"},
+    {visible:true,kind:"curb"}
+  ];
+  const scenery={
+    lodStatistics:{updates:0,visibleDrawables:0},
+    updateVisibility(x,z){
+      assert.equal(x,5);assert.equal(z,-9);
+      // Simulated distant region: road body remains; small decorations
+      // must not render during idle population of the standing screen.
+      meshes[0].visible=true;
+      meshes[1].visible=false;
+      meshes[2].visible=false;
+      this.lodStatistics.updates++;
+      this.lodStatistics.visibleDrawables=1;
+    }
+  };
+  const stats=activateLoadedRoadRegion(scenery,5,-9);
+  assert.deepEqual(meshes.map(x=>x.visible),[true,false,false]);
+  assert.equal(stats.updates,1);
+  assert.equal(stats.visibleDrawables,1);
+  assert.throws(()=>activateLoadedRoadRegion({lodStatistics:{}},0,0));
 });
