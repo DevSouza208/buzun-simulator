@@ -1,6 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 import { clippedLine, closestSegment, pointInPolygon, roadWidth, seeded } from "./geo.js";
-import { sampleHeight } from "./terrain.js";
+import { sampleHeight, getTerrainBounds } from "./terrain.js";
+import { buildCorridorLandmarks } from "./corridor-landmarks.js";
 import { buildPilotFacades } from "./world-engine.js";
 import { facadeRoadSpawns } from "./spawn.js";
 
@@ -66,34 +67,39 @@ function simpleSign(text, backdrop = "#142b38") {
   return sp;
 }
 export function createWorld(scene, map, options = {}) {
-  // Render the far-flat ground as a ring around the 1.26 km terrain pilot.
-  // A full flat plane would incorrectly fill valleys and hide lower streets.
-  const flatMaterial = new THREE.MeshLambertMaterial({color:"#a2bd9b"});
-  const edge = 630, outer = 7000, bandSize = outer - edge;
-  for (const [w,d,x,z] of [
-    [outer*2,bandSize,0,-(edge+bandSize/2)],
-    [outer*2,bandSize,0,edge+bandSize/2],
-    [bandSize,edge*2,-(edge+bandSize/2),0],
-    [bandSize,edge*2,edge+bandSize/2,0],
-  ]) {
-    const tile = new THREE.Mesh(new THREE.PlaneGeometry(w,d),flatMaterial);
-    tile.rotation.x = -Math.PI/2;
-    tile.position.set(x,-.06,z);
-    scene.add(tile);
+  // Single terrain height source powers the road, ground, cars and buildings.
+  // This works both for the early artificial preview and for the measured SRTM.
+  const bounds=getTerrainBounds();
+  const far=7000;
+  const groundMaterial=new THREE.MeshLambertMaterial({color:"#a2bd9b"});
+  const surround=[
+    [-far,bounds.minX,-far,far], [bounds.maxX,far,-far,far],
+    [bounds.minX,bounds.maxX,-far,bounds.minZ],
+    [bounds.minX,bounds.maxX,bounds.maxZ,far]
+  ];
+  for(const [left,right,top,bottom] of surround) {
+    if(right<=left||bottom<=top)continue;
+    const plane=new THREE.Mesh(new THREE.PlaneGeometry(right-left,bottom-top),groundMaterial);
+    plane.rotation.x=-Math.PI/2;
+    plane.position.set((left+right)/2,-.062,(top+bottom)/2);
+    scene.add(plane);
   }
-  // Local low-poly terrain mesh, gently fading into the old flat map.
-  // Height and road vertices sample the SAME function to avoid floating asphalt.
-  const landGeometry = new THREE.PlaneGeometry(1260, 1260, 84, 84);
-  landGeometry.rotateX(-Math.PI / 2);
-  const landPosition = landGeometry.getAttribute("position");
-  for (let i = 0; i < landPosition.count; i++) {
-    const x = landPosition.getX(i), z = landPosition.getZ(i);
-    landPosition.setY(i, sampleHeight(x,z) - .057);
+  const terrainWidth=bounds.maxX-bounds.minX,terrainDepth=bounds.maxZ-bounds.minZ;
+  const terrainGeo=new THREE.PlaneGeometry(terrainWidth,terrainDepth,
+    Math.max(2,Math.ceil(terrainWidth/19)),Math.max(2,Math.ceil(terrainDepth/19)));
+  terrainGeo.rotateX(-Math.PI/2);
+  const landPosition=terrainGeo.getAttribute("position");
+  const terrainCX=(bounds.minX+bounds.maxX)/2,terrainCZ=(bounds.minZ+bounds.maxZ)/2;
+  for(let i=0;i<landPosition.count;i++){
+    const x=landPosition.getX(i)+terrainCX,z=landPosition.getZ(i)+terrainCZ;
+    landPosition.setY(i,sampleHeight(x,z)-.057);
   }
-  landGeometry.computeVertexNormals();
-  scene.add(new THREE.Mesh(landGeometry, new THREE.MeshLambertMaterial({
-    color:"#9fb99b", side:THREE.DoubleSide, flatShading:false
-  })));
+  terrainGeo.computeVertexNormals();
+  const localLand=new THREE.Mesh(terrainGeo,new THREE.MeshLambertMaterial({
+    color:"#a5be9c",side:THREE.DoubleSide
+  }));
+  localLand.position.set(terrainCX,0,terrainCZ);
+  scene.add(localLand);
 
   const shoulders = positions(), roads = positions(), stripes = positions();
   const segments = [];
@@ -135,7 +141,7 @@ export function createWorld(scene, map, options = {}) {
     if (poly.length < 3 || poly.length > 48) continue;
     const centerX = poly.reduce((a, v) => a + v[0], 0) / poly.length;
     const centerZ = poly.reduce((a, v) => a + v[1], 0) / poly.length;
-    if (Math.abs(centerX) > 540 || Math.abs(centerZ) > 540) continue;
+    if (Math.abs(centerX) > 1300 || Math.abs(centerZ) > 1300) continue;
     const minX = Math.min(...poly.map(p => p[0])), maxX = Math.max(...poly.map(p => p[0]));
     const minZ = Math.min(...poly.map(p => p[1])), maxZ = Math.max(...poly.map(p => p[1]));
     const item = { ...b, poly, minX, maxX, minZ, maxZ };
@@ -215,6 +221,7 @@ export function createWorld(scene, map, options = {}) {
   }
 
   const pilotSpawns = facadeRoadSpawns(facades, segments, collides);
+  const corridorLandmarks = buildCorridorLandmarks(scene, map, {sampleHeight,closestStreet:(x,z)=>closestSegment(x,z,segments)});
 
   // Instanced vegetation costs only two draw calls.
   const trunks = [], crowns = [];
@@ -266,8 +273,8 @@ export function createWorld(scene, map, options = {}) {
     const nearby = closestSegment(x, z, segments);
     return !!nearby && nearby.distance <= 70;
   }
-  return { segments, spawn, pilotSpawns, terminalSpawn, collides, inExploreArea, heightAt:sampleHeight, facades,
+  return { segments, spawn, pilotSpawns, terminalSpawn, collides, inExploreArea, heightAt:sampleHeight, facades, corridorLandmarks,
     closest: (x, z) => closestSegment(x, z, segments),
-    stats: { roads: map.roads.length, buildings: stored.length, trees: trunks.length, pilotFacades:facades.length },
+    stats: { roads: map.roads.length, buildings: stored.length, trees: trunks.length, pilotFacades:facades.length, landmarks:corridorLandmarks.length },
     terminal: { x, z } };
 }
