@@ -75,3 +75,13 @@ WG521-02,WorldGen 5.21,Criar rampa interpolada C1 com sobreposição lateral e v
 WG521-03,WorldGen 5.21,Integrar conectores aos chunks e à máscara do terreno,Implementado,Testar bordas e retomada do cache após deslocamento
 WG521-04,WorldGen 5.21,Revisão visual de cruzamentos ainda desconectados,Pendente,Determinar se a lacuna é OSM ou falha da união poligonal
 WG521-05,WorldGen futuro,União topológica global do asfalto antes do streaming,Planejado,Medições de RAM CPU e geometria no navegador
+WG600-01,WorldGen 6.0,Fonte global H(x z) com DEM e perfis canônicos viários,Implementado piloto,Testar relevo na Belmira em PC e mobile
+WG600-02,WorldGen 6.0,Superfície de terreno contínua por chunks de 420m sem máscara de vazios,Implementado piloto,Verificar divisas e terra sob todos os asfaltos
+WG600-03,WorldGen 6.0,Altura de carro e asfalto compartilhada com o campo global,Implementado piloto,Validar colisão sem saltos em junções e antes dos setores
+WG600-04,WorldGen 6.0,Modo de teste isolado worldgen=sheet,Implementado piloto,Testar FPS tempo inicial e comparativo antes de ativar como padrão
+WG601-01,WorldGen 6.1,Corte e aterro controlado usando inclinações reais de vias,Planejado,Preservar referências DEM confiáveis e níveis OSM
+WG602-01,WorldGen 6.2,Tesselação adaptativa e alinhamento de terreno às bordas de rua,Planejado,Evitar solo atravessando asfalto em curvas estreitas
+WG603-01,WorldGen 6.3,União topológica global de cruzamentos,Planejado,Conservar ramificações e junções em diferentes níveis
+WG604-01,WorldGen 6.4,Materiais road-sheet e sinalização na folha,Planejado,Verificar faixas e calçadas depois de remodelar cruzamentos
+WG605-01,WorldGen 6.5,LOD e métricas de streaming por altura compartilhada,Planejado,Comparar GPU RAM FPS com worldgen stream
+WG606-01,WorldGen 6.6,Promover folha ao modo padrão após validação visual,Planejado,Não quebrar produção
