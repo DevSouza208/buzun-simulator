@@ -58,13 +58,18 @@ test("250 real Grajaú ways: paired curb cuts join unioned sidewalks and road co
   const sites=planned.sites.filter(s=>buildZebraBars(s,surface).length);
   assert.ok(sites.length>1);
   const tris=[],walls=[];
+  let tactileTriangles=0;
   const start=performance.now();
   const stats=composeRoadsideMeshes(asphalt,walks,
     tri=>{tris.push(tri);
       assert.ok(tri.every(v=>v.every(Number.isFinite)));},
     wall=>{walls.push(wall);
       assert.ok(wall.every(v=>v.every(Number.isFinite)));},
-    {junctions:joints,bevelCurbs:true,rampSites:sites});
+    {junctions:joints,bevelCurbs:true,rampSites:sites,
+      onTactile:tri=>{
+        tactileTriangles++;
+        assert.ok(tri.every(v=>v.every(Number.isFinite)));
+      }});
   const seconds=(performance.now()-start)/1000;
   const zones=buildCurbRampZones(sites);
   const index=createRampIndex(zones.zones);
@@ -81,6 +86,10 @@ test("250 real Grajaú ways: paired curb cuts join unioned sidewalks and road co
   assert.ok(stats.rampTriangles>stats.rampCells);
   assert.equal(stats.rampSites,sites.length);
   assert.ok(stats.loweredCurbSegments>0);
+  assert.ok(stats.tactileFragments>0);
+  assert.equal(stats.tactileTriangles,tactileTriangles);
+  assert.ok(tactileTriangles<sites.length*2*60,
+    "Tiny tactile paving must not overload city geometry");
   assert.ok(seconds<30);
   console.log("[buzun-ramp-integration]",JSON.stringify({
     ways:roads.length,sampledAsphalt:asphalt.length,
@@ -88,5 +97,6 @@ test("250 real Grajaú ways: paired curb cuts join unioned sidewalks and road co
     rampSides:stats.rampSides,rampCells:stats.rampCells,
     rampTriangles:stats.rampTriangles,
     loweredCurbSegments:stats.loweredCurbSegments,
+    tactileTriangles, tactileFragments:stats.tactileFragments,
     seconds:+seconds.toFixed(3)}));
 });

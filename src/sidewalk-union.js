@@ -2,6 +2,8 @@ import {subtractConvex,physicalLayer,asphaltPriority} from "./asphalt-union.js";
 import {buildCurbRampZones,createRampIndex,intersectConvex,
   rampTopOffset,rampCoordinates,splitCurbEdge,curbHeightAt}
   from "./curb-ramps.js";
+import {tactilePaversForZone,boundsOverlap}
+  from "./tactile-paving.js";
 
 /**
  * Polygonal sidewalk compositor.
@@ -123,17 +125,38 @@ export function retreatCurbAtJunctions(a,b,junctions,retreat=0){
  */
 export function composeRoadsideMeshes(asphaltPatches,walkPatches,
   onSidewalk,onCurb,{cellSize=28,junctions=[],bevelCurbs=false,
-    rampSites=[]}={}){
+    rampSites=[],onTactile=null}={}){
   const asphalt=new PlanarIndex(cellSize),sidewalks=new PlanarIndex(cellSize);
   const ramps=buildCurbRampZones(rampSites);
   const rampIndex=createRampIndex(ramps.zones,{cellSize});
-  let rampTriangles=0,rampCells=0,loweredCurbSegments=0;
+  // Precompute warning pavers once per verified side, not per triangle.
+  if(onTactile)for(const zone of ramps.zones)
+    zone.pavers=tactilePaversForZone(zone);
+  let rampTriangles=0,rampCells=0,loweredCurbSegments=0,
+    tactileFragments=0,tactileTriangles=0;
   const emitTop=(poly,patch,zone=null)=>{
     const up=patch.curbTop??.18;
     for(let i=1;i<poly.length-1;i++){
       const v=p=>lift(patch,p,zone?rampTopOffset(zone,p,up):up);
       onSidewalk([v(poly[0]),v(poly[i]),v(poly[i+1])],patch);
       if(zone)rampTriangles++;
+    }
+  };
+  // Clip each small tactile marking against ACCEPTED ramp polygons only.
+  // Never paint in the old asphalt footprint or on a deleted sidewalk.
+  const emitTactile=(poly,patch,zone)=>{
+    if(!onTactile||!zone.pavers?.length)return;
+    const box=bounds(poly),up=patch.curbTop??.18;
+    for(const tile of zone.pavers){
+      if(!boundsOverlap(box,tile.box))continue;
+      const accepted=intersectConvex(poly,tile.polygon);
+      if(accepted.length<3)continue;
+      tactileFragments++;
+      for(let i=1;i<accepted.length-1;i++){
+        const v=p=>lift(patch,p,rampTopOffset(zone,p,up)+tile.elevation);
+        onTactile([v(accepted[0]),v(accepted[i]),v(accepted[i+1])],patch);
+        tactileTriangles++;
+      }
     }
   };
   for(const patch of asphaltPatches){
@@ -197,6 +220,7 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
                   const cut=intersectConvex(intersection,cell.polygon);
                   if(cut.length>=3){
                     emitTop(cut,patch,zone);
+                    emitTactile(cut,patch,zone);
                     rampCells++;
                   }
                 }
@@ -298,5 +322,6 @@ export function composeRoadsideMeshes(asphaltPatches,walkPatches,
   return {sidewalkPolygons:groundPieces,curbSegments,curbFaces,
     droppedAgainstAsphalt:discarded,clipOperations,
     rampSites:rampSites.length,rampSides:ramps.stats.rampSides,
-    rampCells,rampTriangles,loweredCurbSegments};
+    rampCells,rampTriangles,loweredCurbSegments,
+    tactileFragments,tactileTriangles};
 }

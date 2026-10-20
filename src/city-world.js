@@ -108,7 +108,8 @@ export function createCityWorld(scene,map) {
     medianStatistics:scenery.medianStatistics,
     seamStatistics:scenery.seamStatistics,
     crossingStatistics:scenery.crossingStatistics,
-    rampStatistics:scenery.rampStatistics
+    rampStatistics:scenery.rampStatistics,
+    finishStatistics:scenery.finishStatistics
   };
   console.info("[Buzun WorldGen] Asfalto unificado:",scenery.asphaltUnion);
   console.info("[Buzun WorldGen] Faixas inteligentes:",scenery.laneStatistics);
@@ -119,6 +120,7 @@ export function createCityWorld(scene,map) {
   console.info("[Buzun WorldGen] Integridade de costuras:",scenery.seamStatistics);
   console.info("[Buzun WorldGen] Travessias sugeridas:",scenery.crossingStatistics);
   console.info("[Buzun WorldGen] Rampas e rebaixamentos:",scenery.rampStatistics);
+  console.info("[Buzun WorldGen] Materiais e piso tátil:",scenery.finishStatistics);
   scenery.updateVisibility(spawn.x,spawn.z);
   ground.update(spawn.x,spawn.z,12);
   return {
