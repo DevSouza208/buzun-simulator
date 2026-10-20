@@ -1,7 +1,7 @@
 {
-  "version": "0.1.23",
+  "version": "0.1.24",
   "series": "0.1",
-  "patch": 23,
+  "patch": 24,
   "description": "Versioned automatically after changes to main",
   "source": "public/data/version.json"
 }
