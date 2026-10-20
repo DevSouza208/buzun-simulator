@@ -1,12 +1,8 @@
 /**
- * Buzun elevation interface.
- *
- * "preview" is explicitly FAKE terrain: deterministic, gentle slopes.
- * Not DEM/GPS elevation. Swap sampleHeight with an interpolated DEM raster
- * when licensed measured altitudes are introduced.
- *
- * Only the original 1.2km Grajaú pilot gets terrain relief in this pass.
- * It smoothly fades to zero before the flat long-road corridors.
+ * Terrain interface shared by ground, road mesh and driving.
+ * Uses an interpolated SRTM sample grid where available; otherwise
+ * a deterministic artificial preview. Heights are local relative metres.
+ * The exported grade is sampled every 70 m and is not a street survey.
  */
 export const TERRAIN_MODE = "preview";
 export const TERRAIN_EXTENT = 610;
