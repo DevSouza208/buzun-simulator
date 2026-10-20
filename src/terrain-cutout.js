@@ -11,7 +11,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
  */
 const TILE=420;
 const MASK_PX=512;
-const TERRAIN_GRID=19;
+const TERRAIN_GRID=9;
 const VISIBILITY_RADIUS=900;
 const MAX_ACTIVE_TILES=32;
 function createMask(corridors,junctionPoints,x0,z0) {
@@ -53,14 +53,28 @@ function createMask(corridors,junctionPoints,x0,z0) {
   tex.wrapS=tex.wrapT=THREE.ClampToEdgeWrapping;
   return tex;
 }
-function groundTile(x0,z0,heightAt,corridors,junctions) {
+function groundTile(x0,z0,heightAt,corridors,junctions,roadSurface) {
   const terrain=new THREE.PlaneGeometry(TILE,TILE,
     Math.ceil(TILE/TERRAIN_GRID),Math.ceil(TILE/TERRAIN_GRID));
   terrain.rotateX(-Math.PI/2);
   const attr=terrain.attributes.position,cx=x0+TILE/2,cz=z0+TILE/2;
   for(let i=0;i<attr.count;i++){
     const worldX=attr.getX(i)+cx,worldZ=attr.getZ(i)+cz;
-    attr.setY(i,heightAt(worldX,worldZ)-.10);
+    const natural=heightAt(worldX,worldZ);
+    const road=roadSurface?.sample(worldX,worldZ);
+    let elevation=natural-.10;
+    if(road){
+      const outside=road.distance-road.halfWidth-road.walk;
+      if(outside<6) {
+        // The road is an actual sheet above the land: under the pavement
+        // drop ground slightly, then blend natural terrain back only AFTER
+        // the sidewalk. The fragment cut mask remains a second safeguard.
+        const t=Math.max(0,Math.min(1,outside/6));
+        const ease=t*t*(3-2*t);
+        elevation=(road.height-.65)*(1-ease)+(natural-.10)*ease;
+      }
+    }
+    attr.setY(i,elevation);
   }
   terrain.computeVertexNormals();
   const material=new THREE.MeshLambertMaterial({
@@ -76,7 +90,7 @@ function groundTile(x0,z0,heightAt,corridors,junctions) {
 /** Lazy 420m tiles. Only geometry near the player is materialized.
  * Both mesh and alpha texture are disposed on eviction, bounding GPU memory.
  */
-export function createCarvedTerrain(scene,corridors,junctionPoints,heightAt,bounds) {
+export function createCarvedTerrain(scene,corridors,junctionPoints,heightAt,bounds,roadSurface) {
   const tiles=new Map();
   const minimumX=Math.floor(bounds.minX/TILE),maximumX=Math.floor(bounds.maxX/TILE);
   const minimumZ=Math.floor(bounds.minZ/TILE),maximumZ=Math.floor(bounds.maxZ/TILE);
@@ -96,7 +110,7 @@ export function createCarvedTerrain(scene,corridors,junctionPoints,heightAt,boun
       if(made>=budget)break;
       if(!desired.has(key(item.gx,item.gz))||tiles.has(key(item.gx,item.gz)))continue;
       const ground=groundTile(item.gx*TILE,item.gz*TILE,
-        heightAt,corridors,junctionPoints);
+        heightAt,corridors,junctionPoints,roadSurface);
       scene.add(ground);tiles.set(key(item.gx,item.gz),ground);made++;
     }
     for(const [name,ground] of tiles){
