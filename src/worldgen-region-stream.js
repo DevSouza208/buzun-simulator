@@ -61,6 +61,32 @@ export function plannedRegions(x,z,{
   return out.sort((a,b)=>a.distance-b.distance||
     a.x-b.x||a.z-b.z);
 }
+/** Rank the SAME regional preload set using travel direction, but never
+ * push the current region behind any candidate. No extra regions are
+ * allocated, only order changes; side and rear regions still arrive.
+ */
+export function prioritizeDriveRegions(x,z,{
+  heading=[0,0],radius=1260,size=REGION_METRES,
+  lookAhead=360
+}={}){
+  const targets=plannedRegions(x,z,{radius,size});
+  const length=Math.hypot(heading[0],heading[1]);
+  const forward=length>.001?
+    [heading[0]/length,heading[1]/length]:[0,0];
+  const current=regionAt(x,z,size);
+  const focusKey=regionKey(current.x,current.z);
+  const score=entry=>{
+    if(entry.key===focusKey)return -1e9;
+    // All directions remain in the queue, but a 400m region ahead
+    // outranks a similarly distant area behind the moving bus.
+    const bx=(entry.x+.5)*size-x,bz=(entry.z+.5)*size-z;
+    const projected=bx*forward[0]+bz*forward[1];
+    return entry.distance-
+      Math.min(lookAhead,Math.max(0,projected))*.55;
+  };
+  return targets.sort((a,b)=>score(a)-score(b)||
+    a.distance-b.distance||a.x-b.x||a.z-b.z);
+}
 /**
  * Convex Sutherland–Hodgman in the X/Z plane; preserves the exact
  * interpolated Y for triangles that span a regional border.

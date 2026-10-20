@@ -5,7 +5,7 @@ import {createCarvedTerrain} from "./terrain-cutout.js";
 import {graphFromRoads} from "./grajau-osm.js";
 import {summarizeRoadSectors} from "./worldgen-diagnostics.js";
 import {createRegionRoadIndex,regionAt,regionKey,regionBounds,
-  plannedRegions,regionDistance,REGION_METRES,
+  plannedRegions,prioritizeDriveRegions,regionDistance,REGION_METRES,
   activateLoadedRoadRegion} from "./worldgen-region-stream.js";
 
 /**
@@ -100,7 +100,8 @@ export function createStreamingCityWorld(scene,map){
     totalRoads:map.roads.length,loadedRegions:0,readyRegions:0,
     unloadedRegions:0,building:null,queuedRegions:0,
     totalRegionBuildMs:0,initialRegionMs:0,
-    maxRegionBuildMs:0,trianglesAllocated:0};
+    maxRegionBuildMs:0,trianglesAllocated:0,
+    urgentRegionLoads:0,travelDirection:[0,0]};
   const buildRegion=(rx,rz)=>{
     const key=regionKey(rx,rz);
     if(loaded.has(key)||emptyRegions.has(key))return;
@@ -212,6 +213,10 @@ export function createStreamingCityWorld(scene,map){
   };
   let focus={x:spawn.x,z:spawn.z},queue=[],
     scheduled=false,disposed=false,lastPlan=null;
+  // The initial heading comes from the OSM route. During driving it is
+  // refreshed from actual displacement, without requiring a new vehicle
+  // API or coupling the world to camera controls.
+  let driveHeading=[Math.sin(spawn.angle),-Math.cos(spawn.angle)];
   const schedule=()=>{
     if(scheduled||disposed||!queue.length)return;
     scheduled=true;
@@ -241,8 +246,13 @@ export function createStreamingCityWorld(scene,map){
     else setTimeout(run,35);
   };
   function refreshQueue(x,z){
+    const dx=x-focus.x,dz=z-focus.z;
+    const move=Math.hypot(dx,dz);
+    if(move>8)driveHeading=[dx/move,dz/move];
     focus={x,z};
-    const wanted=plannedRegions(x,z,{radius:PRELOAD_METRES});
+    counters.travelDirection=driveHeading.map(v=>+v.toFixed(3));
+    const wanted=prioritizeDriveRegions(x,z,{
+      heading:driveHeading,radius:PRELOAD_METRES});
     queue=wanted.filter(r=>!loaded.has(r.key)&&
       !emptyRegions.has(r.key));
     counters.queuedRegions=queue.length;
@@ -281,10 +291,21 @@ export function createStreamingCityWorld(scene,map){
     const current=regionAt(x,z);
     const key=regionKey(current.x,current.z);
     if(key!==lastRegionKey||
-       Math.hypot(x-lastPlan?.[0],z-lastPlan?.[1])>250||
-       !lastPlan){
+       !lastPlan||Math.hypot(x-lastPlan[0],z-lastPlan[1])>200){
       lastRegionKey=key;lastPlan=[x,z];
       refreshQueue(x,z);
+      // Teleports or rapid movement can enter an area before idle
+      // prefetch finishes. Build that exact cell once rather than drive
+      // on approximate ground with invisible asphalt. This slow path
+      // is only entered when prefetch did not meet the player in time.
+      if(!loaded.has(key)&&!emptyRegions.has(key)){
+        counters.urgentRegionLoads++;
+        try{buildRegion(current.x,current.z);}
+        catch(error){
+          console.error("[Buzun WorldGen] Falha na região atual",error);
+          emptyRegions.add(key);
+        }
+      }
       evict(x,z);
     }
     if(Math.hypot(x-lastLod[0],z-lastLod[1])>10){
