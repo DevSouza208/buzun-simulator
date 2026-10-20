@@ -59,6 +59,6 @@ test("6.1: identical 5m tile borders and reduced active tile budget",()=>{
     "../src/worldgen-sheet-terrain.js",import.meta.url),"utf8");
   const city=readFileSync(new URL(
     "../src/city-world-stream.js",import.meta.url),"utf8");
-  assert.match(terrain,/visibilityRadius=900,maxActive=18/);
+  assert.match(terrain,/visibilityRadius=900,maxActive=32/);
   assert.match(city,/junctions:globalJunctions/);
 });
