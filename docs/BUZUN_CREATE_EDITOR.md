@@ -1,31 +1,38 @@
-# Buzun Create — Editor viário local (protótipo)
+# Buzun Create — Modelador das ruas em 3D
+
+## Objetivo
+Editor do **modelo 3D gerado** pelo Buzun, não das coordenadas do OpenStreetMap. OSM continua sendo referência imutável de eixos e conexões viárias. Esta etapa substitui a antiga planta 2D com pontos OSM por uma vista aérea ortográfica da **cena Three.js real**, com pré-visualização das malhas selecionadas.
 
 ## Acesso
-Clique no botão **⚙ Admin** no topo. Usuário de demonstração: `admin`. Senha de demonstração: `7334`.
+Use o botão ⚙ no jogo e o login demonstrativo já conhecido. **Aviso:** em GitHub Pages estático, a senha no JavaScript é pública e não constitui autenticação de segurança.
 
-**Importante:** o projeto usa GitHub Pages estático. A verificação de credenciais fica no JavaScript público, portanto **não é uma autenticação segura nem controla acesso real aos arquivos**. Não usar esse login para dados privados, cobrança ou escrita em servidor.
+## Ferramentas
+- **Selecionar pista:** clique na rua renderizada em 3D; a seção selecionada fica destacada em ciano (asfalto) e verde (calçadas).
+- **Mover câmera:** arraste para navegar pela cidade; roda do mouse para zoom; botões de zoom, centralizar no carro e ver região inteira.
+- **Puxar asfalto:** depois de selecionar uma pista, arraste em direção à borda desejada. O valor de largura da via se ajusta em metros; todas as faixas são geradas novamente no Apply.
+- **Puxar calçada:** arraste a borda externa do passeio, mudando sua largura por lado.
+- **Altura do meio-fio (0–0,40 m):** altera a posição vertical da calçada e a face lateral do meio-fio.
+- **Recuo do meio-fio nas esquinas (0–4 m):** recorta as pontas do meio-fio além da interseção, sem mudar as coordenadas do OSM.
+- **Salvar modelagem:** armazena as propriedades daquela via no navegador.
+- **Aplicar no jogo:** reconstrói o modelo viário a partir do OSM original **mais overrides de geometria**, incluindo terreno, asfalto e calçadas.
+- **Desfazer / reverter via / exportar / importar JSON:** versões portáteis das correções.
 
-## Mapa e ferramentas
-- Planta vetorial de cima das ruas OSM, com norte para cima. Zoom por roda do mouse ou +/−; arrastar no modo **Navegar**.
-- **Selecionar:** clique próximo de qualquer via para identificar nome, ID, classe e largura.
-- **Editar pontos:** aproxime o zoom e arraste um vértice amarelo. Nós compartilhados entre duas vias recebem a mesma posição, preservando a conectividade OSM entre elas.
-- **Medidas:** edite largura do asfalto (2–45 m) e calçada por lado (0,6–5 m) e clique em **Salvar medidas**. Não modifica `width` do OSM original.
-- **Desfazer / reverter rua / limpar:** reversão de correções.
-- **Exportar JSON / Importar JSON:** salvar e transferir os ajustes entre computadores.
-- **Aplicar no jogo:** recarrega o Buzun, que reconstrói ruas, calçadas, terreno e minimapa com as correções locais.
+## Visualização, desempenho e limitações
+- O canvas Three.js do jogo é movido temporariamente para dentro do editor: **não há segunda cópia de WebGL ou da cidade**.
+- A visualização da via em edição é uma prévia colorida e translúcida sobre o modelo atual. O modelo permanente é atualizado após **Aplicar no jogo**; redução de largura pode mostrar temporariamente o asfalto antigo por baixo do destaque. O recuo nas esquinas só pode ser conferido na malha reconstruída.
+- Em visualização afastada, o motor ainda desenha o terreno e a malha somente nos setores próximos da câmera aérea para preservar desempenho.
+- Este protótipo edita uma **via OSM por vez**, não cada vértice de suas faixas e não desenha geometrias arbitrárias. A edição por ponto geográfico foi retirada do painel principal.
+- Os overrides são salvos no `localStorage`, sem alteração remota. A cidade não se torna automaticamente correta para todos os jogadores; exporte o JSON para manter e depois versionar as correções.
 
-## Arquitetura
-- `src/road-editor-model.js`: patch local sparse de larguras por `way.id` e vértices por `nodeId` compartilhado. Arquivo versionado `{version:1,widths:{},nodes:{},localNodes:{}}`.
-- `src/road-admin.js`: mapa 2D desenhado sobre as coordenadas 1:1 do jogo, seleção, arrastar pontos, pan, zoom, importação e histórico.
-- `src/main.js`: mantém `sourceRoads` original imutável e passa o resultado de `applyRoadEdits` ao worldgen.
-- Persistência: `localStorage`, key `buzun-world-editor-v1`. Sem gravação em GitHub e sem alteração OSM.
+## Arquivos
+- `src/road-admin.js`: editor aéreo 3D, seleção e interação.
+- `src/road-model-preview.js`: prévia da malha asfáltica, passeio e bordas.
+- `src/road-editor-model.js`: sparse overrides de largura, passeio, altura e recuo com formato JSON v1 e retrocompatibilidade.
+- `src/city-road-mesh.js` e `src/road-corridor.js`: aplicação das medidas ao gerador de calçada/guia.
 
-## Limitações desta entrega
-É um **primeiro editor viário**: não cria ruas novas, não implementa desenho de rotatórias, não calcula relações avançadas de tráfego nem sincroniza alterações entre navegadores. Movimentos de nós podem provocar auto-interseções — editar com moderação e usar Desfazer. O topo é um mapa 2D ortográfico, não uma câmera aérea sobre os modelos Three.js.
-
-## Validação
-1. Aguardar carregar o mapa e entrar no editor; o login errado deve ser rejeitado.
-2. Clicar numa via e mudar largura/calçada; usar Aplicar no jogo e conferir o resultado.
-3. Mover um vértice compartilhado; conferir ambas as vias conectadas e o minimapa após recarga.
-4. Exportar arquivo, limpar alterações, importar e aplicar novamente.
-5. Reabrir editor e verificar persistência; testar no Chrome e no celular.
+## Testes
+1. Dirija até uma esquina, pare e entre no Admin.
+2. Mova a câmera, selecione a rua que precisa de ajuste. Veja as bordas ciano/verde destacadas sobre o 3D.
+3. Mude a largura da pista, altura do meio-fio ou recuo de esquina. Observe a prévia.
+4. Salve e pressione **Aplicar no jogo**. A malha recalcula após a recarga; inspecione novamente a esquina.
+5. Exporte o JSON e guarde-o.
