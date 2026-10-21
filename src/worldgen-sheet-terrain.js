@@ -4,6 +4,7 @@ import {SHEET_TILE_METRES,SHEET_GRID_SEGMENTS}
 import {FLAT_ASPHALT_TEXTURE_PIXELS,FLAT_ASPHALT_GUTTER_PIXELS,flatAsphaltUv}
   from "./worldgen-flat-asphalt-surface.js";
 import {paintFlatAsphaltTexture} from "./worldgen-flat-texture-quality.js";
+import {VECTOR_ROAD_COLORS} from "./worldgen-flat-vector-roads.js";
 
 /** WorldGen 6.0 terrain. The meshes are transport/cache units ONLY.
  * There is no hole-cutting alphaMap; adjacent tile vertices sample
@@ -15,7 +16,7 @@ export function createSheetTerrain(scene,sheet,bounds,{
   // left 5–9 holes in the terrain ring; 32 covers all possible cells.
   // Optimize distant geometry through LOD later, not missing chunks.
   visibilityRadius=900,maxActive=32,flatAsphaltPlan=null,
-  flatTextureQuality="smooth"
+  flatVectorPlan=null,flatTextureQuality="smooth"
 }={}){
   const size=SHEET_TILE_METRES;
   const tiles=new Map();
@@ -27,6 +28,15 @@ export function createSheetTerrain(scene,sheet,bounds,{
   const material=new THREE.MeshLambertMaterial({
     color:"#a5b89d",side:THREE.DoubleSide,flatShading:true
   });
+  // Three shared vector materials for the entire visible city. A single
+  // material per layer preserves draw calls and avoids per-tile textures.
+  const vectorMaterials=flatVectorPlan?Object.fromEntries(
+    Object.entries(VECTOR_ROAD_COLORS).map(([kind,color])=>[
+      kind,new THREE.MeshBasicMaterial({
+        color,side:THREE.DoubleSide,depthWrite:false
+      })
+    ])
+  ):null;
   function createTile(gx,gz){
     // A flat city needs just two triangles per 420m tile; it would
     // waste millions of triangles to keep the 4m relief grid.
@@ -78,6 +88,26 @@ export function createSheetTerrain(scene,sheet,bounds,{
     }
     const mesh=new THREE.Mesh(geometry,tileMaterial);
     mesh.name="Buzun_ContinuousSheet_"+gx+"_"+gz;
+    if(flatVectorPlan){
+      // The OSM paths are vectors until the GPU rasterizes the triangles.
+      // Tile edges clip the same GLOBAL positions, rather than repeating
+      // low-resolution Canvas pixels with a different local origin.
+      const {layers}=flatVectorPlan.tileTriangles(gx,gz);
+      const kinds=["sidewalk","curb","asphalt"];
+      for(const [layer,kind] of kinds.entries()){
+        const vertices=layers[kind];
+        if(!vertices.length)continue;
+        const roadGeometry=new THREE.BufferGeometry();
+        roadGeometry.setAttribute("position",
+          new THREE.Float32BufferAttribute(vertices,3));
+        roadGeometry.computeBoundingSphere();
+        const overlay=new THREE.Mesh(roadGeometry,vectorMaterials[kind]);
+        overlay.name="Buzun_Vector_"+kind;
+        overlay.renderOrder=10+layer;
+        overlay.frustumCulled=true;
+        mesh.add(overlay);
+      }
+    }
     mesh.position.set(ox,flatAsphaltPlan?0.072:0,oz);
     mesh.frustumCulled=true;
     scene.add(mesh);
@@ -86,6 +116,9 @@ export function createSheetTerrain(scene,sheet,bounds,{
   function release(key,mesh){
     scene.remove(mesh);
     mesh.geometry.dispose();
+    if(flatVectorPlan)
+      for(const part of mesh.children)
+        part.geometry.dispose();
     if(flatAsphaltPlan){
       mesh.material.map?.dispose();
       mesh.material.dispose();
@@ -122,8 +155,10 @@ export function createSheetTerrain(scene,sheet,bounds,{
   function dispose(){
     for(const [id,mesh] of tiles)release(id,mesh);
     material.dispose();
+    if(vectorMaterials)
+      for(const mat of Object.values(vectorMaterials))mat.dispose();
   }
   return {update,dispose,get loadedTiles(){return tiles.size;},
-    tileSize:size,mode:flatAsphaltPlan?
-      "flat-continuous-road-surface":"world-sheet"};
+    tileSize:size,mode:flatVectorPlan?"flat-vector-osm-surface":
+      flatAsphaltPlan?"flat-continuous-road-surface":"world-sheet"};
 }
