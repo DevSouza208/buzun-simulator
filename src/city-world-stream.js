@@ -104,7 +104,7 @@ export function createStreamingCityWorld(scene,map,{
   vectorDetail=ROAD_DETAIL_DEFAULT,
   vectorSeamGuardMetres=VECTOR_SEAM_GUARD_METRES,
   reliefWorld=false,vectorEdits=null,
-  asphaltOnly=false
+  asphaltOnly=false,terrainCutout=true
 }={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
@@ -298,12 +298,14 @@ export function createStreamingCityWorld(scene,map,{
       height:terrainHeight(nearest.x,nearest.z),
       distance:nearest.distance,halfWidth,walk:1.7,curbTop:.18};
   }};
-  // A sheet does not cut a transparent hole underneath asphalt.
-  // Adjacent terrain chunks use precisely the same global H(x,z).
+  // In WorldGen 7.6, terrain triangles are physically cut by the final
+  // vector asphalt footprint; neither terrain nor roads are generated
+  // independently at junctions. Chunk boundaries retain global H(x,z).
   const ground=worldSheet?
     createSheetTerrain(scene,terrainSheet,bounds,{
       flatAsphaltPlan,flatVectorPlan,flatTextureQuality,
-      vectorDetail
+      vectorDetail,
+      terrainCutout:asphaltOnly&&terrainCutout
     }):
     createCarvedTerrain(scene,corridors,globalJunctions,
       terrainHeight,bounds,roadSurfaceAdapter);
@@ -603,6 +605,9 @@ export function createStreamingCityWorld(scene,map,{
     if(flatVectorPlan){
       counters.vectorSeamGuardMetres=flatVectorPlan.stats.seamGuardMetres;
       counters.vectorRoadTriangles=ground.vectorTriangles;
+      counters.terrainCutout=ground.terrainCutout;
+      counters.terrainTriangles=ground.terrainTriangles;
+      counters.terrainMaskedArea=ground.terrainMaskedArea;
       counters.vectorRoadTiles=ground.loadedTiles;
       counters.vectorRoadDetail=ground.vectorDetail;
       counters.vectorPendingTiles=ground.vectorPendingTiles;
