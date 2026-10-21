@@ -13,6 +13,7 @@ import { applyRoadEdits, readSavedEdits } from "./road-editor-model.js";
 import { mountRoadAdmin } from "./road-admin.js";
 import { mountWorldgenOverlay } from "./worldgen-overlay.js";
 import { resolveWorldgenMode } from "./worldgen-mode.js";
+import {flatBranchMode} from "./worldgen-flat-map.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -132,7 +133,8 @@ function resetCar(announce = true) {
   car.position.set(player.x, world.heightAt(player.x,player.z), player.z);
   car.rotation.order = "YXZ";
   car.rotation.y = modelYawFromHeading(player.yaw);
-  car.rotation.x = heightAlongHeading(player.x,player.z,player.yaw);
+  car.rotation.x = world.flatWorld?0:
+    heightAlongHeading(player.x,player.z,player.yaw);
   if (announce) showToast(spawn.label ? "Você está diante de: " + spawn.label : "Veículo reposicionado");
 }
 function visitFacade(nextIndex, announce = true) {
@@ -177,7 +179,8 @@ function advance(dt) {
   // Gravity assists descents and resists climbs, while an automatic
   // parking hold keeps the car from drifting while controls are released.
   if (Math.abs(player.speed) > .45 || ctrl.throttle || ctrl.brake) {
-    const grade = slopeAlongHeading(player.x, player.z, player.yaw, world.heightAt);
+    const grade = world.flatWorld?0:
+      slopeAlongHeading(player.x, player.z, player.yaw, world.heightAt);
     acceleration += slopeAcceleration(grade);
   }
   player.speed += acceleration * dt;
@@ -216,7 +219,9 @@ function advance(dt) {
   car.position.set(player.x, world.heightAt(player.x,player.z), player.z);
   car.rotation.order = "YXZ";
   car.rotation.y = modelYawFromHeading(player.yaw);
-  car.rotation.x = THREE.MathUtils.lerp(car.rotation.x,heightAlongHeading(player.x,player.z,player.yaw),Math.min(dt*5,1));
+  car.rotation.x = THREE.MathUtils.lerp(car.rotation.x,
+    world.flatWorld?0:heightAlongHeading(player.x,player.z,player.yaw),
+    Math.min(dt*5,1));
   const lean = THREE.MathUtils.clamp(-ctrl.steer * Math.abs(player.speed) * .003, -.055, .055);
   car.userData.shell.rotation.z = THREE.MathUtils.lerp(car.userData.shell.rotation.z, lean, Math.min(dt * 6, 1));
 }
@@ -264,10 +269,13 @@ function hud(now) {
   distanceText.textContent = (player.distance / 1000).toFixed(2) + " km";
   const near = world.closest(player.x, player.z);
   streetText.textContent = near?.segment.name || "Ruas do Grajaú";
-  const grade = slopeAlongHeading(player.x, player.z, player.yaw, world.heightAt);
-  terrainLabel.textContent = near && near.distance > near.segment.width / 2 + 4
-    ? "FORA DA VIA • VOLTE AO ASFALTO"
-    : "VIAS 1:1 · " + gradeLabel(grade);
+  const grade = world.flatWorld?0:
+    slopeAlongHeading(player.x, player.z, player.yaw, world.heightAt);
+  terrainLabel.textContent=world.flatWorld?
+    "GRAJAÚ PLANO · OSM 1:1":
+    near && near.distance > near.segment.width / 2 + 4
+      ? "FORA DA VIA • VOLTE AO ASFALTO"
+      : "VIAS 1:1 · " + gradeLabel(grade);
   const goal=$("route-progress"),progress=progressAlongRoute(roadData?.route,player.x,player.z);
   if(goal&&progress){
     goal.textContent=progress.remaining<28 && progress.offRoute<30
@@ -406,6 +414,7 @@ function bindInputs() {
   window.addEventListener("resize", resize);
 }
 async function start() {
+  const flatWorld=flatBranchMode(location.search);
   bindInputs();
   refreshBuildVersion();
   try {
@@ -453,7 +462,8 @@ async function start() {
     };
     const [imported,tiles]=await Promise.all([
       importStreets(),
-      loadCityElevations(GRAJAU_BBOX).catch(error=>{
+      (flatWorld?Promise.resolve(null):
+        loadCityElevations(GRAJAU_BBOX)).catch(error=>{
         console.warn("Relief outside saved SRTM was unavailable:",error);
         return null;
       })
@@ -462,7 +472,10 @@ async function start() {
     // Always retain the unmodified OSM extract for the editor. The game
     // receives a derived geometry snapshot with sparse local corrections.
     sourceRoads=imported.roads;
-    const authoredRoads=applyRoadEdits(sourceRoads,readSavedEdits());
+    // In the flat branch the game and the minimap MUST use the same raw
+    // immutable coordinates from the published OSM snapshot.
+    const authoredRoads=flatWorld?sourceRoads:
+      applyRoadEdits(sourceRoads,readSavedEdits());
     roadData={
       origin:corridor.origin,route:corridor.route,landmarks:corridor.landmarks,
       roads:authoredRoads,buildings:[],pois:[],
@@ -470,7 +483,9 @@ async function start() {
       reliefSource:tiles?.source||"SRTM local Belmira"
     };
     if(roadData.roads.length<70)throw Error("Mapa grande de ruas incompleto");
-    status.textContent="Construindo "+roadData.roads.length+" vias do Grajaú · malha 1:1 e calçadas low poly...";
+    status.textContent=flatWorld?
+      "Aplanando "+roadData.roads.length+" vias reais do Grajaú · escala 1:1...":
+      "Construindo "+roadData.roads.length+" vias do Grajaú · malha 1:1 e calçadas low poly...";
     await new Promise(resolve=>setTimeout(resolve,25));
     scene = new THREE.Scene();
     scene.background = new THREE.Color("#a9ced0");
@@ -491,7 +506,7 @@ async function start() {
     // compositor can still be tested explicitly with ?worldgen=legacy.
     const {progressive,showWorldgen}=resolveWorldgenMode(location.search);
     world = createWorld(scene,roadData,{
-      cityRoads:true,progressive,
+      cityRoads:true,progressive:flatWorld||progressive,flatWorld,
       sheetPreview:new URLSearchParams(location.search).get("worldgen")==="sheet"
     });
     worldgenOverlay?.dispose();
