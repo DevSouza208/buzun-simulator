@@ -311,7 +311,7 @@ export function createStreamingCityWorld(scene,map,{
       // Camera, car and collisions cannot develop a step at a junction.
       const hit=worldSheet.roadAt(x,z);
       return surfaceHeight(x,z)+
-        (hit&&hit.distance<=hit.halfWidth+.08?.22:0);
+        (hit&&hit.distance<=hit.halfWidth+.08 ? .22 : 0);
     }
     if(worldSheet){
       // Collision cannot change height when a neighboring chunk arrives:
