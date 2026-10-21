@@ -565,6 +565,8 @@ async function start() {
       flatRoadRender:new URLSearchParams(location.search)
         .get("roads")==="raster"?"raster":"vector",
       vectorDetail:roadDetailLevel,
+      vectorSeamGuardMetres:new URLSearchParams(location.search)
+        .get("seams")==="off"?0:undefined,
       sheetPreview:new URLSearchParams(location.search).get("worldgen")==="sheet"
     });
     worldgenOverlay?.dispose();
