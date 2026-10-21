@@ -80,6 +80,7 @@ export function createWorld(scene, map, options = {}) {
         flatPaintedRoads:options.flatPaintedRoads===true,
         flatRoadRender:options.flatRoadRender==="vector"?"vector":"raster",
         vectorDetail:options.vectorDetail,
+        vectorSeamGuardMetres:options.vectorSeamGuardMetres,
         flatTextureQuality:options.flatTextureQuality==="fast"?
           "fast":"smooth"
       }):createCityWorld(scene,map);
