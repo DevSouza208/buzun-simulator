@@ -139,13 +139,16 @@ export function createStreamingCityWorld(scene,map,{
     fixedJunctions:globalFixedJunctions,
     junctions:globalJunctions
   };
+  const visualRoads=vectorEdits?
+    applyVisualVectorEdits(map.roads,vectorEdits):map.roads;
+  // OSM routing/physics identifiers remain unchanged, but the visible
+  // terrain support follows manually shifted DISPLAY vectors. Otherwise
+  // editing a hillside road would leave its old roadside depression behind.
   const worldSheet=reliefWorld?
-    createWorldSheet(renderRoads,terrainHeight,sheetOptions):
+    createWorldSheet(visualRoads,terrainHeight,sheetOptions):
     flatWorld?createFlatMapWorldSheet(renderRoads,sheetOptions):
     sheetPreview?createWorldSheet(renderRoads,terrainHeight,
       sheetOptions):null;
-  const visualRoads=vectorEdits?
-    applyVisualVectorEdits(map.roads,vectorEdits):map.roads;
   const elevationField=reliefWorld&&worldSheet?
     createVectorElevationField(
       (x,z)=>worldSheet.meshHeight(x,z),map.roads,vectorEdits):null;
