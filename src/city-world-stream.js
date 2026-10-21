@@ -593,7 +593,7 @@ export function createStreamingCityWorld(scene,map,{
     nearbySegments:(x,z,r=650)=>streets.candidates(x,z,r),
     update,graph,stats,bounds,
     setRoadDetailLevel:level=>{
-      const changed=ground.setVectorDetailLevel(level);
+      const changed=ground.setVectorDetailLevel?.(level)??false;
       if(changed){
         counters.vectorRoadDetail=ground.vectorDetail;
         counters.vectorPendingTiles=ground.vectorPendingTiles;
