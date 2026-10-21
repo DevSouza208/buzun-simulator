@@ -34,6 +34,7 @@ export function buildRoadModelPreview(road,heightAt,{
     const j=i-1,half=asphalt/2,high=.072+.12;
     add(surface,pt(j,-half,high),pt(i,-half,high),
       pt(i,half,high),pt(j,half,high));
+    if(walk>0)
     for(const side of [-1,1]){
       const inner=side*half,outer=side*(half+walk);
       add(sidewalks,pt(j,inner,high+curb+.035),
@@ -55,7 +56,7 @@ export function buildRoadModelPreview(road,heightAt,{
     group.add(m);
   }
   mesh(surface,"#4cbac6",.43);
-  mesh(sidewalks,"#b8f171",.66);
+  if(sidewalks.length)mesh(sidewalks,"#b8f171",.66);
   if(border.length){
     const g=new THREE.BufferGeometry();
     g.setAttribute("position",new THREE.Float32BufferAttribute(border,3));
