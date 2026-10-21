@@ -59,7 +59,7 @@ test("7.1.1: index includes sidewalk width across a 420m texture boundary",()=>{
 test("7.1.1: the huge 3D sidewalk wedges cannot be emitted at ground level",()=>{
   const scene=readFileSync(new URL("../src/city-road-mesh.js",import.meta.url),"utf8");
   const source=readFileSync(new URL("../src/city-world-stream.js",import.meta.url),"utf8");
-  assert.match(source,/flatPaintedRoadside:Boolean\(flatAsphaltPlan\)/);
+  assert.match(source,/flatPaintedRoadside:flatAnyRoad/);
   assert.match(scene,/if\(!flatPaintedRoadside\|\|physicalLayer\(road\)!==0\)/);
   assert.match(scene,/flatSkipRoadside=flatPaintedRoadside&&roadsideInput\.length===0/);
   assert.match(scene,/if\(flatSkipRoadside\)\{/);
