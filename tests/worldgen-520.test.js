@@ -110,7 +110,7 @@ test("5.20: streamed renderer references one city-wide source for all chunks",()
     "../src/city-road-mesh.js",import.meta.url),"utf8");
   const terrain=readFileSync(new URL(
     "../src/terrain-cutout.js",import.meta.url),"utf8");
-  assert.match(stream,/const worldSource=\{globalGrades,globalFixedJunctions,\s*worldSheet,globalAsphaltAtlas,\s*flatPaintedRoadside:flatAnyRoad,\s*vectorSurfaceHeight:surfaceHeight\}/);
+  assert.match(stream,/const worldSource=\{globalGrades,globalFixedJunctions,\s*worldSheet,globalAsphaltAtlas,\s*flatPaintedRoadside:flatAnyRoad,\s*noSidewalks:asphaltOnly,\s*vectorSurfaceHeight:surfaceHeight\}/);
   assert.match(stream,/backgroundAsphalt:true,\.\.\.worldSource/);
   assert.match(stream,/renderBounds:regionBounds\(rx,rz\),\.\.\.worldSource/);
   assert.match(mesh,/const gradeModels=globalGrades\|\|/);
