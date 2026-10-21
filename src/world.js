@@ -77,7 +77,9 @@ export function createWorld(scene, map, options = {}) {
       createStreamingCityWorld(scene,map,{
         sheetPreview:options.sheetPreview===true,
         flatWorld:options.flatWorld===true,
-        flatPaintedRoads:options.flatPaintedRoads===true
+        flatPaintedRoads:options.flatPaintedRoads===true,
+        flatTextureQuality:options.flatTextureQuality==="fast"?
+          "fast":"smooth"
       }):createCityWorld(scene,map);
   const roadsOnly = options.roadsOnly === true;
   // Single terrain height source powers the road, ground, cars and buildings.
