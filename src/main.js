@@ -569,6 +569,8 @@ async function start() {
     world = createWorld(scene,roadData,{
       cityRoads:true,progressive:flatWorld||progressive,flatWorld,
       reliefWorld,vectorEdits:loadVectorEdits(),
+      asphaltOnly:new URLSearchParams(location.search)
+        .get("sidewalks")!=="on",
       flatPaintedRoads:flatWorld&&
         new URLSearchParams(location.search).get("roads")!=="geometry",
       flatTextureQuality:new URLSearchParams(location.search)
