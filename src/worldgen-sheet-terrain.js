@@ -20,6 +20,7 @@ export function createSheetTerrain(scene,sheet,bounds,{
 }={}){
   const size=SHEET_TILE_METRES;
   const tiles=new Map();
+  let liveVectorTriangles=0;
   const key=(x,z)=>x+":"+z;
   const minimumX=Math.floor(bounds.minX/size),
     maximumX=Math.floor(bounds.maxX/size),
@@ -94,6 +95,9 @@ export function createSheetTerrain(scene,sheet,bounds,{
       // low-resolution Canvas pixels with a different local origin.
       const {layers}=flatVectorPlan.tileTriangles(gx,gz);
       const kinds=["sidewalk","curb","asphalt"];
+      mesh.userData.vectorTriangles=kinds.reduce((count,kind)=>
+        count+layers[kind].length/9,0);
+      liveVectorTriangles+=mesh.userData.vectorTriangles;
       for(const [layer,kind] of kinds.entries()){
         const vertices=layers[kind];
         if(!vertices.length)continue;
@@ -115,6 +119,7 @@ export function createSheetTerrain(scene,sheet,bounds,{
   }
   function release(key,mesh){
     scene.remove(mesh);
+    liveVectorTriangles-=mesh.userData.vectorTriangles||0;
     mesh.geometry.dispose();
     if(flatVectorPlan)
       for(const part of mesh.children)
@@ -159,6 +164,7 @@ export function createSheetTerrain(scene,sheet,bounds,{
       for(const mat of Object.values(vectorMaterials))mat.dispose();
   }
   return {update,dispose,get loadedTiles(){return tiles.size;},
+    get vectorTriangles(){return liveVectorTriangles;},
     tileSize:size,mode:flatVectorPlan?"flat-vector-osm-surface":
       flatAsphaltPlan?"flat-continuous-road-surface":"world-sheet"};
 }
