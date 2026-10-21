@@ -82,7 +82,7 @@ test("Flat branch loads the SAME snapshot as minimap and skips DEM and repairs",
   assert.match(main,/world = createWorld\(scene,roadData/);
   assert.match(main,/ctx\.strokeStyle = "#627e7d"/);
   assert.match(stream,/const renderRoads=flatWorld\?map\.roads/);
-  assert.match(stream,/flatWorld\?createFlatMapWorldSheet/);
+  assert.match(stream,/flatWorld\?\s*createFlatMapWorldSheet/);
   assert.match(stream,/flatLayerSpacing:flatWorld\?5:0/);
   assert.match(terrain,/const grid=sheet\.flatWorld\?1:SHEET_GRID_SEGMENTS/);
 });
