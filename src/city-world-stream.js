@@ -563,6 +563,10 @@ export function createStreamingCityWorld(scene,map,{
       lastLod=[x,z];rebuildStats();
     }
     ground.update(x,z);
+    if(flatVectorPlan){
+      counters.vectorRoadTriangles=ground.vectorTriangles;
+      counters.vectorRoadTiles=ground.loadedTiles;
+    }
   }
   // Seed neighbor loading as soon as the first region has materialized.
   const beforeTerrain=time();
