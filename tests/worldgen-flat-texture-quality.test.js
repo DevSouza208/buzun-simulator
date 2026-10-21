@@ -95,7 +95,7 @@ test("7.1: smooth texture is experimental and can be disabled via quality=fast",
   const terrain=readFileSync(new URL("../src/worldgen-sheet-terrain.js",import.meta.url),"utf8");
   const city=readFileSync(new URL("../src/city-world-stream.js",import.meta.url),"utf8");
   assert.match(main,/get\("quality"\)==="fast"\?"fast":"smooth"/);
-  assert.match(city,/flatAsphaltPlan,flatTextureQuality/);
+  assert.match(city,/flatAsphaltPlan,flatVectorPlan,flatTextureQuality/);
   assert.match(terrain,/paintFlatAsphaltTexture\(ctx,flatAsphaltPlan/);
   assert.match(terrain,/texture\.anisotropy=8/);
   assert.match(terrain,/texture\.minFilter=THREE\.LinearMipmapLinearFilter/);
