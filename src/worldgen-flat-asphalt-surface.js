@@ -8,12 +8,16 @@
  * This module is pure JS (does not require DOM or Three.js).
  */
 import {physicalLayer} from "./asphalt-union.js";
+import {sidewalkWidth} from "./road-corridor.js";
 
 export const FLAT_ASPHALT_TILE_METRES=420;
 export const FLAT_ASPHALT_TEXTURE_PIXELS=768;
 export const FLAT_ASPHALT_GUTTER_PIXELS=2;
 export const FLAT_ASPHALT_COLOR="#3f484e";
 export const FLAT_TERRAIN_COLOR="#a5b89d";
+export const FLAT_SIDEWALK_COLOR="#ccc4b6";
+export const FLAT_CURB_COLOR="#eee1cf";
+export const FLAT_CURB_BORDER_METRES=.28;
 
 const key=(gx,gz)=>gx+":"+gz;
 const roadWidth=road=>{
@@ -42,7 +46,9 @@ export function createFlatAsphaltPlan(roads,{
       maxX=Math.max(maxX,point[0]);
       maxZ=Math.max(maxZ,point[1]);
     }
-    const radius=roadWidth(road)/2+1;
+    // Index the complete painted corridor, not just the roadbed.
+    // Otherwise a sidewalk can disappear when a line crosses a tile edge.
+    const radius=roadWidth(road)/2+sidewalkWidth(road)+1;
     for(let gx=Math.floor((minX-radius)/tileMetres);
       gx<=Math.floor((maxX+radius)/tileMetres);gx++)
       for(let gz=Math.floor((minZ-radius)/tileMetres);
@@ -56,15 +62,20 @@ export function createFlatAsphaltPlan(roads,{
     return [...(index.get(key(gx,gz))||[])].map(id=>ways.get(id));
   }
   /**
-   * Paint every OSM centreline with its true metric width. A round stroke
-   * at shared nodes automatically makes a continuous junction footprint
-   * without duplicating triangles or constructing false OSM connections.
+   * Paint in GLOBAL passes, never road-by-road layered passes. The last
+   * asphalt pass removes all unwanted sidewalk strokes inside any
+   * intersection, including cross-street intersections.
+   *
+   * Same texture as terrain => impossible to create giant elevated
+   * sidewalk wedges, Z-fighting or floating 3D pavement triangles.
    */
   function drawTile(ctx,gx,gz,{
     resolution=FLAT_ASPHALT_TEXTURE_PIXELS,
     gutter=FLAT_ASPHALT_GUTTER_PIXELS,
     asphaltColor=FLAT_ASPHALT_COLOR,
-    terrainColor=FLAT_TERRAIN_COLOR
+    terrainColor=FLAT_TERRAIN_COLOR,
+    sidewalkColor=FLAT_SIDEWALK_COLOR,
+    curbColor=FLAT_CURB_COLOR
   }={}){
     const dimension=resolution+gutter*2;
     const scale=resolution/tileMetres;
@@ -72,22 +83,34 @@ export function createFlatAsphaltPlan(roads,{
     ctx.fillRect(0,0,dimension,dimension);
     ctx.lineJoin="round";
     ctx.lineCap="round";
-    ctx.strokeStyle=asphaltColor;
-    const ox=gx*tileMetres,oz=gz*tileMetres;
-    let painted=0;
-    for(const road of waysForTile(gx,gz)){
-      const points=road.p;
+    const ox=gx*tileMetres,oz=gz*tileMetres,
+      selected=waysForTile(gx,gz);
+    function strokeRoad(road,width,color){
+      ctx.strokeStyle=color;
+      ctx.lineWidth=width*scale;
       ctx.beginPath();
-      for(let i=0;i<points.length;i++){
-        const x=(points[i][0]-ox)*scale+gutter;
-        const z=(points[i][1]-oz)*scale+gutter;
-        if(i===0)ctx.moveTo(x,z);else ctx.lineTo(x,z);
+      for(let i=0;i<road.p.length;i++){
+        const x=(road.p[i][0]-ox)*scale+gutter;
+        const z=(road.p[i][1]-oz)*scale+gutter;
+        if(i===0)ctx.moveTo(x,z);
+        else ctx.lineTo(x,z);
       }
-      ctx.lineWidth=roadWidth(road)*scale;
       ctx.stroke();
-      painted++;
     }
-    return {painted,dimension,resolution,gutter};
+    // 1. Connected footway area outside the road network.
+    for(const road of selected)
+      strokeRoad(road,roadWidth(road)+2*sidewalkWidth(road),
+        sidewalkColor);
+    // 2. Lightweight visual curb, not a new geometry layer.
+    for(const road of selected)
+      strokeRoad(road,roadWidth(road)+2*FLAT_CURB_BORDER_METRES,
+        curbColor);
+    // 3. Entire citywide asphalt network last; T/X junctions cannot
+    // retain painted footway over a crossing carriageway.
+    for(const road of selected)
+      strokeRoad(road,roadWidth(road),asphaltColor);
+    return {painted:selected.length,footwaysPainted:selected.length,
+      dimension,resolution,gutter,paintedSurface:true};
   }
   return {drawTile,waysForTile,
     stats:{sourceWays:roads.length,flatGroundWays:eligible,

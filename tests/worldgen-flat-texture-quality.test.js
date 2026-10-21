@@ -82,10 +82,10 @@ test("7.1: SSAA keeps metric road widths and world-coordinate tile seams",()=>{
   };
   plan.drawTile(ctx,0,0,{resolution:1536,gutter:4});
   plan.drawTile(ctx,1,0,{resolution:1536,gutter:4});
-  assert.equal(paths.length,2);
-  assert.equal(paths[0].width/(1536/420),10);
-  const west=paths[0].coords[1];
-  const east=paths[1].coords[1];
+  assert.equal(paths.length,6);
+  assert.equal(paths[2].width/(1536/420),10);
+  const west=paths[2].coords[1];
+  const east=paths[5].coords[1];
   assert.equal(west[0],1540);
   assert.equal(east[0],4);
   assert.equal(west[1],east[1]);
