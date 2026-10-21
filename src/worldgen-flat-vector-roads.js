@@ -46,7 +46,8 @@ export const vectorTileClipBounds=(gx,gz,size,
  */
 export function createFlatVectorRoadPlan(roads,{
   tileMetres=FLAT_ASPHALT_TILE_METRES,
-  seamGuardMetres=VECTOR_SEAM_GUARD_METRES
+  seamGuardMetres=VECTOR_SEAM_GUARD_METRES,
+  sampleHeight=null,reliefSampleMetres=4
 }={}){
   if(!Array.isArray(roads)||!(tileMetres>0))
     throw Error("Vector road atlas requires OSM ways and positive tile size");
@@ -90,11 +91,20 @@ export function createFlatVectorRoadPlan(roads,{
     if(normalized.length<2)continue;
     roadsEligible++;
     for(let i=1;i<normalized.length;i++){
-      const a=normalized[i-1],b=normalized[i];
-      const item={kind:"segment",roadId:String(road.id),
-        ax:a[0],az:a[1],bx:b[0],bz:b[1],half,walk};
-      insert(item,far,a[0],a[1],b[0],b[1]);
-      segments++;
+      const a=normalized[i-1],b=normalized[i],
+        length=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      // Subdivide longitudinally BEFORE the elevation is sampled:
+      // long ways must bend continuously over a hillside, not jump as a
+      // giant inclined quad. XY topology remains the original OSM way.
+      const count=sampleHeight?Math.ceil(length/reliefSampleMetres):1;
+      for(let j=0;j<count;j++){
+        const lerp=t=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+        const p=lerp(j/count),q=lerp((j+1)/count);
+        const item={kind:"segment",roadId:String(road.id),
+          ax:p[0],az:p[1],bx:q[0],bz:q[1],half,walk};
+        insert(item,far,p[0],p[1],q[0],q[1]);
+        segments++;
+      }
     }
     // Rounded caps at ends, rounded joins only where direction
     // changes enough to expose a wedge between two rectangles.
@@ -123,11 +133,24 @@ export function createFlatVectorRoadPlan(roads,{
       originX=(gx+.5)*tileMetres,
       originZ=(gz+.5)*tileMetres;
     const out={sidewalk:[],curb:[],asphalt:[]},
-      candidates=tileIndex.get(key(gx,gz))||[];
+      candidates=tileIndex.get(key(gx,gz))||[],
+      elevationCache=new Map();
+    function atHeight(x,z){
+      const k=x.toFixed(3)+":"+z.toFixed(3);
+      if(!elevationCache.has(k)){
+        const y=sampleHeight(x,z);
+        elevationCache.set(k,Number.isFinite(y)?y:0);
+      }
+      return elevationCache.get(k);
+    }
     function emit(kind,tri){
       for(const clipped of clip3DTriangle(tri,box))
         for(const p of clipped)
-          out[kind].push(p[0]-originX,p[1],p[2]-originZ);
+          out[kind].push(p[0]-originX,
+            sampleHeight?atHeight(p[0],p[2])+.22+
+              (VECTOR_ROAD_HEIGHTS[kind]-
+                VECTOR_ROAD_HEIGHTS.asphalt):
+              p[1],p[2]-originZ);
     }
     for(const item of candidates)
       for(const kind of KINDS){
@@ -164,5 +187,5 @@ export function createFlatVectorRoadPlan(roads,{
   return {tileTriangles,
     stats:{sourceWays:roads.length,flatGroundWays:roadsEligible,
       segments,joints,indexedTiles:tileIndex.size,
-      tileMetres,seamGuardMetres}};
+      tileMetres,seamGuardMetres,elevated:Boolean(sampleHeight)}};
 }
