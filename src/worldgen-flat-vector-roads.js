@@ -47,7 +47,7 @@ export const vectorTileClipBounds=(gx,gz,size,
 export function createFlatVectorRoadPlan(roads,{
   tileMetres=FLAT_ASPHALT_TILE_METRES,
   seamGuardMetres=VECTOR_SEAM_GUARD_METRES,
-  sampleHeight=null,reliefSampleMetres=4
+  sampleHeight=null,reliefSampleMetres=5
 }={}){
   if(!Array.isArray(roads)||!(tileMetres>0))
     throw Error("Vector road atlas requires OSM ways and positive tile size");
@@ -91,20 +91,11 @@ export function createFlatVectorRoadPlan(roads,{
     if(normalized.length<2)continue;
     roadsEligible++;
     for(let i=1;i<normalized.length;i++){
-      const a=normalized[i-1],b=normalized[i],
-        length=Math.hypot(b[0]-a[0],b[1]-a[1]);
-      // Subdivide longitudinally BEFORE the elevation is sampled:
-      // long ways must bend continuously over a hillside, not jump as a
-      // giant inclined quad. XY topology remains the original OSM way.
-      const count=sampleHeight?Math.ceil(length/reliefSampleMetres):1;
-      for(let j=0;j<count;j++){
-        const lerp=t=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
-        const p=lerp(j/count),q=lerp((j+1)/count);
-        const item={kind:"segment",roadId:String(road.id),
-          ax:p[0],az:p[1],bx:q[0],bz:q[1],half,walk};
-        insert(item,far,p[0],p[1],q[0],q[1]);
-        segments++;
-      }
+      const a=normalized[i-1],b=normalized[i];
+      const item={kind:"segment",roadId:String(road.id),
+        ax:a[0],az:a[1],bx:b[0],bz:b[1],half,walk};
+      insert(item,far,a[0],a[1],b[0],b[1]);
+      segments++;
     }
     // Rounded caps at ends, rounded joins only where direction
     // changes enough to expose a wedge between two rectangles.
@@ -161,12 +152,24 @@ export function createFlatVectorRoadPlan(roads,{
           const len=Math.hypot(dx,dz);
           if(len<.02)continue;
           const nx=-dz/len*r,nz=dx/len*r;
-          const a=[item.ax+nx,y,item.az+nz],
-            b=[item.bx+nx,y,item.bz+nz],
-            c=[item.bx-nx,y,item.bz-nz],
-            d=[item.ax-nx,y,item.az-nz];
-          emit(kind,[a,b,c]);
-          emit(kind,[a,c,d]);
+          // Vertical tessellation is also LOD-dependent. Never store
+          // three whole-road meshes or subdivide the canonical OSM index.
+          // Terrain relief is ~17m resolution, so 5/10/20m sampling
+          // stays smooth without wasting Ultra geometry on distant LOD.
+          const pitch=detail==="economy"?reliefSampleMetres*4:
+            detail==="balanced"?reliefSampleMetres*2:reliefSampleMetres;
+          const n=sampleHeight?Math.ceil(len/pitch):1;
+          for(let step=0;step<n;step++){
+            const u=step/n,v=(step+1)/n,
+              ax=item.ax+dx*u,az=item.az+dz*u,
+              bx=item.ax+dx*v,bz=item.az+dz*v;
+            const a=[ax+nx,y,az+nz],
+              b=[bx+nx,y,bz+nz],
+              c=[bx-nx,y,bz-nz],
+              d=[ax-nx,y,az-nz];
+            emit(kind,[a,b,c]);
+            emit(kind,[a,c,d]);
+          }
         }else{
           // Arc precision is proportional to the physical radius. The same
           // number of wedges is used when the same joint is seen from
