@@ -237,7 +237,9 @@ export function createStreamingCityWorld(scene,map,{
   };
   const initial=regionAt(spawn.x,spawn.z);
   const first=buildRegion(initial.x,initial.z);
-  if(!first||first.tiles.length===0)
+  // Painted flat roads are already visible on the ground plane.
+  // A region with no 3D lane stripes must still be playable.
+  if(!first||(!flatAsphaltPlan&&first.tiles.length===0))
     throw Error("A região inicial não gerou pista 3D");
   counters.initialRegionMs=counters.totalRegionBuildMs;
   // Use the same full source for terrain cutouts, regardless of whether
