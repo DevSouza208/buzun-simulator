@@ -1,6 +1,8 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
 import {SHEET_TILE_METRES,SHEET_GRID_SEGMENTS}
   from "./worldgen-sheet.js";
+import {FLAT_ASPHALT_TEXTURE_PIXELS,FLAT_ASPHALT_GUTTER_PIXELS,flatAsphaltUv}
+  from "./worldgen-flat-asphalt-surface.js";
 
 /** WorldGen 6.0 terrain. The meshes are transport/cache units ONLY.
  * There is no hole-cutting alphaMap; adjacent tile vertices sample
@@ -11,7 +13,7 @@ export function createSheetTerrain(scene,sheet,bounds,{
   // Keep every tile intersecting the visible 900m radius. A cap of 18
   // left 5–9 holes in the terrain ring; 32 covers all possible cells.
   // Optimize distant geometry through LOD later, not missing chunks.
-  visibilityRadius=900,maxActive=32
+  visibilityRadius=900,maxActive=32,flatAsphaltPlan=null
 }={}){
   const size=SHEET_TILE_METRES;
   const tiles=new Map();
@@ -38,9 +40,35 @@ export function createSheetTerrain(scene,sheet,bounds,{
     points.needsUpdate=true;
     geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
-    const mesh=new THREE.Mesh(geometry,material);
+    let tileMaterial=material;
+    if(flatAsphaltPlan){
+      const gutter=FLAT_ASPHALT_GUTTER_PIXELS;
+      const resolution=FLAT_ASPHALT_TEXTURE_PIXELS;
+      const canvas=document.createElement("canvas");
+      canvas.width=resolution+gutter*2;
+      canvas.height=resolution+gutter*2;
+      const ctx=canvas.getContext("2d",{alpha:false});
+      if(!ctx)throw Error("Canvas 2D required for flat world road surface");
+      flatAsphaltPlan.drawTile(ctx,gx,gz,{resolution,gutter});
+      const texture=new THREE.CanvasTexture(canvas);
+      texture.colorSpace=THREE.SRGBColorSpace;
+      texture.anisotropy=2;
+      texture.wrapS=THREE.ClampToEdgeWrapping;
+      texture.wrapT=THREE.ClampToEdgeWrapping;
+      const uv=geometry.attributes.uv;
+      for(let i=0;i<uv.count;i++){
+        const [u,v]=flatAsphaltUv(uv.getX(i),uv.getY(i),
+          {resolution,gutter});
+        uv.setXY(i,u,v);
+      }
+      uv.needsUpdate=true;
+      tileMaterial=new THREE.MeshLambertMaterial({
+        map:texture,side:THREE.DoubleSide
+      });
+    }
+    const mesh=new THREE.Mesh(geometry,tileMaterial);
     mesh.name="Buzun_ContinuousSheet_"+gx+"_"+gz;
-    mesh.position.set(ox,0,oz);
+    mesh.position.set(ox,flatAsphaltPlan?0.072:0,oz);
     mesh.frustumCulled=true;
     scene.add(mesh);
     return mesh;
@@ -48,6 +76,10 @@ export function createSheetTerrain(scene,sheet,bounds,{
   function release(key,mesh){
     scene.remove(mesh);
     mesh.geometry.dispose();
+    if(flatAsphaltPlan){
+      mesh.material.map?.dispose();
+      mesh.material.dispose();
+    }
     tiles.delete(key);
   }
   function update(x,z,budget=2){
@@ -82,5 +114,6 @@ export function createSheetTerrain(scene,sheet,bounds,{
     material.dispose();
   }
   return {update,dispose,get loadedTiles(){return tiles.size;},
-    tileSize:size,mode:"world-sheet"};
+    tileSize:size,mode:flatAsphaltPlan?
+      "flat-continuous-road-surface":"world-sheet"};
 }
