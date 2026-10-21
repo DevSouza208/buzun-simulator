@@ -171,8 +171,11 @@ async function refreshBuildVersion() {
     if(header){
       const params=new URLSearchParams(location.search);
       const label=flatBranchMode(location.search)?
-        (params.get("relief")==="flat"?
-          "VETOR PLANO · 7.4":"VETOR + RELEVO · 7.4"):
+        (params.get("sidewalks")!=="on"?
+          (params.get("relief")==="flat"?
+            "ASFALTO PURO PLANO · 7.5":"ASFALTO PURO + RELEVO · 7.5"):
+          (params.get("relief")==="flat"?
+            "VETOR PLANO · 7.4":"VETOR + RELEVO · 7.4")):
         "LOW POLY";
       header.textContent=label+" · v"+build.version;
     }
