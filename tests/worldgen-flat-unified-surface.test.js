@@ -111,9 +111,9 @@ test("7.0: flat mode is opt-in by branch and can compare old geometry",()=>{
   const main=readFileSync(new URL(
     "../src/main.js",import.meta.url),"utf8");
   assert.match(world,/flatAsphaltPlan=flatWorld&&flatPaintedRoads/);
-  assert.match(world,/flatPaintedRoadside:Boolean\(flatAsphaltPlan\)/);
+  assert.match(world,/flatPaintedRoadside:flatAnyRoad/);
   assert.match(world,/renderRoads.filter\(road=>physicalLayer\(road\)!==0\)/);
-  assert.match(world,/createSheetTerrain\(scene,worldSheet,bounds,\{\s*flatAsphaltPlan,flatTextureQuality\s*\}\)/);
+  assert.match(world,/createSheetTerrain\(scene,worldSheet,bounds,\{\s*flatAsphaltPlan,flatVectorPlan,flatTextureQuality\s*\}\)/);
   assert.match(terrain,/new THREE\.CanvasTexture\(canvas\)/);
   assert.match(terrain,/mesh\.material\.map\?\.dispose\(\)/);
   assert.match(main,/get\("roads"\)!=="geometry"/);
