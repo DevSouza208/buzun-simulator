@@ -90,7 +90,7 @@ export function mountRoadAdmin({
     for(const mat of materials)mat.dispose();
     vectorHandles=null;
   }
-  function drawVectorHandles(heightAtPreview){
+  function drawVectorHandles(heightAtPreview=previewHeightField()){
     disposeHandles();
     if(!visible||!["vertex","edge"].includes(tool))return;
     const road=visualSelected(),current=scene();
