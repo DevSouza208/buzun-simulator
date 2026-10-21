@@ -14,6 +14,7 @@ import {createWorldSheet} from "./worldgen-sheet.js";
 import {createFlatMapWorldSheet,flatSampleHeight} from "./worldgen-flat-map.js";
 import {createSheetTerrain} from "./worldgen-sheet-terrain.js";
 import {createFlatVectorRoadPlan} from "./worldgen-flat-vector-roads.js";
+import {ROAD_DETAIL_DEFAULT} from "./vector-road-quality.js";
 import {createFlatAsphaltPlan} from "./worldgen-flat-asphalt-surface.js";
 import {physicalLayer} from "./asphalt-union.js";
 import {createGlobalAsphaltAtlas} from "./worldgen-global-asphalt.js";
@@ -96,7 +97,8 @@ function centerlineIndex(roads,cellSize=105){
 }
 export function createStreamingCityWorld(scene,map,{
   sheetPreview=false,flatWorld=false,flatPaintedRoads=false,
-  flatTextureQuality="smooth",flatRoadRender="raster"
+  flatTextureQuality="smooth",flatRoadRender="raster",
+  vectorDetail=ROAD_DETAIL_DEFAULT
 }={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
@@ -273,7 +275,8 @@ export function createStreamingCityWorld(scene,map,{
   // Adjacent terrain chunks use precisely the same global H(x,z).
   const ground=worldSheet?
     createSheetTerrain(scene,worldSheet,bounds,{
-      flatAsphaltPlan,flatVectorPlan,flatTextureQuality
+      flatAsphaltPlan,flatVectorPlan,flatTextureQuality,
+      vectorDetail
     }):
     createCarvedTerrain(scene,corridors,globalJunctions,
       terrainHeight,bounds,roadSurfaceAdapter);
@@ -566,6 +569,8 @@ export function createStreamingCityWorld(scene,map,{
     if(flatVectorPlan){
       counters.vectorRoadTriangles=ground.vectorTriangles;
       counters.vectorRoadTiles=ground.loadedTiles;
+      counters.vectorRoadDetail=ground.vectorDetail;
+      counters.vectorPendingTiles=ground.vectorPendingTiles;
     }
   }
   // Seed neighbor loading as soon as the first region has materialized.
@@ -587,6 +592,14 @@ export function createStreamingCityWorld(scene,map,{
     closest:streets.closest,
     nearbySegments:(x,z,r=650)=>streets.candidates(x,z,r),
     update,graph,stats,bounds,
+    setRoadDetailLevel:level=>{
+      const changed=ground.setVectorDetailLevel?.(level)??false;
+      if(changed){
+        counters.vectorRoadDetail=ground.vectorDetail;
+        counters.vectorPendingTiles=ground.vectorPendingTiles;
+      }
+      return changed;
+    },
     dispose(){
       disposed=true;queue=[];
       pendingTask?.runner.cancel();

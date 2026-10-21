@@ -55,7 +55,10 @@ export function mountWorldgenOverlay({
         "Triângulos no frame: "+(info.triangles||0).toLocaleString("pt-BR"),
         ...(r.streaming?.vectorRoadTriangles!=null?[
           "Vetores OSM: "+r.streaming.vectorRoadTriangles
-            .toLocaleString("pt-BR")+" triângulos carregados"
+            .toLocaleString("pt-BR")+" triângulos carregados",
+          "Detalhe das ruas: "+(r.streaming.vectorRoadDetail||"ultra")+
+            " · "+(r.streaming.vectorPendingTiles||0)+
+            " chunks para atualizar"
         ]:[]),
         "Vias visíveis: "+r.lod.visibleTiles+"/"+r.geometry.tiles+" setores",
         "LOD: "+visible.toLocaleString("pt-BR")+

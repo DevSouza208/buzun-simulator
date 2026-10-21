@@ -14,6 +14,8 @@ import { mountRoadAdmin } from "./road-admin.js";
 import { mountWorldgenOverlay } from "./worldgen-overlay.js";
 import { resolveWorldgenMode } from "./worldgen-mode.js";
 import {flatBranchMode} from "./worldgen-flat-map.js";
+import {ROAD_DETAIL_STORAGE_KEY,ROAD_DETAIL_PRESETS,
+  resolveRoadDetail,isRoadDetail} from "./vector-road-quality.js";
 
 const $ = id => document.getElementById(id);
 const canvas = $("game");
@@ -36,6 +38,11 @@ let driving = false, cameraMode = 0, yawOrbit = 0, pitchOrbit = .15;
 let lastHud = 0, lastMinimap = 0, toastTimer = null;
 let pointerDown = false, lastPointerX = 0, lastPointerY = 0;
 let spawnIndex = 0, showcaseCamera = false;
+function readSavedRoadDetail(){
+  try{return window.localStorage.getItem(ROAD_DETAIL_STORAGE_KEY)||"";}
+  catch{return "";}
+}
+let roadDetailLevel=resolveRoadDetail(location.search,readSavedRoadDetail());
 
 function showToast(message) {
   const el = $("toast");
@@ -339,16 +346,51 @@ function tick() {
   hud(performance.now());
   drawMinimap(performance.now());
 }
+function toggleGraphics(force){
+  const overlay=$("graphics-overlay");
+  const open=typeof force==="boolean"?force:
+    overlay.classList.contains("hidden");
+  overlay.classList.toggle("hidden",!open);
+  driving=!open&&!!world&&landing.classList.contains("hidden")&&
+    $("help-overlay").classList.contains("hidden")&&
+    !adminEditor?.isOpen();
+  keys.clear();
+  mobileInput?.releaseAll();
+}
+function applyRoadDetailLevel(detail){
+  if(!isRoadDetail(detail))return;
+  roadDetailLevel=detail;
+  try{window.localStorage.setItem(ROAD_DETAIL_STORAGE_KEY,detail);}
+  catch{/* URL and session selection still work in private mode. */}
+  for(const input of document.querySelectorAll('input[name="road-detail"]'))
+    input.checked=input.value===detail;
+  const applied=world?.setRoadDetailLevel?.(detail);
+  $("graphics-status").textContent=applied?
+    ROAD_DETAIL_PRESETS[detail].label+
+      " — atualizando os chunks visíveis progressivamente.":
+    ROAD_DETAIL_PRESETS[detail].label+
+      " — será usado no modo vetorial.";
+}
 function toggleHelp(force) {
   const el = $("help-overlay");
   const open = typeof force === "boolean" ? force : el.classList.contains("hidden");
   el.classList.toggle("hidden", !open);
-  driving = !open && landing.classList.contains("hidden");
+  driving = !open && landing.classList.contains("hidden")&&
+    $("graphics-overlay").classList.contains("hidden");
   keys.clear();
   mobileInput?.releaseAll();
 }
 function bindInputs() {
   mobileInput = bindTouchControls($("mobile-controls"), () => driving);
+  applyRoadDetailLevel(roadDetailLevel);
+  $("graphics-button").addEventListener("click",()=>toggleGraphics(true));
+  $("graphics-close").addEventListener("click",()=>toggleGraphics(false));
+  $("graphics-resume").addEventListener("click",()=>toggleGraphics(false));
+  for(const input of document.querySelectorAll('input[name="road-detail"]'))
+    input.addEventListener("change",event=>{
+      if(event.target.checked)
+        applyRoadDetailLevel(event.target.value);
+    });
   adminEditor=mountRoadAdmin({
     getRoads:()=>sourceRoads,
     getPosition:()=>player,
@@ -373,7 +415,14 @@ function bindInputs() {
   document.addEventListener("keydown", e => {
     // Forms in the editor keep their native keyboard behavior. Also avoid
     // game hotkeys while viewing the overhead map.
-    if(adminEditor?.isOpen() || e.target.closest("input,select,textarea"))return;
+    if(e.code==="Escape"&&
+      !$("graphics-overlay").classList.contains("hidden")){
+      toggleGraphics(false);
+      e.preventDefault();
+      return;
+    }
+    if(adminEditor?.isOpen() ||
+      e.target.closest("input,select,textarea"))return;
     if (["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))
       e.preventDefault();
     if (!e.repeat && e.code === "KeyR" && driving) resetCar();
@@ -511,8 +560,11 @@ async function start() {
         new URLSearchParams(location.search).get("roads")!=="geometry",
       flatTextureQuality:new URLSearchParams(location.search)
         .get("quality")==="fast"?"fast":"smooth",
+      // High-quality true vectors are the default in this experimental
+      // branch. Raster and legacy geometry are explicit opt-outs.
       flatRoadRender:new URLSearchParams(location.search)
-        .get("roads")==="vector"?"vector":"raster",
+        .get("roads")==="raster"?"raster":"vector",
+      vectorDetail:roadDetailLevel,
       sheetPreview:new URLSearchParams(location.search).get("worldgen")==="sheet"
     });
     worldgenOverlay?.dispose();

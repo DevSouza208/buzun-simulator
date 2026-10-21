@@ -5,6 +5,8 @@ import {FLAT_ASPHALT_TEXTURE_PIXELS,FLAT_ASPHALT_GUTTER_PIXELS,flatAsphaltUv}
   from "./worldgen-flat-asphalt-surface.js";
 import {paintFlatAsphaltTexture} from "./worldgen-flat-texture-quality.js";
 import {VECTOR_ROAD_COLORS} from "./worldgen-flat-vector-roads.js";
+import {ROAD_DETAIL_DEFAULT,isRoadDetail}
+  from "./vector-road-quality.js";
 
 /** WorldGen 6.0 terrain. The meshes are transport/cache units ONLY.
  * There is no hole-cutting alphaMap; adjacent tile vertices sample
@@ -16,11 +18,14 @@ export function createSheetTerrain(scene,sheet,bounds,{
   // left 5–9 holes in the terrain ring; 32 covers all possible cells.
   // Optimize distant geometry through LOD later, not missing chunks.
   visibilityRadius=900,maxActive=32,flatAsphaltPlan=null,
-  flatVectorPlan=null,flatTextureQuality="smooth"
+  flatVectorPlan=null,flatTextureQuality="smooth",
+  vectorDetail=ROAD_DETAIL_DEFAULT
 }={}){
   const size=SHEET_TILE_METRES;
-  const tiles=new Map();
+  const tiles=new Map(),pendingVectorTiles=new Set();
   let liveVectorTriangles=0;
+  let currentVectorDetail=isRoadDetail(vectorDetail)?
+    vectorDetail:ROAD_DETAIL_DEFAULT;
   const key=(x,z)=>x+":"+z;
   const minimumX=Math.floor(bounds.minX/size),
     maximumX=Math.floor(bounds.maxX/size),
@@ -38,6 +43,38 @@ export function createSheetTerrain(scene,sheet,bounds,{
       })
     ])
   ):null;
+  // Rebuild only the selected representation of one visible chunk.
+  // Replacing attached vectors after the new buffer exists avoids a frame
+  // of empty asphalt. No other detail variant is retained in GPU memory.
+  function rebuildVectorTile(mesh,gx,gz){
+    const {layers}=flatVectorPlan.tileTriangles(
+      gx,gz,currentVectorDetail);
+    const replacements=[];
+    for(const [order,kind] of ["sidewalk","curb","asphalt"].entries()){
+      const vertices=layers[kind];
+      if(!vertices.length)continue;
+      const roadGeometry=new THREE.BufferGeometry();
+      roadGeometry.setAttribute("position",
+        new THREE.Float32BufferAttribute(vertices,3));
+      roadGeometry.computeBoundingSphere();
+      const overlay=new THREE.Mesh(roadGeometry,vectorMaterials[kind]);
+      overlay.name="Buzun_Vector_"+kind;
+      overlay.renderOrder=10+order;
+      overlay.frustumCulled=true;
+      replacements.push(overlay);
+    }
+    const previous=mesh.userData.vectorTriangles||0;
+    const count=["sidewalk","curb","asphalt"].reduce((n,k)=>
+      n+layers[k].length/9,0);
+    for(const child of [...mesh.children]){
+      mesh.remove(child);
+      child.geometry.dispose();
+    }
+    for(const child of replacements)mesh.add(child);
+    mesh.userData.vectorTriangles=count;
+    mesh.userData.vectorDetail=currentVectorDetail;
+    liveVectorTriangles+=count-previous;
+  }
   function createTile(gx,gz){
     // A flat city needs just two triangles per 420m tile; it would
     // waste millions of triangles to keep the 4m relief grid.
@@ -89,29 +126,7 @@ export function createSheetTerrain(scene,sheet,bounds,{
     }
     const mesh=new THREE.Mesh(geometry,tileMaterial);
     mesh.name="Buzun_ContinuousSheet_"+gx+"_"+gz;
-    if(flatVectorPlan){
-      // The OSM paths are vectors until the GPU rasterizes the triangles.
-      // Tile edges clip the same GLOBAL positions, rather than repeating
-      // low-resolution Canvas pixels with a different local origin.
-      const {layers}=flatVectorPlan.tileTriangles(gx,gz);
-      const kinds=["sidewalk","curb","asphalt"];
-      mesh.userData.vectorTriangles=kinds.reduce((count,kind)=>
-        count+layers[kind].length/9,0);
-      liveVectorTriangles+=mesh.userData.vectorTriangles;
-      for(const [layer,kind] of kinds.entries()){
-        const vertices=layers[kind];
-        if(!vertices.length)continue;
-        const roadGeometry=new THREE.BufferGeometry();
-        roadGeometry.setAttribute("position",
-          new THREE.Float32BufferAttribute(vertices,3));
-        roadGeometry.computeBoundingSphere();
-        const overlay=new THREE.Mesh(roadGeometry,vectorMaterials[kind]);
-        overlay.name="Buzun_Vector_"+kind;
-        overlay.renderOrder=10+layer;
-        overlay.frustumCulled=true;
-        mesh.add(overlay);
-      }
-    }
+    if(flatVectorPlan)rebuildVectorTile(mesh,gx,gz);
     mesh.position.set(ox,flatAsphaltPlan?0.072:0,oz);
     mesh.frustumCulled=true;
     scene.add(mesh);
@@ -129,6 +144,14 @@ export function createSheetTerrain(scene,sheet,bounds,{
       mesh.material.dispose();
     }
     tiles.delete(key);
+    pendingVectorTiles.delete(key);
+  }
+  function setVectorDetailLevel(next){
+    if(!flatVectorPlan||!isRoadDetail(next))return false;
+    if(currentVectorDetail===next)return true;
+    currentVectorDetail=next;
+    for(const id of tiles.keys())pendingVectorTiles.add(id);
+    return true;
   }
   function update(x,z,budget=2){
     const cx=Math.floor(x/size),cz=Math.floor(z/size);
@@ -156,6 +179,18 @@ export function createSheetTerrain(scene,sheet,bounds,{
     }
     for(const [id,mesh] of tiles)
       if(!desired.has(id))release(id,mesh);
+    // Upgrade the nearest loaded tiles first, progressively, with a
+    // bounded number of synchronous replacements per frame.
+    if(flatVectorPlan&&built<budget){
+      for(const {gx,gz} of candidates){
+        if(built>=budget)break;
+        const id=key(gx,gz);
+        if(!pendingVectorTiles.has(id)||!tiles.has(id))continue;
+        rebuildVectorTile(tiles.get(id),gx,gz);
+        pendingVectorTiles.delete(id);
+        built++;
+      }
+    }
   }
   function dispose(){
     for(const [id,mesh] of tiles)release(id,mesh);
@@ -163,7 +198,10 @@ export function createSheetTerrain(scene,sheet,bounds,{
     if(vectorMaterials)
       for(const mat of Object.values(vectorMaterials))mat.dispose();
   }
-  return {update,dispose,get loadedTiles(){return tiles.size;},
+  return {update,dispose,setVectorDetailLevel,
+    get vectorDetail(){return currentVectorDetail;},
+    get vectorPendingTiles(){return pendingVectorTiles.size;},
+    get loadedTiles(){return tiles.size;},
     get vectorTriangles(){return liveVectorTriangles;},
     tileSize:size,mode:flatVectorPlan?"flat-vector-osm-surface":
       flatAsphaltPlan?"flat-continuous-road-surface":"world-sheet"};
