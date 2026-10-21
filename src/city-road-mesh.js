@@ -201,7 +201,8 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   // One city-wide junction/grade authority shared by every streamed chunk.
   globalGrades=null,globalFixedJunctions=null,
   worldSheet=null,globalAsphaltAtlas=null,
-  flatPaintedRoadside=false,vectorSurfaceHeight=null
+  flatPaintedRoadside=false,vectorSurfaceHeight=null,
+  noSidewalks=false
 }={}) {
   const profiler=makeWorldgenProfiler();
   const detail=renderProfile(renderBounds);
@@ -338,7 +339,8 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
       // In the flat painted prototype, the ground sidewalk and curb
       // are now part of the SAME terrain texture as asphalt.
       // Build 3D walks only for real OSM elevated/depressed layers.
-      if(!flatPaintedRoadside||physicalLayer(road)!==0)
+      if(!noSidewalks&&
+        (!flatPaintedRoadside||physicalLayer(road)!==0))
       for(const side of [-1,1]){
         const inside=side*half,outside=side*(half+foot);
         const p=(s,offset)=>[
@@ -471,12 +473,13 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   const rampSurface=createRampIndex(rampGeometry.zones);
   // Use the same accepted sidewalk polygon union. The ramp cutter removes
   // the old flat sidewalk, emits graded cells, and opens the real curb wall.
-  const roadsideInput=[...walkPatches,...(
+  const roadsideInput=noSidewalks?[]:[...walkPatches,...(
     flatPaintedRoadside?
       medians.patches.filter(p=>physicalLayer(p)!==0):
       medians.patches
   )];
-  const flatSkipRoadside=flatPaintedRoadside&&roadsideInput.length===0;
+  const flatSkipRoadside=noSidewalks||
+    (flatPaintedRoadside&&roadsideInput.length===0);
   const roadsideOptions={junctions:joints,bevelCurbs:true,
     rampSites:verifiedRampSites,tactileOptions:{
       countAcross:detail.tactileColumns,
