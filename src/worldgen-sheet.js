@@ -46,6 +46,7 @@ function sampleGrade(rows,distance) {
 export function createWorldSheet(roads,naturalHeight,{
   gradeModels=null,fixedJunctions=new Set(),junctions=[],
   blendMetres=SHEET_SHOULDER_BLEND_METRES,
+  asphaltOnly=false,
   profile=ROAD_RENDER_PROFILE.streaming
 }={}){
   if(!Array.isArray(roads)||typeof naturalHeight!=="function")
@@ -96,7 +97,8 @@ export function createWorldSheet(roads,naturalHeight,{
     if(physicalLayer(road)!==0||road.bridge||road.tunnel||
       !road.p||road.p.length<2)continue;
     const halfWidth=(Number(road.widthMeters)||7)/2;
-    const walk=sidewalkWidth(road),pad=halfWidth+walk+blendMetres;
+    const walk=asphaltOnly?0:sidewalkWidth(road),
+      pad=halfWidth+walk+blendMetres;
     let travelled=0;
     for(let i=1;i<road.p.length;i++){
       const a=road.p[i-1],b=road.p[i],
@@ -165,6 +167,8 @@ export function createWorldSheet(roads,naturalHeight,{
     const laneGround=hit.base-.16;
     const sidewalkGround=hit.base+(hit.curbTop??.18)-.045;
     if(d<=lane)return laneGround;
+    if(asphaltOnly)return lerp(laneGround,natural,
+      smooth((d-lane)/Math.max(blendMetres,.01)));
     if(d<=outer)
       return lerp(laneGround,sidewalkGround,
         smooth((d-lane)/Math.max(hit.walk,.01)));
