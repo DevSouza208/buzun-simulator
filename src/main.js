@@ -11,6 +11,7 @@ import { fetchGrajauRoads, combineLegacyRoads, GRAJAU_BBOX } from "./grajau-osm.
 import { loadCityElevations } from "./terrain-tiles.js";
 import { applyRoadEdits, readSavedEdits } from "./road-editor-model.js";
 import { mountRoadAdmin } from "./road-admin.js";
+import {loadVectorEdits} from "./worldgen-vector-edit-model.js";
 import { mountWorldgenOverlay } from "./worldgen-overlay.js";
 import { resolveWorldgenMode } from "./worldgen-mode.js";
 import {flatBranchMode} from "./worldgen-flat-map.js";
@@ -167,7 +168,14 @@ async function refreshBuildVersion() {
       if (el) el.textContent = (id === "brand-version" ? "/ " : "") + "v" + build.version;
     }
     const header = $("header-version");
-    if (header) header.textContent = "LOW POLY · v" + build.version;
+    if(header){
+      const params=new URLSearchParams(location.search);
+      const label=flatBranchMode(location.search)?
+        (params.get("relief")==="flat"?
+          "VETOR PLANO · 7.4":"VETOR + RELEVO · 7.4"):
+        "LOW POLY";
+      header.textContent=label+" · v"+build.version;
+    }
     document.title = "Buzun Simulator · v" + build.version;
   } catch (err) {
     console.warn("Versão não disponível, mantendo fallback", err);
@@ -464,6 +472,8 @@ function bindInputs() {
 }
 async function start() {
   const flatWorld=flatBranchMode(location.search);
+  const reliefWorld=flatWorld&&
+    new URLSearchParams(location.search).get("relief")!=="flat";
   bindInputs();
   refreshBuildVersion();
   try {
@@ -511,7 +521,7 @@ async function start() {
     };
     const [imported,tiles]=await Promise.all([
       importStreets(),
-      (flatWorld?Promise.resolve(null):
+      (flatWorld&&!reliefWorld?Promise.resolve(null):
         loadCityElevations(GRAJAU_BBOX)).catch(error=>{
         console.warn("Relief outside saved SRTM was unavailable:",error);
         return null;
@@ -532,7 +542,9 @@ async function start() {
       reliefSource:tiles?.source||"SRTM local Belmira"
     };
     if(roadData.roads.length<70)throw Error("Mapa grande de ruas incompleto");
-    status.textContent=flatWorld?
+    status.textContent=reliefWorld?
+      "Reconstruindo relevo e vetores contínuos · OSM 1:1...":
+      flatWorld?
       "Aplanando "+roadData.roads.length+" vias reais do Grajaú · escala 1:1...":
       "Construindo "+roadData.roads.length+" vias do Grajaú · malha 1:1 e calçadas low poly...";
     await new Promise(resolve=>setTimeout(resolve,25));
@@ -556,6 +568,7 @@ async function start() {
     const {progressive,showWorldgen}=resolveWorldgenMode(location.search);
     world = createWorld(scene,roadData,{
       cityRoads:true,progressive:flatWorld||progressive,flatWorld,
+      reliefWorld,vectorEdits:loadVectorEdits(),
       flatPaintedRoads:flatWorld&&
         new URLSearchParams(location.search).get("roads")!=="geometry",
       flatTextureQuality:new URLSearchParams(location.search)

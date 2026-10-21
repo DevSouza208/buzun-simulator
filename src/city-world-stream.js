@@ -13,6 +13,8 @@ import {createCarvedTerrain} from "./terrain-cutout.js";
 import {createWorldSheet} from "./worldgen-sheet.js";
 import {createFlatMapWorldSheet,flatSampleHeight} from "./worldgen-flat-map.js";
 import {createSheetTerrain} from "./worldgen-sheet-terrain.js";
+import {applyVisualVectorEdits,createVectorElevationField}
+  from "./worldgen-vector-edit-model.js";
 import {createFlatVectorRoadPlan,VECTOR_SEAM_GUARD_METRES}
   from "./worldgen-flat-vector-roads.js";
 import {ROAD_DETAIL_DEFAULT} from "./vector-road-quality.js";
@@ -100,7 +102,8 @@ export function createStreamingCityWorld(scene,map,{
   sheetPreview=false,flatWorld=false,flatPaintedRoads=false,
   flatTextureQuality="smooth",flatRoadRender="raster",
   vectorDetail=ROAD_DETAIL_DEFAULT,
-  vectorSeamGuardMetres=VECTOR_SEAM_GUARD_METRES
+  vectorSeamGuardMetres=VECTOR_SEAM_GUARD_METRES,
+  reliefWorld=false,vectorEdits=null
 }={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
@@ -113,7 +116,8 @@ export function createStreamingCityWorld(scene,map,{
       -(next[1]-routeStart[1]))};
   // Flat experiment uses ONLY the snapshot shown by the mini-map.
   // No synthesized shortcuts, connector ways or geographic edits.
-  const terrainHeight=flatWorld?flatSampleHeight:sampleHeight;
+  const terrainHeight=reliefWorld?sampleHeight:
+    flatWorld?flatSampleHeight:sampleHeight;
   const joinPlan=flatWorld?
     {connectors:[],stats:{connected:0}}:
     buildSmoothRoadConnectors(map.roads,terrainHeight);
@@ -135,10 +139,23 @@ export function createStreamingCityWorld(scene,map,{
     fixedJunctions:globalFixedJunctions,
     junctions:globalJunctions
   };
-  const worldSheet=flatWorld?
-    createFlatMapWorldSheet(renderRoads,sheetOptions):
+  const visualRoads=vectorEdits?
+    applyVisualVectorEdits(map.roads,vectorEdits):map.roads;
+  // OSM routing/physics identifiers remain unchanged, but the visible
+  // terrain support follows manually shifted DISPLAY vectors. Otherwise
+  // editing a hillside road would leave its old roadside depression behind.
+  const worldSheet=reliefWorld?
+    createWorldSheet(visualRoads,terrainHeight,sheetOptions):
+    flatWorld?createFlatMapWorldSheet(renderRoads,sheetOptions):
     sheetPreview?createWorldSheet(renderRoads,terrainHeight,
       sheetOptions):null;
+  const elevationField=reliefWorld&&worldSheet?
+    createVectorElevationField(
+      (x,z)=>worldSheet.meshHeight(x,z),map.roads,vectorEdits):null;
+  const surfaceHeight=elevationField?.sample||null;
+  const terrainSheet=surfaceHeight?{
+    tileSample:surfaceHeight,flatWorld:false
+  }:worldSheet;
   // All OSM streets are part of ONE canonical asphalt domain. Atlas
   // cells are only render/cache partitions and never decide junctions.
   // Flat WorldGen 7.0: every same-level road is painted on one
@@ -148,8 +165,9 @@ export function createStreamingCityWorld(scene,map,{
     createFlatAsphaltPlan(map.roads):null;
   const flatVectorPlan=flatWorld&&flatPaintedRoads&&
     flatRoadRender==="vector"?
-    createFlatVectorRoadPlan(map.roads,{
-      seamGuardMetres:vectorSeamGuardMetres
+    createFlatVectorRoadPlan(visualRoads,{
+      seamGuardMetres:vectorSeamGuardMetres,
+      sampleHeight:surfaceHeight
     }):null;
   const flatAnyRoad=Boolean(flatAsphaltPlan||flatVectorPlan);
   const asphaltSource=flatAnyRoad?
@@ -164,7 +182,8 @@ export function createStreamingCityWorld(scene,map,{
     }):null;
   const worldSource={globalGrades,globalFixedJunctions,
     worldSheet,globalAsphaltAtlas,
-    flatPaintedRoadside:flatAnyRoad};
+    flatPaintedRoadside:flatAnyRoad,
+    vectorSurfaceHeight:surfaceHeight};
   const loaded=new Map(),emptyRegions=new Set();
   const disposeRegion=record=>{
     for(const tile of record.scenery.tiles){
@@ -278,7 +297,7 @@ export function createStreamingCityWorld(scene,map,{
   // A sheet does not cut a transparent hole underneath asphalt.
   // Adjacent terrain chunks use precisely the same global H(x,z).
   const ground=worldSheet?
-    createSheetTerrain(scene,worldSheet,bounds,{
+    createSheetTerrain(scene,terrainSheet,bounds,{
       flatAsphaltPlan,flatVectorPlan,flatTextureQuality,
       vectorDetail
     }):
@@ -291,6 +310,13 @@ export function createStreamingCityWorld(scene,map,{
       roadPoint:road?[road.x,road.z]:loc.xy,confirmedFootprint:false};
   });
   function heightAt(x,z){
+    if(surfaceHeight){
+      // The terrain and all vector overlays use the same H(x,z).
+      // Camera, car and collisions cannot develop a step at a junction.
+      const hit=worldSheet.roadAt(x,z);
+      return surfaceHeight(x,z)+
+        (hit&&hit.distance<=hit.halfWidth+.08 ? .22 : 0);
+    }
     if(worldSheet){
       // Collision cannot change height when a neighboring chunk arrives:
       // the entire road profile exists independently of streamed meshes.
@@ -588,7 +614,8 @@ export function createStreamingCityWorld(scene,map,{
   const empty=[];
   return {
     segments:streets.segments,spawn,terminalSpawn:spawn,
-    flatWorld,flatPaintedRoads:flatAnyRoad,
+    flatWorld:flatWorld&&!reliefWorld,reliefWorld,
+    flatPaintedRoads:flatAnyRoad,
     pilotSpawns:empty,collides:()=>false,
     inExploreArea:(x,z)=>x>bounds.minX&&x<bounds.maxX&&
       z>bounds.minZ&&z<bounds.maxZ&&

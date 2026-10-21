@@ -2,6 +2,10 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import {emptyEdits,readSavedEdits,saveEdits,normalizeEdits,applyRoadEdits,
   withWidth,withMeshProfile,withoutWayEdits,meshEditCount} from "./road-editor-model.js";
 import {sidewalkWidth} from "./road-corridor.js";
+import {emptyVectorEdits,normalizeVectorEdits,loadVectorEdits,
+  saveVectorEdits,applyVisualVectorEdits,withVectorVertexOffset,
+  moveVectorEdge,createVectorElevationField}
+  from "./worldgen-vector-edit-model.js";
 import {buildRoadModelPreview,disposePreview} from "./road-model-preview.js";
 
 const $=id=>document.getElementById(id);
@@ -39,9 +43,89 @@ export function mountRoadAdmin({
   let session=false,visible=false,active=false,
     edits=emptyEdits(),roads=[],baseRoads=[],selectedId=null,tool="select",
     center={x:0,z:0},viewHeight=240,drag=null,history=[],preview=null,
-    originalFog=null,originalFogSaved=false;
+    originalFog=null,originalFogSaved=false,
+    vectorEdits=emptyVectorEdits(),vectorHistory=[],
+    vectorHandles=null,openedVectorEdits=emptyVectorEdits();
   const selected=()=>roads.find(r=>String(r.id)===String(selectedId));
   const sourceSelected=()=>baseRoads.find(r=>String(r.id)===String(selectedId));
+  const visualSelected=()=>{
+    const r=selected();
+    return r?applyVisualVectorEdits([r],vectorEdits)[0]:null;
+  };
+  // The world already contains any corrections that existed when the
+  // editor opened. Apply only the difference while dragging, so a height
+  // edit has an immediate 3D preview without doubling persisted offsets.
+  function previewHeightField(){
+    const delta=emptyVectorEdits();
+    for(const [id,way] of Object.entries(vectorEdits.ways)){
+      const old=openedVectorEdits.ways[id]?.vertices||{};
+      const vertices={};
+      for(const [i,point] of Object.entries(way.vertices)){
+        const d=point[2]-(old[i]?.[2]||0);
+        if(Math.abs(d)>1e-6)vertices[i]=[point[0],point[1],d];
+      }
+      if(Object.keys(vertices).length)delta.ways[id]={vertices};
+    }
+    for(const [id,way] of Object.entries(openedVectorEdits.ways)){
+      for(const [i,point] of Object.entries(way.vertices)){
+        if(vectorEdits.ways[id]?.vertices?.[i])continue;
+        const d=-point[2];
+        if(Math.abs(d)<1e-6)continue;
+        if(!delta.ways[id])delta.ways[id]={vertices:{}};
+        delta.ways[id].vertices[i]=[point[0],point[1],d];
+      }
+    }
+    return createVectorElevationField(
+      (x,z)=>getHeightAt?.(x,z)??0,baseRoads,delta).sample;
+  }
+  function disposeHandles(){
+    if(!vectorHandles)return;
+    scene()?.remove(vectorHandles);
+    const geometries=new Set(),materials=new Set();
+    vectorHandles.traverse(node=>{
+      if(node.geometry)geometries.add(node.geometry);
+      if(node.material)materials.add(node.material);
+    });
+    for(const geo of geometries)geo.dispose();
+    for(const mat of materials)mat.dispose();
+    vectorHandles=null;
+  }
+  function drawVectorHandles(heightAtPreview=previewHeightField()){
+    disposeHandles();
+    if(!visible||!["vertex","edge"].includes(tool))return;
+    const road=visualSelected(),current=scene();
+    if(!road||!current)return;
+    const group=new THREE.Group(),vertices=[],radius=clamp(
+      unitsPerPixel()*5,.65,4);
+    const vertexGeo=new THREE.SphereGeometry(radius,8,6),
+      vertexMat=new THREE.MeshBasicMaterial({color:"#d9ff69",
+        depthTest:false}),lineMat=new THREE.LineBasicMaterial({
+        color:"#61e5fd",depthTest:false});
+    for(const [x,z] of road.p){
+      const y=heightAtPreview(x,z)+1.7;
+      vertices.push(x,y,z);
+      const point=new THREE.Mesh(vertexGeo,vertexMat);
+      point.position.set(x,y,z);
+      point.renderOrder=500;
+      group.add(point);
+    }
+    const path=new THREE.BufferGeometry();
+    path.setAttribute("position",new THREE.Float32BufferAttribute(
+      vertices,3));
+    const line=new THREE.Line(path,lineMat);
+    line.renderOrder=499;
+    group.add(line);
+    vectorHandles=group;
+    current.add(group);
+  }
+  function vectorStatus(){
+    const ways=Object.keys(vectorEdits.ways).length;
+    const points=Object.values(vectorEdits.ways).reduce(
+      (n,way)=>n+Object.keys(way.vertices).length,0);
+    $("admin-vector-status").textContent=points+
+      " vértices visuais editados em "+ways+
+      " ruas. Aplique no jogo para reconstruir os chunks.";
+  }
   const status=s=>{$("admin-map-status").textContent=s;};
   const bounds=()=>stage.getBoundingClientRect();
   const unitsPerPixel=()=>viewHeight/Math.max(1,bounds().height);
@@ -89,17 +173,20 @@ export function mountRoadAdmin({
     return best;
   }
   function refreshPreview(){
+    disposeHandles();
     disposePreview(preview);preview=null;
-    const road=selected(),current=scene();
+    const road=visualSelected(),current=scene();
     if(!road||!current)return;
     const n=id=>Number($(id).value);
-    preview=buildRoadModelPreview(road,(x,z)=>getHeightAt(x,z),{
+    const heightAtPreview=previewHeightField();
+    preview=buildRoadModelPreview(road,heightAtPreview,{
       asphalt:clamp(Number.isFinite(n("admin-width"))?n("admin-width"):road.widthMeters,2,45),
       walk:clamp(Number.isFinite(n("admin-walk"))?n("admin-walk"):sidewalkWidth(road),.6,5),
       curb:clamp(Number.isFinite(n("admin-curb"))?n("admin-curb"):.14,0,.4),
       corner:clamp(Number.isFinite(n("admin-corner"))?n("admin-corner"):0,0,4)
     });
     current.add(preview);
+    drawVectorHandles(heightAtPreview);
   }
   function updateInfo(){
     const road=selected(),has=!!road;
@@ -117,7 +204,10 @@ export function mountRoadAdmin({
       $("admin-width-origin").textContent=road.widthSource==="buzun:editor"?
         "Modelo corrigido localmente":"Geometria gerada a partir do OSM";
     }else $("admin-width-origin").textContent="Nenhuma via selecionada";
-    $("admin-edits-count").textContent=meshEditCount(edits)+" ajustes de malha";
+    $("admin-edits-count").textContent=meshEditCount(edits)+
+      " ajustes de via · "+Object.values(vectorEdits.ways).reduce(
+        (n,r)=>n+Object.keys(r.vertices).length,0)+" pontos vetoriais";
+    vectorStatus();
     refreshPreview();
   }
   function store(){
@@ -141,7 +231,10 @@ export function mountRoadAdmin({
     tool=next;
     for(const b of panel.querySelectorAll("[data-admin-tool]"))
       b.classList.toggle("active",b.dataset.adminTool===next);
-    status(next==="pan"?"Arraste a cena para navegar":
+    drawVectorHandles();
+    status(next==="vertex"?"Arraste um ponto amarelo (Shift = altitude)":
+      next==="edge"?"Arraste a linha azul (Shift = altitude)":
+      next==="pan"?"Arraste a cena para navegar":
       next==="asphalt"?"Selecione uma rua e arraste a borda do asfalto":
       next==="sidewalk"?"Selecione uma rua e arraste a borda externa da calçada":
       "Clique na pista do cenário 3D para selecionar");
@@ -150,6 +243,8 @@ export function mountRoadAdmin({
     const loaded=getRoads?.();
     if(!loaded?.length){notify?.("Aguarde o mapa terminar de carregar.");return;}
     baseRoads=loaded;edits=readSavedEdits();
+    vectorEdits=loadVectorEdits();vectorHistory=[];
+    openedVectorEdits=structuredClone(vectorEdits);
     roads=applyRoadEdits(baseRoads,edits);selectedId=null;history=[];
     const player=getPosition?.();
     if(player)center={x:player.x,z:player.z};
@@ -165,6 +260,7 @@ export function mountRoadAdmin({
   }
   function leave(){
     visible=false;active=false;drag=null;
+    disposeHandles();
     disposePreview(preview);preview=null;
     if(scene()&&originalFogSaved)scene().fog=originalFog;
     originalFogSaved=false;
@@ -231,6 +327,41 @@ export function mountRoadAdmin({
       drag={type:"pan",x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);return;
     }
     const hit=nearestRoad(point);
+    if(tool==="vertex"||tool==="edge"){
+      if(!selected()){
+        selectedId=hit?.road.id??null;
+        updateInfo();
+        return;
+      }
+      const road=visualSelected();
+      const limit=25*unitsPerPixel();
+      let best=limit,index=-1;
+      if(tool==="vertex"){
+        for(let i=0;i<road.p.length;i++){
+          const distance=Math.hypot(
+            road.p[i][0]-point[0],road.p[i][1]-point[1]);
+          if(distance<best){best=distance;index=i;}
+        }
+      }else{
+        for(let i=0;i<road.p.length-1;i++){
+          const distance=distanceToSegment(
+            point,road.p[i],road.p[i+1]).distance;
+          if(distance<best){best=distance;index=i;}
+        }
+      }
+      if(index<0){
+        selectedId=hit?.road.id??null;
+        updateInfo();
+        return;
+      }
+      drag={type:"vector",mode:tool,index,road:sourceSelected(),
+        original:structuredClone(vectorEdits),
+        startPoint:point,startScreenY:e.clientY,heightMode:e.shiftKey};
+      canvas.setPointerCapture(e.pointerId);
+      status("Arrastando "+(tool==="vertex"?"vértice":"aresta")+
+        (e.shiftKey?" · altura Y":" · posição X/Z"));
+      return;
+    }
     if(tool==="select"||!selected()){
       selectedId=hit?.road.id??null;updateInfo();
       if(hit)status("Rua selecionada. Ajuste a malha pela lateral direita.");
@@ -260,6 +391,25 @@ export function mountRoadAdmin({
   }
   canvas.addEventListener("pointermove",e=>{
     if(!visible||!drag)return;
+    if(drag.type==="vector"){
+      const from=drag.startPoint,to=worldPoint(e.clientX,e.clientY),
+        dx=drag.heightMode?0:to[0]-from[0],
+        dz=drag.heightMode?0:to[1]-from[1],
+        dy=drag.heightMode?
+          -(e.clientY-drag.startScreenY)*.06:0;
+      try{
+        if(drag.mode==="vertex"){
+          const old=drag.original.ways[String(drag.road.id)]
+            ?.vertices?.[drag.index]||[0,0,0];
+          vectorEdits=withVectorVertexOffset(drag.original,
+            drag.road,drag.index,clamp(old[0]+dx,-30,30),
+            clamp(old[1]+dz,-30,30),clamp(old[2]+dy,-30,30));
+        }else vectorEdits=moveVectorEdge(drag.original,
+          drag.road,drag.index,dx,dz,dy);
+        refreshPreview();vectorStatus();
+      }catch(error){status(error.message);}
+      return;
+    }
     if(drag.type==="pan"){
       const factor=unitsPerPixel();
       center.x-=(e.clientX-drag.x)*factor;
@@ -267,8 +417,23 @@ export function mountRoadAdmin({
       drag.x=e.clientX;drag.y=e.clientY;alignCamera();
     }else updateDrag(worldPoint(e.clientX,e.clientY));
   });
-  canvas.addEventListener("pointerup",()=>{drag=null;});
-  canvas.addEventListener("pointercancel",()=>{drag=null;});
+  canvas.addEventListener("pointerup",()=>{
+    if(drag?.type==="vector"&&JSON.stringify(drag.original)!==
+      JSON.stringify(vectorEdits)){
+      vectorHistory.push(drag.original);
+      if(vectorHistory.length>50)vectorHistory.shift();
+      try{vectorEdits=saveVectorEdits(vectorEdits);
+        status("Vetor salvo localmente. Clique APLICAR NO JOGO para atualizar.");
+      }catch(err){status("Erro ao salvar vetor: "+err.message);}
+    }
+    drag=null;
+  });
+  canvas.addEventListener("pointercancel",()=>{
+    if(drag?.type==="vector"){
+      vectorEdits=drag.original;refreshPreview();
+    }
+    drag=null;
+  });
   for(const id of ["admin-width","admin-walk","admin-curb","admin-corner"])
     $(id).addEventListener("input",()=>{
       if(selected()) {
@@ -276,6 +441,38 @@ export function mountRoadAdmin({
       }
     });
   $("admin-width-save").addEventListener("click",saveParameters);
+  $("admin-vector-undo").addEventListener("click",()=>{
+    if(!vectorHistory.length){status("Nenhum ajuste vetorial para desfazer.");return;}
+    vectorEdits=saveVectorEdits(vectorHistory.pop());
+    updateInfo();status("Último movimento vetorial desfeito.");
+  });
+  $("admin-vector-reset").addEventListener("click",()=>{
+    if(!selected())return;
+    vectorHistory.push(structuredClone(vectorEdits));
+    const next=structuredClone(vectorEdits);
+    delete next.ways[String(selected().id)];
+    vectorEdits=saveVectorEdits(next);updateInfo();
+    status("Vetor desta rua restaurado. Aplique no jogo.");
+  });
+  $("admin-vector-export").addEventListener("click",()=>{
+    const blob=new Blob([JSON.stringify(vectorEdits,null,2)],
+      {type:"application/json"});
+    const url=URL.createObjectURL(blob),link=document.createElement("a");
+    link.href=url;link.download="buzun-vetores-visuais.json";
+    document.body.append(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+  $("admin-vector-import").addEventListener("change",async event=>{
+    const file=event.target.files?.[0];event.target.value="";
+    if(!file)return;
+    try{
+      if(file.size>2_000_000)throw Error("Máximo de 2 MB.");
+      const data=JSON.parse(await file.text());
+      vectorHistory.push(structuredClone(vectorEdits));
+      vectorEdits=saveVectorEdits(normalizeVectorEdits(data));
+      updateInfo();status("Vetores importados; aplique no jogo.");
+    }catch(e){status("Falha ao importar vetores: "+e.message);}
+  });
   $("admin-road-reset").addEventListener("click",()=>{
     const source=sourceSelected();
     if(source)commit(withoutWayEdits(edits,source),"Modelo original desta rua restaurado");
@@ -307,6 +504,8 @@ export function mountRoadAdmin({
         saveEdits(next);
       }catch(e){status(e.message);return;}
     }else saveEdits(edits);
+    try{saveVectorEdits(vectorEdits);}
+    catch(e){status("Falha ao salvar vetores: "+e.message);return;}
     location.reload();
   });
   document.addEventListener("keydown",e=>{

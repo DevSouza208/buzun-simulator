@@ -46,7 +46,8 @@ export const vectorTileClipBounds=(gx,gz,size,
  */
 export function createFlatVectorRoadPlan(roads,{
   tileMetres=FLAT_ASPHALT_TILE_METRES,
-  seamGuardMetres=VECTOR_SEAM_GUARD_METRES
+  seamGuardMetres=VECTOR_SEAM_GUARD_METRES,
+  sampleHeight=null,reliefSampleMetres=5
 }={}){
   if(!Array.isArray(roads)||!(tileMetres>0))
     throw Error("Vector road atlas requires OSM ways and positive tile size");
@@ -123,11 +124,24 @@ export function createFlatVectorRoadPlan(roads,{
       originX=(gx+.5)*tileMetres,
       originZ=(gz+.5)*tileMetres;
     const out={sidewalk:[],curb:[],asphalt:[]},
-      candidates=tileIndex.get(key(gx,gz))||[];
+      candidates=tileIndex.get(key(gx,gz))||[],
+      elevationCache=new Map();
+    function atHeight(x,z){
+      const k=x.toFixed(3)+":"+z.toFixed(3);
+      if(!elevationCache.has(k)){
+        const y=sampleHeight(x,z);
+        elevationCache.set(k,Number.isFinite(y)?y:0);
+      }
+      return elevationCache.get(k);
+    }
     function emit(kind,tri){
       for(const clipped of clip3DTriangle(tri,box))
         for(const p of clipped)
-          out[kind].push(p[0]-originX,p[1],p[2]-originZ);
+          out[kind].push(p[0]-originX,
+            sampleHeight?atHeight(p[0],p[2])+.22+
+              (VECTOR_ROAD_HEIGHTS[kind]-
+                VECTOR_ROAD_HEIGHTS.asphalt):
+              p[1],p[2]-originZ);
     }
     for(const item of candidates)
       for(const kind of KINDS){
@@ -138,12 +152,24 @@ export function createFlatVectorRoadPlan(roads,{
           const len=Math.hypot(dx,dz);
           if(len<.02)continue;
           const nx=-dz/len*r,nz=dx/len*r;
-          const a=[item.ax+nx,y,item.az+nz],
-            b=[item.bx+nx,y,item.bz+nz],
-            c=[item.bx-nx,y,item.bz-nz],
-            d=[item.ax-nx,y,item.az-nz];
-          emit(kind,[a,b,c]);
-          emit(kind,[a,c,d]);
+          // Vertical tessellation is also LOD-dependent. Never store
+          // three whole-road meshes or subdivide the canonical OSM index.
+          // Terrain relief is ~17m resolution, so 5/10/20m sampling
+          // stays smooth without wasting Ultra geometry on distant LOD.
+          const pitch=detail==="economy"?reliefSampleMetres*4:
+            detail==="balanced"?reliefSampleMetres*2:reliefSampleMetres;
+          const n=sampleHeight?Math.ceil(len/pitch):1;
+          for(let step=0;step<n;step++){
+            const u=step/n,v=(step+1)/n,
+              ax=item.ax+dx*u,az=item.az+dz*u,
+              bx=item.ax+dx*v,bz=item.az+dz*v;
+            const a=[ax+nx,y,az+nz],
+              b=[bx+nx,y,bz+nz],
+              c=[bx-nx,y,bz-nz],
+              d=[ax-nx,y,az-nz];
+            emit(kind,[a,b,c]);
+            emit(kind,[a,c,d]);
+          }
         }else{
           // Arc precision is proportional to the physical radius. The same
           // number of wedges is used when the same joint is seen from
@@ -164,5 +190,5 @@ export function createFlatVectorRoadPlan(roads,{
   return {tileTriangles,
     stats:{sourceWays:roads.length,flatGroundWays:roadsEligible,
       segments,joints,indexedTiles:tileIndex.size,
-      tileMetres,seamGuardMetres}};
+      tileMetres,seamGuardMetres,elevated:Boolean(sampleHeight)}};
 }

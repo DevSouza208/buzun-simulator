@@ -97,7 +97,7 @@ test("6.0: integration remains opt-in and old worldgen unaffected",()=>{
   assert.match(main,/get\("worldgen"\)==="sheet"/);
   assert.match(world,/sheetPreview:options.sheetPreview===true/);
   assert.match(stream,/sheetPreview=false/);
-  assert.match(stream,/createSheetTerrain\(scene,worldSheet,bounds,\{\s*flatAsphaltPlan,flatVectorPlan,flatTextureQuality,\s*vectorDetail\s*\}\)/);
+  assert.match(stream,/createSheetTerrain\(scene,terrainSheet,bounds,\{\s*flatAsphaltPlan,flatVectorPlan,flatTextureQuality,\s*vectorDetail\s*\}\)/);
   assert.match(mesh,/worldSheet.sectionsFor\(road\)/);
   assert.doesNotMatch(terrain,/alphaMap:|alphaTest:|createMask\(/);
 });
