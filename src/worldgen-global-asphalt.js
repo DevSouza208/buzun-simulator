@@ -80,7 +80,7 @@ export function createGlobalAsphaltAtlas(roads,worldSheet,{
   junctions=[],gradeModels=null,naturalHeight=()=>0,
   cellMetres=ASPHALT_ATLAS_CELL_METRES,
   halo=ASPHALT_ATLAS_HALO_METRES,
-  maxCachedCells=32,maxCachedRoads=90
+  maxCachedCells=32,maxCachedRoads=90,flatLayerSpacing=0
 }={}){
   if(!Array.isArray(roads)||!worldSheet?.sectionsFor)
     throw Error("Global asphalt atlas requires all OSM ways and one WorldSheet");
@@ -108,7 +108,11 @@ export function createGlobalAsphaltAtlas(roads,worldSheet,{
   // Fillets are derived from the complete city graph, not a selection of
   // regional OSM ways. Identical junctions cannot create different corners.
   const fillets=buildJunctionFillets(roads,junctions,naturalHeight,
-    {gradeModels:gradeModels?.models||[]}).patches;
+    {gradeModels:gradeModels?.models||[]}).patches.map(p=>(
+      flatLayerSpacing?{...p,
+        h0:p.h0+(Number(p.layer)||0)*flatLayerSpacing,
+        h1:p.h1+(Number(p.layer)||0)*flatLayerSpacing
+      }:p));
   fillets.forEach((patch,i)=>indexOne({kind:"fillet",i},
     patchBounds(patch)));
   let built=0,cacheHits=0;
