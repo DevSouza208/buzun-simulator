@@ -115,5 +115,5 @@ test("7.2: road mesh remains GPU vectors, not 768-pixel canvas raster",()=>{
   assert.match(terrain,/part\.geometry\.dispose\(\)/);
   assert.match(city,/flatVectorPlan=flatWorld&&flatPaintedRoads/);
   assert.match(city,/flatPaintedRoadside:flatAnyRoad/);
-  assert.match(main,/get\("roads"\)==="vector"\?"vector":"raster"/);
+  assert.match(main,/get\("roads"\)==="raster"\?"raster":"vector"/);
 });
