@@ -56,6 +56,8 @@ export function mountWorldgenOverlay({
         ...(r.streaming?.vectorRoadTriangles!=null?[
           "Vetores OSM: "+r.streaming.vectorRoadTriangles
             .toLocaleString("pt-BR")+" triângulos carregados",
+          "Proteção de costura: "+
+            (r.streaming.vectorSeamGuardMetres??0)+" m",
           "Detalhe das ruas: "+(r.streaming.vectorRoadDetail||"ultra")+
             " · "+(r.streaming.vectorPendingTiles||0)+
             " chunks para atualizar"
