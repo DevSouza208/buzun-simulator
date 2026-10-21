@@ -201,7 +201,7 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
   // One city-wide junction/grade authority shared by every streamed chunk.
   globalGrades=null,globalFixedJunctions=null,
   worldSheet=null,globalAsphaltAtlas=null,
-  flatPaintedRoadside=false
+  flatPaintedRoadside=false,vectorSurfaceHeight=null
 }={}) {
   const profiler=makeWorldgenProfiler();
   const detail=renderProfile(renderBounds);
@@ -569,6 +569,19 @@ export function* createRoadSceneSteps(scene,roads,sampleHeight,{
       yield {stage:"region_clip",material:key};
       profiler.resume();
     }
+    // In the draped vector preview, zebra and lane paint must be sampled
+    // from EXACTLY the same surface as the vector asphalt. Preserve higher
+    // bridge/lower tunnel markings when they are far from ground level.
+    if(vectorSurfaceHeight)
+      for(const kind of ["white","yellow"]){
+        const vertices=ch[kind];
+        for(let i=0;i<vertices.length;i+=3){
+          const x=vertices[i],z=vertices[i+2],
+            ideal=vectorSurfaceHeight(x,z)+.29;
+          if(Math.abs(vertices[i+1]-ideal)<1.5)
+            vertices[i+1]=ideal;
+        }
+      }
     // Snap and reconcile neighboring vertices AFTER all geometric clipping.
     // Identical X/Z points in asphalt, walks and curbs now have consistent
     // coordinates; real vertical steps/overpasses stay independent.
