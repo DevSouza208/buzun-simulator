@@ -11,6 +11,7 @@ import {resolveRegionalHeight,resolveRegionalSurface,roadRegionAhead,
 import {createRoadCorridors} from "./road-corridor.js";
 import {createCarvedTerrain} from "./terrain-cutout.js";
 import {createWorldSheet} from "./worldgen-sheet.js";
+import {createFlatMapWorldSheet,flatSampleHeight} from "./worldgen-flat-map.js";
 import {createSheetTerrain} from "./worldgen-sheet-terrain.js";
 import {createGlobalAsphaltAtlas} from "./worldgen-global-asphalt.js";
 import {graphFromRoads} from "./grajau-osm.js";
@@ -91,7 +92,7 @@ function centerlineIndex(roads,cellSize=105){
   return {segments,candidates,closest};
 }
 export function createStreamingCityWorld(scene,map,{
-  sheetPreview=false
+  sheetPreview=false,flatWorld=false
 }={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
@@ -102,34 +103,41 @@ export function createStreamingCityWorld(scene,map,{
   const spawn={x:origin.x,z:origin.z,
     angle:Math.atan2(next[0]-routeStart[0],
       -(next[1]-routeStart[1]))};
-  // Fill only small, safely aligned endpoint gaps of the same named street.
-  // OSM source, routing graph and full-road IDs stay immutable.
-  const joinPlan=buildSmoothRoadConnectors(map.roads,sampleHeight);
-  const renderRoads=[...map.roads,...joinPlan.connectors];
+  // Flat experiment uses ONLY the snapshot shown by the mini-map.
+  // No synthesized shortcuts, connector ways or geographic edits.
+  const terrainHeight=flatWorld?flatSampleHeight:sampleHeight;
+  const joinPlan=flatWorld?
+    {connectors:[],stats:{connected:0}}:
+    buildSmoothRoadConnectors(map.roads,terrainHeight);
+  const renderRoads=flatWorld?map.roads:
+    [...map.roads,...joinPlan.connectors];
   const regionIndex=createRegionRoadIndex(renderRoads);
   // Model the city once, render it in parts. Global OSM junction planes and
   // fixed height anchors keep a road's source profile identical for EVERY
   // region, even when the compositor clips triangles into separate meshes.
   const globalJunctions=getJunctions(map.roads);
   const globalGrades=buildIntersectionGradeModels(
-    map.roads,globalJunctions,sampleHeight);
+    map.roads,globalJunctions,terrainHeight);
   const globalFixedJunctions=new Set(
     globalJunctions.map(j=>coordinateKey(j.point)));
   // v6 opt-in: one canonical, road-aware terrain height field. It is
   // created once for all OSM roads and does not depend on region loading.
-  const worldSheet=sheetPreview?createWorldSheet(
-    renderRoads,sampleHeight,{
-      gradeModels:globalGrades,
-      fixedJunctions:globalFixedJunctions,
-      junctions:globalJunctions
-    }):null;
+  const sheetOptions={
+    gradeModels:globalGrades,
+    fixedJunctions:globalFixedJunctions,
+    junctions:globalJunctions
+  };
+  const worldSheet=flatWorld?
+    createFlatMapWorldSheet(renderRoads,sheetOptions):
+    sheetPreview?createWorldSheet(renderRoads,terrainHeight,
+      sheetOptions):null;
   // All OSM streets are part of ONE canonical asphalt domain. Atlas
   // cells are only render/cache partitions and never decide junctions.
   const globalAsphaltAtlas=worldSheet?createGlobalAsphaltAtlas(
     renderRoads,worldSheet,{
       junctions:globalJunctions,
       gradeModels:globalGrades,
-      naturalHeight:sampleHeight
+      naturalHeight:terrainHeight
     }):null;
   const worldSource={globalGrades,globalFixedJunctions,
     worldSheet,globalAsphaltAtlas};
@@ -151,7 +159,8 @@ export function createStreamingCityWorld(scene,map,{
   // for the next 10m player movement leaves every brand-new chunk visible
   // and can send hundreds of draw calls to WebGL (measured 1.8 FPS).
   let visibilityFocus={x:spawn.x,z:spawn.z};
-  const counters={mode:sheetPreview?"world-sheet-preview":"experimental",
+  const counters={mode:flatWorld?"flat-osm-1to1":
+    sheetPreview?"world-sheet-preview":"experimental",
     regionMetres:REGION_METRES,
     repairedRoadGaps:joinPlan.stats.connected,
     totalRoads:map.roads.length,loadedRegions:0,readyRegions:0,
@@ -202,7 +211,7 @@ export function createStreamingCityWorld(scene,map,{
     const started=time();
     // The full road compositor operates on ALL ways touching the halo;
     // clipping occurs only after every intersection has been resolved.
-    const scenery=createRoadScene(scene,ways,sampleHeight,
+    const scenery=createRoadScene(scene,ways,terrainHeight,
       {renderBounds:regionBounds(rx,rz),...worldSource});
     activateLoadedRoadRegion(scenery,visibilityFocus.x,visibilityFocus.z);
     const elapsed=time()-started;
@@ -235,7 +244,7 @@ export function createStreamingCityWorld(scene,map,{
     const halfWidth=nearest.segment.width/2;
     if(nearest.distance>halfWidth+4)return null;
     return {roadId:nearest.segment.id,
-      height:sampleHeight(nearest.x,nearest.z),
+      height:terrainHeight(nearest.x,nearest.z),
       distance:nearest.distance,halfWidth,walk:1.7,curbTop:.18};
   }};
   // A sheet does not cut a transparent hole underneath asphalt.
@@ -243,7 +252,7 @@ export function createStreamingCityWorld(scene,map,{
   const ground=worldSheet?
     createSheetTerrain(scene,worldSheet,bounds):
     createCarvedTerrain(scene,corridors,globalJunctions,
-      sampleHeight,bounds,roadSurfaceAdapter);
+      terrainHeight,bounds,roadSurfaceAdapter);
   const graph=graphFromRoads(map.roads);
   const corridorLandmarks=(map.landmarks||[]).map(loc=>{
     const road=streets.closest(...loc.xy);
@@ -278,7 +287,7 @@ export function createStreamingCityWorld(scene,map,{
       if(hit.distance<=hit.halfWidth+hit.walk)
         return hit.height+(hit.curbTop??.18);
     }
-    return sampleHeight(x,z);
+    return terrainHeight(x,z);
   }
   const geometryStatistics={...summarizeRoadSectors(first.tiles)};
   // Aggregate diagnostic counters must NOT alias the first scenery's
@@ -353,7 +362,7 @@ export function createStreamingCityWorld(scene,map,{
           pendingTask={
             ...todo,started,
             runner:createCooperativeRunner(createRoadSceneSteps(
-              scene,ways,sampleHeight,
+              scene,ways,terrainHeight,
               {renderBounds:regionBounds(todo.x,todo.z),
                 backgroundAsphalt:true,...worldSource}),{
               now:time,sliceMs:6,maxSteps:6
@@ -541,6 +550,7 @@ export function createStreamingCityWorld(scene,map,{
   const empty=[];
   return {
     segments:streets.segments,spawn,terminalSpawn:spawn,
+    flatWorld,
     pilotSpawns:empty,collides:()=>false,
     inExploreArea:(x,z)=>x>bounds.minX&&x<bounds.maxX&&
       z>bounds.minZ&&z<bounds.maxZ&&
