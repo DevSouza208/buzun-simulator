@@ -511,6 +511,8 @@ async function start() {
         new URLSearchParams(location.search).get("roads")!=="geometry",
       flatTextureQuality:new URLSearchParams(location.search)
         .get("quality")==="fast"?"fast":"smooth",
+      flatRoadRender:new URLSearchParams(location.search)
+        .get("roads")==="vector"?"vector":"raster",
       sheetPreview:new URLSearchParams(location.search).get("worldgen")==="sheet"
     });
     worldgenOverlay?.dispose();
