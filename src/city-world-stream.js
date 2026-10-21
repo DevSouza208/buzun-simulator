@@ -137,7 +137,8 @@ export function createStreamingCityWorld(scene,map,{
     renderRoads,worldSheet,{
       junctions:globalJunctions,
       gradeModels:globalGrades,
-      naturalHeight:terrainHeight
+      naturalHeight:terrainHeight,
+      flatLayerSpacing:flatWorld?5:0
     }):null;
   const worldSource={globalGrades,globalFixedJunctions,
     worldSheet,globalAsphaltAtlas};
