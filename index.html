@@ -176,6 +176,8 @@
           <button data-admin-tool="pan" title="Mover câmera aérea">✥ Mover câmera</button>
           <button data-admin-tool="asphalt" title="Arrastar a borda do asfalto">↔ Puxar asfalto</button>
           <button data-admin-tool="sidewalk" title="Arrastar a calçada">↔ Puxar calçada</button>
+          <button data-admin-tool="vertex" title="Arraste os pontos amarelos do vetor; Shift+arrastar altera a altitude">◆ Mover vértice</button>
+          <button data-admin-tool="edge" title="Arraste uma aresta do vetor; Shift+arrastar altera a altura do trecho">⤧ Mover aresta</button>
           <span class="admin-tools-separator"></span>
           <button id="admin-zoom-in" aria-label="Aproximar">＋</button>
           <button id="admin-zoom-out" aria-label="Afastar">－</button>
@@ -205,7 +207,17 @@
           <button id="admin-width-save" disabled>✓ SALVAR MODELAGEM</button>
           <button id="admin-road-reset" disabled>↶ Reverter esta rua</button>
         </div>
-        <div class="admin-section-heading">ARQUIVO E HISTÓRICO <span>02 / LOCAL</span></div>
+        <div class="admin-section-heading">EDIÇÃO VETORIAL <span>02 / GEOMETRIA</span></div>
+        <p class="admin-sidebar-note">Selecione <b>Mover vértice</b> ou <b>Mover aresta</b>. Arraste os pontos amarelos ou a linha azul. Segure <b>Shift</b> ao arrastar para alterar a altitude. O vetor visual muda, mas os nós OSM e o mapa de navegação ficam intactos.</p>
+        <p id="admin-vector-status" class="admin-sidebar-note" aria-live="polite">Nenhuma correção vetorial selecionada.</p>
+        <div class="admin-file-actions">
+          <button id="admin-vector-undo">↶ Desfazer vetor</button>
+          <button id="admin-vector-reset">↶ Restaurar vetor da rua</button>
+          <button id="admin-vector-export">⇩ Exportar vetores JSON</button>
+          <label for="admin-vector-import" class="admin-import-label">⇧ Importar vetores</label>
+          <input id="admin-vector-import" type="file" accept=".json,application/json" />
+        </div>
+        <div class="admin-section-heading">ARQUIVO E HISTÓRICO <span>03 / LOCAL</span></div>
         <div class="admin-file-actions">
           <button id="admin-undo">↶ Desfazer</button>
           <button id="admin-export">⇩ Exportar JSON</button>
