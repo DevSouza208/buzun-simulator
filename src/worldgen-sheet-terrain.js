@@ -3,6 +3,7 @@ import {SHEET_TILE_METRES,SHEET_GRID_SEGMENTS}
   from "./worldgen-sheet.js";
 import {FLAT_ASPHALT_TEXTURE_PIXELS,FLAT_ASPHALT_GUTTER_PIXELS,flatAsphaltUv}
   from "./worldgen-flat-asphalt-surface.js";
+import {paintFlatAsphaltTexture} from "./worldgen-flat-texture-quality.js";
 
 /** WorldGen 6.0 terrain. The meshes are transport/cache units ONLY.
  * There is no hole-cutting alphaMap; adjacent tile vertices sample
@@ -13,7 +14,8 @@ export function createSheetTerrain(scene,sheet,bounds,{
   // Keep every tile intersecting the visible 900m radius. A cap of 18
   // left 5–9 holes in the terrain ring; 32 covers all possible cells.
   // Optimize distant geometry through LOD later, not missing chunks.
-  visibilityRadius=900,maxActive=32,flatAsphaltPlan=null
+  visibilityRadius=900,maxActive=32,flatAsphaltPlan=null,
+  flatTextureQuality="smooth"
 }={}){
   const size=SHEET_TILE_METRES;
   const tiles=new Map();
@@ -49,10 +51,18 @@ export function createSheetTerrain(scene,sheet,bounds,{
       canvas.height=resolution+gutter*2;
       const ctx=canvas.getContext("2d",{alpha:false});
       if(!ctx)throw Error("Canvas 2D required for flat world road surface");
-      flatAsphaltPlan.drawTile(ctx,gx,gz,{resolution,gutter});
+      paintFlatAsphaltTexture(ctx,flatAsphaltPlan,gx,gz,{
+        resolution,gutter,quality:flatTextureQuality,
+        createCanvas:()=>document.createElement("canvas")
+      });
       const texture=new THREE.CanvasTexture(canvas);
       texture.colorSpace=THREE.SRGBColorSpace;
-      texture.anisotropy=2;
+      // Grazing-angle minification made painted roads look serrated on
+      // the horizon. Mipmapping and moderate anisotropy avoid shimmer.
+      texture.generateMipmaps=true;
+      texture.minFilter=THREE.LinearMipmapLinearFilter;
+      texture.magFilter=THREE.LinearFilter;
+      texture.anisotropy=8;
       texture.wrapS=THREE.ClampToEdgeWrapping;
       texture.wrapT=THREE.ClampToEdgeWrapping;
       const uv=geometry.attributes.uv;
