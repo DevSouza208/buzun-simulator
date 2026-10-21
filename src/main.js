@@ -11,6 +11,7 @@ import { fetchGrajauRoads, combineLegacyRoads, GRAJAU_BBOX } from "./grajau-osm.
 import { loadCityElevations } from "./terrain-tiles.js";
 import { applyRoadEdits, readSavedEdits } from "./road-editor-model.js";
 import { mountRoadAdmin } from "./road-admin.js";
+import {loadVectorEdits} from "./worldgen-vector-edit-model.js";
 import { mountWorldgenOverlay } from "./worldgen-overlay.js";
 import { resolveWorldgenMode } from "./worldgen-mode.js";
 import {flatBranchMode} from "./worldgen-flat-map.js";
@@ -464,6 +465,8 @@ function bindInputs() {
 }
 async function start() {
   const flatWorld=flatBranchMode(location.search);
+  const reliefWorld=flatWorld&&
+    new URLSearchParams(location.search).get("relief")!=="flat";
   bindInputs();
   refreshBuildVersion();
   try {
@@ -511,7 +514,7 @@ async function start() {
     };
     const [imported,tiles]=await Promise.all([
       importStreets(),
-      (flatWorld?Promise.resolve(null):
+      (flatWorld&&!reliefWorld?Promise.resolve(null):
         loadCityElevations(GRAJAU_BBOX)).catch(error=>{
         console.warn("Relief outside saved SRTM was unavailable:",error);
         return null;
@@ -532,7 +535,9 @@ async function start() {
       reliefSource:tiles?.source||"SRTM local Belmira"
     };
     if(roadData.roads.length<70)throw Error("Mapa grande de ruas incompleto");
-    status.textContent=flatWorld?
+    status.textContent=reliefWorld?
+      "Reconstruindo relevo e vetores contínuos · OSM 1:1...":
+      flatWorld?
       "Aplanando "+roadData.roads.length+" vias reais do Grajaú · escala 1:1...":
       "Construindo "+roadData.roads.length+" vias do Grajaú · malha 1:1 e calçadas low poly...";
     await new Promise(resolve=>setTimeout(resolve,25));
@@ -556,6 +561,7 @@ async function start() {
     const {progressive,showWorldgen}=resolveWorldgenMode(location.search);
     world = createWorld(scene,roadData,{
       cityRoads:true,progressive:flatWorld||progressive,flatWorld,
+      reliefWorld,vectorEdits:loadVectorEdits(),
       flatPaintedRoads:flatWorld&&
         new URLSearchParams(location.search).get("roads")!=="geometry",
       flatTextureQuality:new URLSearchParams(location.search)
