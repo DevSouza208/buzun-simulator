@@ -4,7 +4,8 @@ import {emptyEdits,readSavedEdits,saveEdits,normalizeEdits,applyRoadEdits,
 import {sidewalkWidth} from "./road-corridor.js";
 import {emptyVectorEdits,normalizeVectorEdits,loadVectorEdits,
   saveVectorEdits,applyVisualVectorEdits,withVectorVertexOffset,
-  moveVectorEdge} from "./worldgen-vector-edit-model.js";
+  moveVectorEdge,createVectorElevationField}
+  from "./worldgen-vector-edit-model.js";
 import {buildRoadModelPreview,disposePreview} from "./road-model-preview.js";
 
 const $=id=>document.getElementById(id);
@@ -43,13 +44,40 @@ export function mountRoadAdmin({
     edits=emptyEdits(),roads=[],baseRoads=[],selectedId=null,tool="select",
     center={x:0,z:0},viewHeight=240,drag=null,history=[],preview=null,
     originalFog=null,originalFogSaved=false,
-    vectorEdits=emptyVectorEdits(),vectorHistory=[],vectorHandles=null;
+    vectorEdits=emptyVectorEdits(),vectorHistory=[],
+    vectorHandles=null,openedVectorEdits=emptyVectorEdits();
   const selected=()=>roads.find(r=>String(r.id)===String(selectedId));
   const sourceSelected=()=>baseRoads.find(r=>String(r.id)===String(selectedId));
   const visualSelected=()=>{
     const r=selected();
     return r?applyVisualVectorEdits([r],vectorEdits)[0]:null;
   };
+  // The world already contains any corrections that existed when the
+  // editor opened. Apply only the difference while dragging, so a height
+  // edit has an immediate 3D preview without doubling persisted offsets.
+  function previewHeightField(){
+    const delta=emptyVectorEdits();
+    for(const [id,way] of Object.entries(vectorEdits.ways)){
+      const old=openedVectorEdits.ways[id]?.vertices||{};
+      const vertices={};
+      for(const [i,point] of Object.entries(way.vertices)){
+        const d=point[2]-(old[i]?.[2]||0);
+        if(Math.abs(d)>1e-6)vertices[i]=[point[0],point[1],d];
+      }
+      if(Object.keys(vertices).length)delta.ways[id]={vertices};
+    }
+    for(const [id,way] of Object.entries(openedVectorEdits.ways)){
+      for(const [i,point] of Object.entries(way.vertices)){
+        if(vectorEdits.ways[id]?.vertices?.[i])continue;
+        const d=-point[2];
+        if(Math.abs(d)<1e-6)continue;
+        if(!delta.ways[id])delta.ways[id]={vertices:{}};
+        delta.ways[id].vertices[i]=[point[0],point[1],d];
+      }
+    }
+    return createVectorElevationField(
+      (x,z)=>getHeightAt?.(x,z)??0,baseRoads,delta).sample;
+  }
   function disposeHandles(){
     if(!vectorHandles)return;
     scene()?.remove(vectorHandles);
@@ -62,7 +90,7 @@ export function mountRoadAdmin({
     for(const mat of materials)mat.dispose();
     vectorHandles=null;
   }
-  function drawVectorHandles(){
+  function drawVectorHandles(heightAtPreview){
     disposeHandles();
     if(!visible||!["vertex","edge"].includes(tool))return;
     const road=visualSelected(),current=scene();
@@ -74,7 +102,7 @@ export function mountRoadAdmin({
         depthTest:false}),lineMat=new THREE.LineBasicMaterial({
         color:"#61e5fd",depthTest:false});
     for(const [x,z] of road.p){
-      const y=(getHeightAt?.(x,z)||0)+1.7;
+      const y=heightAtPreview(x,z)+1.7;
       vertices.push(x,y,z);
       const point=new THREE.Mesh(vertexGeo,vertexMat);
       point.position.set(x,y,z);
@@ -150,14 +178,15 @@ export function mountRoadAdmin({
     const road=visualSelected(),current=scene();
     if(!road||!current)return;
     const n=id=>Number($(id).value);
-    preview=buildRoadModelPreview(road,(x,z)=>getHeightAt(x,z),{
+    const heightAtPreview=previewHeightField();
+    preview=buildRoadModelPreview(road,heightAtPreview,{
       asphalt:clamp(Number.isFinite(n("admin-width"))?n("admin-width"):road.widthMeters,2,45),
       walk:clamp(Number.isFinite(n("admin-walk"))?n("admin-walk"):sidewalkWidth(road),.6,5),
       curb:clamp(Number.isFinite(n("admin-curb"))?n("admin-curb"):.14,0,.4),
       corner:clamp(Number.isFinite(n("admin-corner"))?n("admin-corner"):0,0,4)
     });
     current.add(preview);
-    drawVectorHandles();
+    drawVectorHandles(heightAtPreview);
   }
   function updateInfo(){
     const road=selected(),has=!!road;
@@ -215,6 +244,7 @@ export function mountRoadAdmin({
     if(!loaded?.length){notify?.("Aguarde o mapa terminar de carregar.");return;}
     baseRoads=loaded;edits=readSavedEdits();
     vectorEdits=loadVectorEdits();vectorHistory=[];
+    openedVectorEdits=structuredClone(vectorEdits);
     roads=applyRoadEdits(baseRoads,edits);selectedId=null;history=[];
     const player=getPosition?.();
     if(player)center={x:player.x,z:player.z};
