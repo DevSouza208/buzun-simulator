@@ -10,6 +10,7 @@
  * There are no artificial connectors between distinct OSM roads.
  */
 import {physicalLayer} from "./asphalt-union.js";
+import {ROAD_DETAIL_DEFAULT,arcStepsForRoadRadius} from "./vector-road-quality.js";
 import {sidewalkWidth} from "./road-corridor.js";
 import {clip3DTriangle} from "./worldgen-region-stream.js";
 import {FLAT_ASPHALT_TILE_METRES,FLAT_CURB_BORDER_METRES}
@@ -104,7 +105,7 @@ export function createFlatVectorRoadPlan(roads,{
       joints++;
     }
   }
-  function tileTriangles(gx,gz){
+  function tileTriangles(gx,gz,detail=ROAD_DETAIL_DEFAULT){
     const box=bounds(gx,gz,tileMetres),
       originX=(gx+.5)*tileMetres,
       originZ=(gz+.5)*tileMetres;
@@ -134,8 +135,7 @@ export function createFlatVectorRoadPlan(roads,{
           // Arc precision is proportional to the physical radius. The same
           // number of wedges is used when the same joint is seen from
           // either side of a chunk boundary.
-          const steps=Math.max(12,Math.min(28,
-            Math.ceil(2*Math.PI*r/2.25)));
+          const steps=arcStepsForRoadRadius(r,detail);
           const mid=[item.x,y,item.z];
           for(let i=0;i<steps;i++){
             const a=2*Math.PI*i/steps,b=2*Math.PI*(i+1)/steps;
