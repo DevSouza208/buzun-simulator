@@ -70,8 +70,14 @@ test("7.4: real relief divides long 1:1 edges into draped sections",()=>{
     raised=createFlatVectorRoadPlan(roads,{
       sampleHeight:x=>Math.sin(x*.1)*3,reliefSampleMetres:4});
   assert.equal(flat.stats.segments,1);
-  assert.equal(raised.stats.segments,10);
-  const positions=raised.tileTriangles(0,0,"economy").layers.asphalt;
+  assert.equal(raised.stats.segments,1,
+    "OSM segments remain global; only visible LOD is subdivided");
+  const ultra=raised.tileTriangles(0,0,"ultra"),
+    balanced=raised.tileTriangles(0,0,"balanced"),
+    economy=raised.tileTriangles(0,0,"economy");
+  assert.ok(ultra.triangles>balanced.triangles);
+  assert.ok(balanced.triangles>economy.triangles);
+  const positions=economy.layers.asphalt;
   const ys=positions.filter((_,i)=>i%3===1);
   assert.ok(new Set(ys.map(v=>v.toFixed(3))).size>5);
   assert.ok(ys.every(Number.isFinite));
