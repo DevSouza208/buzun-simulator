@@ -65,7 +65,7 @@ test("7.0: a 1:1 12m street has exactly 12m of world-space width",()=>{
 
 test("7.0: both tiles render the exact same global point at their mutual edge",()=>{
   const ways=[
-    road("one",[[390,24],[450,24]],8),
+    road("one",[[390,24],[420,24],[450,24]],8),
     road("cross",[[420,5],[420,70]],8)
   ];
   const atlas=createFlatAsphaltPlan(ways);
