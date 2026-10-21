@@ -24,8 +24,10 @@ export function createSheetTerrain(scene,sheet,bounds,{
     color:"#a5b89d",side:THREE.DoubleSide,flatShading:true
   });
   function createTile(gx,gz){
-    const geometry=new THREE.PlaneGeometry(size,size,
-      SHEET_GRID_SEGMENTS,SHEET_GRID_SEGMENTS);
+    // A flat city needs just two triangles per 420m tile; it would
+    // waste millions of triangles to keep the 4m relief grid.
+    const grid=sheet.flatWorld?1:SHEET_GRID_SEGMENTS;
+    const geometry=new THREE.PlaneGeometry(size,size,grid,grid);
     geometry.rotateX(-Math.PI/2);
     const points=geometry.attributes.position,
       ox=(gx+.5)*size,oz=(gz+.5)*size;

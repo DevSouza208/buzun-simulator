@@ -82,7 +82,7 @@ test("5.21: closest eligible pair wins and each terminal is used once",()=>{
 test("5.21: runtime uses connectors for BOTH mesh and the underlying terrain mask",()=>{
   const content=readFileSync(new URL(
     "../src/city-world-stream.js",import.meta.url),"utf8");
-  assert.match(content,/const renderRoads=\[\.\.\.map.roads,\.\.\.joinPlan.connectors\]/);
+  assert.match(content,/const renderRoads=flatWorld\?map.roads:\s*\[\.\.\.map.roads,\.\.\.joinPlan.connectors\]/);
   assert.match(content,/createRegionRoadIndex\(renderRoads\)/);
   assert.match(content,/createRoadCorridors\(renderRoads\)/);
 });
