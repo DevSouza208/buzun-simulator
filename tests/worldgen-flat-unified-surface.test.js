@@ -45,7 +45,11 @@ test("7.0: all real ground OSM roads enter one shared flat-surface atlas",()=>{
   const result=plan.drawTile(ctx,0,0);
   assert.equal(result.painted,3);
   assert.ok(paths.every(x=>x.join==="round"&&x.cap==="round"));
-  assert.ok(paths.every(x=>x.color==="#3f484e"));
+  assert.equal(paths.length,9);
+  assert.ok(paths.slice(0,3).every(x=>x.color==="#ccc4b6"));
+  assert.ok(paths.slice(3,6).every(x=>x.color==="#eee1cf"));
+  assert.ok(paths.slice(6,9).every(x=>x.color==="#3f484e"));
+  assert.equal(result.footwaysPainted,3);
   assert.equal(FLAT_ASPHALT_TILE_METRES,420);
   assert.equal(FLAT_ASPHALT_TEXTURE_PIXELS,768);
 });
@@ -57,8 +61,8 @@ test("7.0: a 1:1 12m street has exactly 12m of world-space width",()=>{
   const {ctx,paths}=paintSpy();
   plan.drawTile(ctx,0,0);
   const scale=FLAT_ASPHALT_TEXTURE_PIXELS/420;
-  assert.ok(close(paths[0].width/scale,12));
-  const start=paths[0].points[0],end=paths[0].points[1];
+  assert.ok(close(paths.at(-1).width/scale,12));
+  const start=paths.at(-1).points[0],end=paths.at(-1).points[1];
   assert.ok(close((end[0]-start[0])/scale,100));
   assert.ok(close(start[1],FLAT_ASPHALT_GUTTER_PIXELS));
 });
@@ -95,10 +99,8 @@ test("7.0: OSM gaps and parallel lanes are NOT joined by a synthetic connector",
   ]);
   const {ctx,paths}=paintSpy();
   plan.drawTile(ctx,0,0);
-  assert.equal(paths.length,3);
-  assert.deepEqual(paths[0].points.length,2);
-  assert.deepEqual(paths[1].points.length,2);
-  assert.deepEqual(paths[2].points.length,2);
+  assert.equal(paths.length,9);
+  assert.ok(paths.every(path=>path.points.length===2));
 });
 
 test("7.0: flat mode is opt-in by branch and can compare old geometry",()=>{
@@ -109,6 +111,7 @@ test("7.0: flat mode is opt-in by branch and can compare old geometry",()=>{
   const main=readFileSync(new URL(
     "../src/main.js",import.meta.url),"utf8");
   assert.match(world,/flatAsphaltPlan=flatWorld&&flatPaintedRoads/);
+  assert.match(world,/flatPaintedRoadside:Boolean\(flatAsphaltPlan\)/);
   assert.match(world,/renderRoads.filter\(road=>physicalLayer\(road\)!==0\)/);
   assert.match(world,/createSheetTerrain\(scene,worldSheet,bounds,\{\s*flatAsphaltPlan,flatTextureQuality\s*\}\)/);
   assert.match(terrain,/new THREE\.CanvasTexture\(canvas\)/);
