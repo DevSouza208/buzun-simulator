@@ -145,6 +145,7 @@ export function mountRoadAdmin({
     return best;
   }
   function refreshPreview(){
+    disposeHandles();
     disposePreview(preview);preview=null;
     const road=visualSelected(),current=scene();
     if(!road||!current)return;
