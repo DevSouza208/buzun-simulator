@@ -34,7 +34,7 @@ function downloadEdits(edits){
  */
 export function mountRoadAdmin({
   getRoads,getPosition,getScene,getGameCanvas,getHeightAt,
-  whenOpen,whenClose,onResize,notify
+  whenOpen,whenClose,onResize,notify,asphaltOnly=false
 }){
   const login=$("admin-login"),panel=$("admin-editor"),
     stage=$("admin-map-stage"),canvas=getGameCanvas();
@@ -181,8 +181,10 @@ export function mountRoadAdmin({
     const heightAtPreview=previewHeightField();
     preview=buildRoadModelPreview(road,heightAtPreview,{
       asphalt:clamp(Number.isFinite(n("admin-width"))?n("admin-width"):road.widthMeters,2,45),
-      walk:clamp(Number.isFinite(n("admin-walk"))?n("admin-walk"):sidewalkWidth(road),.6,5),
-      curb:clamp(Number.isFinite(n("admin-curb"))?n("admin-curb"):.14,0,.4),
+      walk:asphaltOnly?0:
+        clamp(Number.isFinite(n("admin-walk"))?n("admin-walk"):sidewalkWidth(road),.6,5),
+      curb:asphaltOnly?0:
+        clamp(Number.isFinite(n("admin-curb"))?n("admin-curb"):.14,0,.4),
       corner:clamp(Number.isFinite(n("admin-corner"))?n("admin-corner"):0,0,4)
     });
     current.add(preview);
@@ -196,6 +198,11 @@ export function mountRoadAdmin({
       "Clique diretamente no asfalto do cenário 3D.";
     for(const id of ["admin-width","admin-walk","admin-curb","admin-corner",
       "admin-width-save","admin-road-reset"]) $(id).disabled=!has;
+    if(asphaltOnly){
+      $("admin-walk").disabled=true;
+      $("admin-curb").disabled=true;
+      panel.querySelector('[data-admin-tool="sidewalk"]').hidden=true;
+    }
     if(has){
       $("admin-width").value=road.widthMeters||7;
       $("admin-walk").value=road.sidewalkMeters??sidewalkWidth(road);

@@ -171,8 +171,11 @@ async function refreshBuildVersion() {
     if(header){
       const params=new URLSearchParams(location.search);
       const label=flatBranchMode(location.search)?
-        (params.get("relief")==="flat"?
-          "VETOR PLANO · 7.4":"VETOR + RELEVO · 7.4"):
+        (params.get("sidewalks")!=="on"?
+          (params.get("relief")==="flat"?
+            "ASFALTO PURO PLANO · 7.5":"ASFALTO PURO + RELEVO · 7.5"):
+          (params.get("relief")==="flat"?
+            "VETOR PLANO · 7.4":"VETOR + RELEVO · 7.4")):
         "LOW POLY";
       header.textContent=label+" · v"+build.version;
     }
@@ -400,6 +403,8 @@ function bindInputs() {
         applyRoadDetailLevel(event.target.value);
     });
   adminEditor=mountRoadAdmin({
+    asphaltOnly:flatBranchMode(location.search)&&
+      new URLSearchParams(location.search).get("sidewalks")!=="on",
     getRoads:()=>sourceRoads,
     getPosition:()=>player,
     getScene:()=>scene,
@@ -569,6 +574,8 @@ async function start() {
     world = createWorld(scene,roadData,{
       cityRoads:true,progressive:flatWorld||progressive,flatWorld,
       reliefWorld,vectorEdits:loadVectorEdits(),
+      asphaltOnly:new URLSearchParams(location.search)
+        .get("sidewalks")!=="on",
       flatPaintedRoads:flatWorld&&
         new URLSearchParams(location.search).get("roads")!=="geometry",
       flatTextureQuality:new URLSearchParams(location.search)
