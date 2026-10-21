@@ -509,6 +509,8 @@ async function start() {
       cityRoads:true,progressive:flatWorld||progressive,flatWorld,
       flatPaintedRoads:flatWorld&&
         new URLSearchParams(location.search).get("roads")!=="geometry",
+      flatTextureQuality:new URLSearchParams(location.search)
+        .get("quality")==="fast"?"fast":"smooth",
       sheetPreview:new URLSearchParams(location.search).get("worldgen")==="sheet"
     });
     worldgenOverlay?.dispose();

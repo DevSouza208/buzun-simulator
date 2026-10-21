@@ -94,7 +94,8 @@ function centerlineIndex(roads,cellSize=105){
   return {segments,candidates,closest};
 }
 export function createStreamingCityWorld(scene,map,{
-  sheetPreview=false,flatWorld=false,flatPaintedRoads=false
+  sheetPreview=false,flatWorld=false,flatPaintedRoads=false,
+  flatTextureQuality="smooth"
 }={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
@@ -261,7 +262,9 @@ export function createStreamingCityWorld(scene,map,{
   // A sheet does not cut a transparent hole underneath asphalt.
   // Adjacent terrain chunks use precisely the same global H(x,z).
   const ground=worldSheet?
-    createSheetTerrain(scene,worldSheet,bounds,{flatAsphaltPlan}):
+    createSheetTerrain(scene,worldSheet,bounds,{
+      flatAsphaltPlan,flatTextureQuality
+    }):
     createCarvedTerrain(scene,corridors,globalJunctions,
       terrainHeight,bounds,roadSurfaceAdapter);
   const graph=graphFromRoads(map.roads);
