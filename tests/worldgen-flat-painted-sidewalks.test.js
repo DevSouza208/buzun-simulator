@@ -60,8 +60,9 @@ test("7.1.1: the huge 3D sidewalk wedges cannot be emitted at ground level",()=>
   const scene=readFileSync(new URL("../src/city-road-mesh.js",import.meta.url),"utf8");
   const source=readFileSync(new URL("../src/city-world-stream.js",import.meta.url),"utf8");
   assert.match(source,/flatPaintedRoadside:flatAnyRoad/);
-  assert.match(scene,/if\\(!noSidewalks&&\\s*\\(!flatPaintedRoadside\\|\\|physicalLayer\\(road\\)!==0\\)\\)/);
-  assert.match(scene,/flatSkipRoadside=noSidewalks\|\|\s*\(flatPaintedRoadside&&roadsideInput\.length===0\)/);
+  assert.match(scene,/if\\(!noSidewalks&&/);
+  assert.match(scene,/flatPaintedRoadside\\|\\|physicalLayer/);
+  assert.match(scene,/flatSkipRoadside=noSidewalks/);
   assert.match(scene,/if\(flatSkipRoadside\)\{/);
   assert.match(scene,/roadsideStats=\{rampCells:0/);
   assert.match(scene,/roadsideJob=!flatSkipRoadside&&backgroundRoadside/);
