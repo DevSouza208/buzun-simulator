@@ -111,7 +111,7 @@ test("7.2: road mesh remains GPU vectors, not 768-pixel canvas raster",()=>{
     "../src/main.js",import.meta.url),"utf8");
   assert.match(terrain,/flatVectorPlan\.tileTriangles\(\s*gx,gz,currentVectorDetail\)/);
   assert.match(terrain,/new THREE\.Float32BufferAttribute\(vertices,3\)/);
-  assert.match(terrain,/mesh\.add\(overlay\)/);
+  assert.match(terrain,/mesh\.add\(child\)/);
   assert.match(terrain,/part\.geometry\.dispose\(\)/);
   assert.match(city,/flatVectorPlan=flatWorld&&flatPaintedRoads/);
   assert.match(city,/flatPaintedRoadside:flatAnyRoad/);
