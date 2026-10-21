@@ -94,7 +94,8 @@ function centerlineIndex(roads,cellSize=105){
   return {segments,candidates,closest};
 }
 export function createStreamingCityWorld(scene,map,{
-  sheetPreview=false,flatWorld=false,flatPaintedRoads=false
+  sheetPreview=false,flatWorld=false,flatPaintedRoads=false,
+  flatTextureQuality="smooth"
 }={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
