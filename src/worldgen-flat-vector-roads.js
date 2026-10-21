@@ -9,7 +9,8 @@
  * The output is deliberately Three.js-free, testable with node --test.
  * There are no artificial connectors between distinct OSM roads.
  */
-import {physicalLayer} from "./asphalt-union.js";
+import {physicalLayer,asphaltPriority} from "./asphalt-union.js";
+import {unionVectorAsphaltTriangles} from "./worldgen-vector-asphalt-union.js";
 import {ROAD_DETAIL_DEFAULT,arcStepsForRoadRadius} from "./vector-road-quality.js";
 import {sidewalkWidth} from "./road-corridor.js";
 import {clip3DTriangle} from "./worldgen-region-stream.js";
@@ -47,7 +48,8 @@ export const vectorTileClipBounds=(gx,gz,size,
 export function createFlatVectorRoadPlan(roads,{
   tileMetres=FLAT_ASPHALT_TILE_METRES,
   seamGuardMetres=VECTOR_SEAM_GUARD_METRES,
-  sampleHeight=null,reliefSampleMetres=5
+  sampleHeight=null,reliefSampleMetres=5,
+  asphaltOnly=false
 }={}){
   if(!Array.isArray(roads)||!(tileMetres>0))
     throw Error("Vector road atlas requires OSM ways and positive tile size");
@@ -76,7 +78,7 @@ export function createFlatVectorRoadPlan(roads,{
   for(const road of roads){
     if(physicalLayer(road)!==0||road.bridge||road.tunnel||
       !Array.isArray(road.p)||road.p.length<2)continue;
-    const half=widthOf(road)/2,walk=sidewalkWidth(road),
+    const half=widthOf(road)/2,walk=asphaltOnly?0:sidewalkWidth(road),
       far=half+walk,points=road.p;
     const existing=new Set();
     const normalized=[];
@@ -93,6 +95,7 @@ export function createFlatVectorRoadPlan(roads,{
     for(let i=1;i<normalized.length;i++){
       const a=normalized[i-1],b=normalized[i];
       const item={kind:"segment",roadId:String(road.id),
+        priority:asphaltPriority(road),
         ax:a[0],az:a[1],bx:b[0],bz:b[1],half,walk};
       insert(item,far,a[0],a[1],b[0],b[1]);
       segments++;
@@ -114,6 +117,7 @@ export function createFlatVectorRoadPlan(roads,{
       if(existing.has(id))continue;
       existing.add(id);
       insert({kind:"joint",roadId:String(road.id),
+        priority:asphaltPriority(road),
         x:p[0],z:p[1],half,walk},far,p[0],p[1]);
       joints++;
     }
@@ -125,7 +129,8 @@ export function createFlatVectorRoadPlan(roads,{
       originZ=(gz+.5)*tileMetres;
     const out={sidewalk:[],curb:[],asphalt:[]},
       candidates=tileIndex.get(key(gx,gz))||[],
-      elevationCache=new Map();
+      elevationCache=new Map(),asphaltPatches=[];
+    const activeKinds=asphaltOnly?["asphalt"]:KINDS;
     function atHeight(x,z){
       const k=x.toFixed(3)+":"+z.toFixed(3);
       if(!elevationCache.has(k)){
@@ -134,17 +139,24 @@ export function createFlatVectorRoadPlan(roads,{
       }
       return elevationCache.get(k);
     }
-    function emit(kind,tri){
-      for(const clipped of clip3DTriangle(tri,box))
-        for(const p of clipped)
-          out[kind].push(p[0]-originX,
-            sampleHeight?atHeight(p[0],p[2])+.22+
-              (VECTOR_ROAD_HEIGHTS[kind]-
-                VECTOR_ROAD_HEIGHTS.asphalt):
-              p[1],p[2]-originZ);
+    function emit(kind,tri,item){
+      for(const clipped of clip3DTriangle(tri,box)){
+        const verts=clipped.map(p=>[
+          p[0]-originX,
+          sampleHeight?atHeight(p[0],p[2])+.22+
+            (VECTOR_ROAD_HEIGHTS[kind]-
+              VECTOR_ROAD_HEIGHTS.asphalt):
+            p[1],
+          p[2]-originZ
+        ]);
+        if(asphaltOnly){
+          asphaltPatches.push({vertices:verts,
+            roadId:item.roadId,priority:item.priority});
+        }else for(const v of verts)out[kind].push(...v);
+      }
     }
     for(const item of candidates)
-      for(const kind of KINDS){
+      for(const kind of activeKinds){
         const r=radiusOf(item,kind),
           y=VECTOR_ROAD_HEIGHTS[kind];
         if(item.kind==="segment"){
@@ -167,8 +179,8 @@ export function createFlatVectorRoadPlan(roads,{
               b=[bx+nx,y,bz+nz],
               c=[bx-nx,y,bz-nz],
               d=[ax-nx,y,az-nz];
-            emit(kind,[a,b,c]);
-            emit(kind,[a,c,d]);
+            emit(kind,[a,b,c],item);
+            emit(kind,[a,c,d],item);
           }
         }else{
           // Arc precision is proportional to the physical radius. The same
@@ -180,15 +192,25 @@ export function createFlatVectorRoadPlan(roads,{
             const a=2*Math.PI*i/steps,b=2*Math.PI*(i+1)/steps;
             emit(kind,[mid,
               [item.x+Math.cos(a)*r,y,item.z+Math.sin(a)*r],
-              [item.x+Math.cos(b)*r,y,item.z+Math.sin(b)*r]]);
+              [item.x+Math.cos(b)*r,y,item.z+Math.sin(b)*r]],item);
           }
         }
       }
-    return {layers:out,sourcePrimitives:candidates.length,
-      triangles:KINDS.reduce((n,k)=>n+out[k].length/9,0)};
+    let unionStats=null;
+    if(asphaltOnly){
+      const union=unionVectorAsphaltTriangles(asphaltPatches,{
+        heightAt:sampleHeight?
+          (x,z)=>atHeight(x+originX,z+originZ)+.22:null
+      });
+      out.asphalt=union.positions;
+      unionStats=union.stats;
+    }
+    return {layers:out,unionStats,sourcePrimitives:candidates.length,
+      triangles:activeKinds.reduce((n,k)=>n+out[k].length/9,0)};
   }
   return {tileTriangles,
     stats:{sourceWays:roads.length,flatGroundWays:roadsEligible,
       segments,joints,indexedTiles:tileIndex.size,
-      tileMetres,seamGuardMetres,elevated:Boolean(sampleHeight)}};
+      tileMetres,seamGuardMetres,elevated:Boolean(sampleHeight),
+      asphaltOnly}};
 }
