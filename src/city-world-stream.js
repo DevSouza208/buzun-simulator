@@ -151,7 +151,8 @@ export function createStreamingCityWorld(scene,map,{
       flatLayerSpacing:flatWorld?5:0
     }):null;
   const worldSource={globalGrades,globalFixedJunctions,
-    worldSheet,globalAsphaltAtlas};
+    worldSheet,globalAsphaltAtlas,
+    flatPaintedRoadside:Boolean(flatAsphaltPlan)};
   const loaded=new Map(),emptyRegions=new Set();
   const disposeRegion=record=>{
     for(const tile of record.scenery.tiles){
