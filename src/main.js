@@ -168,7 +168,14 @@ async function refreshBuildVersion() {
       if (el) el.textContent = (id === "brand-version" ? "/ " : "") + "v" + build.version;
     }
     const header = $("header-version");
-    if (header) header.textContent = "LOW POLY · v" + build.version;
+    if(header){
+      const params=new URLSearchParams(location.search);
+      const label=flatBranchMode(location.search)?
+        (params.get("relief")==="flat"?
+          "VETOR PLANO · 7.4":"VETOR + RELEVO · 7.4"):
+        "LOW POLY";
+      header.textContent=label+" · v"+build.version;
+    }
     document.title = "Buzun Simulator · v" + build.version;
   } catch (err) {
     console.warn("Versão não disponível, mantendo fallback", err);
