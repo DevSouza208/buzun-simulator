@@ -80,6 +80,7 @@ export function createWorld(scene, map, options = {}) {
         reliefWorld:options.reliefWorld===true,
         vectorEdits:options.vectorEdits,
         asphaltOnly:options.asphaltOnly===true,
+        terrainCutout:options.terrainCutout!==false,
         flatPaintedRoads:options.flatPaintedRoads===true,
         flatRoadRender:options.flatRoadRender==="vector"?"vector":"raster",
         vectorDetail:options.vectorDetail,
