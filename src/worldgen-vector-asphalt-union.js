@@ -70,14 +70,16 @@ export function unionVectorAsphaltTriangles(patches,{
         if(seen.has(previous))continue;
         seen.add(previous);
         if(!intersects(patch.bounds,previous.bounds))continue;
+        const beforeArea=pieces.reduce(
+          (sum,p)=>sum+Math.abs(area(p)),0);
         const next=[];
         for(const piece of pieces){
           if(!intersects(bbox(piece),previous.bounds))next.push(piece);
           else next.push(...subtractConvex(piece,previous.poly));
         }
-        if(next.length!==pieces.length||next.some((p,i)=>
-          Math.abs(area(p))-Math.abs(area(pieces[i]||[]))>EPS))
-          stats.overlaps++;
+        const afterArea=next.reduce(
+          (sum,p)=>sum+Math.abs(area(p)),0);
+        if(beforeArea-afterArea>EPS)stats.overlaps++;
         pieces=next;
         if(!pieces.length)break;
       }
