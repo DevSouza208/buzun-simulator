@@ -103,7 +103,8 @@ export function createStreamingCityWorld(scene,map,{
   flatTextureQuality="smooth",flatRoadRender="raster",
   vectorDetail=ROAD_DETAIL_DEFAULT,
   vectorSeamGuardMetres=VECTOR_SEAM_GUARD_METRES,
-  reliefWorld=false,vectorEdits=null
+  reliefWorld=false,vectorEdits=null,
+  asphaltOnly=false
 }={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
@@ -137,7 +138,8 @@ export function createStreamingCityWorld(scene,map,{
   const sheetOptions={
     gradeModels:globalGrades,
     fixedJunctions:globalFixedJunctions,
-    junctions:globalJunctions
+    junctions:globalJunctions,
+    asphaltOnly
   };
   const visualRoads=vectorEdits?
     applyVisualVectorEdits(map.roads,vectorEdits):map.roads;
@@ -167,7 +169,8 @@ export function createStreamingCityWorld(scene,map,{
     flatRoadRender==="vector"?
     createFlatVectorRoadPlan(visualRoads,{
       seamGuardMetres:vectorSeamGuardMetres,
-      sampleHeight:surfaceHeight
+      sampleHeight:surfaceHeight,
+      asphaltOnly
     }):null;
   const flatAnyRoad=Boolean(flatAsphaltPlan||flatVectorPlan);
   const asphaltSource=flatAnyRoad?
@@ -183,6 +186,7 @@ export function createStreamingCityWorld(scene,map,{
   const worldSource={globalGrades,globalFixedJunctions,
     worldSheet,globalAsphaltAtlas,
     flatPaintedRoadside:flatAnyRoad,
+    noSidewalks:asphaltOnly,
     vectorSurfaceHeight:surfaceHeight};
   const loaded=new Map(),emptyRegions=new Set();
   const disposeRegion=record=>{
