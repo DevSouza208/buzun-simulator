@@ -16,8 +16,11 @@ import {physicalLayer} from "./asphalt-union.js";
 export const FLAT_GROUND_HEIGHT=0;
 export const FLAT_LAYER_CLEARANCE_METRES=5;
 export const flatSampleHeight=()=>FLAT_GROUND_HEIGHT;
-export const flatMapRequested=search=>
-  new URLSearchParams(search).get("worldgen")==="flat";
+// Only in this isolated branch, opening / without parameters is FLAT.
+export const flatBranchMode=search=>{
+  const mode=new URLSearchParams(search).get("worldgen");
+  return mode===null||mode==="flat";
+};
 export const flatRoadBase=road=>
   physicalLayer(road)*FLAT_LAYER_CLEARANCE_METRES;
 
