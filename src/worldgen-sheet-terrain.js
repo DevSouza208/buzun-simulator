@@ -78,7 +78,11 @@ export function createSheetTerrain(scene,sheet,bounds,{
   function createTile(gx,gz){
     // A flat city needs just two triangles per 420m tile; it would
     // waste millions of triangles to keep the 4m relief grid.
-    const grid=sheet.flatWorld?1:SHEET_GRID_SEGMENTS;
+    // In vector relief use a shared ~8m world sheet. Both the raster
+    // surface and asphalt read the same height field and have canonical
+    // samples across chunks; ultra tessellation is spent on the road.
+    const grid=sheet.flatWorld?1:
+      flatVectorPlan?52:SHEET_GRID_SEGMENTS;
     const geometry=new THREE.PlaneGeometry(size,size,grid,grid);
     geometry.rotateX(-Math.PI/2);
     const points=geometry.attributes.position,
