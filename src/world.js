@@ -77,6 +77,8 @@ export function createWorld(scene, map, options = {}) {
       createStreamingCityWorld(scene,map,{
         sheetPreview:options.sheetPreview===true,
         flatWorld:options.flatWorld===true,
+        reliefWorld:options.reliefWorld===true,
+        vectorEdits:options.vectorEdits,
         flatPaintedRoads:options.flatPaintedRoads===true,
         flatRoadRender:options.flatRoadRender==="vector"?"vector":"raster",
         vectorDetail:options.vectorDetail,
