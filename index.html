@@ -26,6 +26,7 @@
       <span class="version" id="header-version">LOW POLY · v0.1.0</span>
       <button id="next-facade" class="icon-button" title="Ir para o próximo ponto da rota" aria-label="Ir para o próximo ponto da rota">⌂</button>
       <button id="reset-button" class="icon-button" title="Reposicionar veículo (R)" aria-label="Reposicionar veículo">↺</button>
+      <button id="graphics-button" class="icon-button" title="Qualidade vetorial" aria-label="Configurações gráficas das ruas">▥</button>
       <button id="admin-open" class="icon-button admin-top-button" title="Editor das ruas" aria-label="Abrir editor de ruas">⚙</button>
       <button id="help-button" class="icon-button" title="Ajuda" aria-label="Abrir controles">?</button>
     </div>
@@ -93,6 +94,31 @@
     <div class="welcome-corner">DEV BUILD / GRAJAÚ 001</div>
   </div>
 
+  <div id="graphics-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="graphics-title">
+    <section class="graphics-panel">
+      <button type="button" id="graphics-close" class="close-help" aria-label="Fechar configurações gráficas">×</button>
+      <div class="welcome-badge">BUZUN • CONFIGURAÇÕES</div>
+      <h2 id="graphics-title">Qualidade das ruas</h2>
+      <p>A malha do Grajaú continua vetorial e em escala 1:1. Escolha quanto detalhe usar nas curvas; o restante do mapa permanece igual.</p>
+      <fieldset class="road-quality-options">
+        <legend>DETALHE VETORIAL</legend>
+        <label class="road-quality-option">
+          <input type="radio" name="road-detail" value="ultra" checked />
+          <span><strong>Ultra — máximo detalhe</strong><small>Padrão. Curvas e junções com mais vértices.</small></span>
+        </label>
+        <label class="road-quality-option">
+          <input type="radio" name="road-detail" value="balanced" />
+          <span><strong>Equilibrado</strong><small>Contornos suaves, com menos polígonos.</small></span>
+        </label>
+        <label class="road-quality-option">
+          <input type="radio" name="road-detail" value="economy" />
+          <span><strong>Econômico</strong><small>Curvas simplificadas para computadores modestos.</small></span>
+        </label>
+      </fieldset>
+      <p id="graphics-status" role="status" aria-live="polite">Ultra ativado.</p>
+      <button type="button" id="graphics-resume">VOLTAR AO JOGO</button>
+    </section>
+  </div>
   <div id="help-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Controles do Buzun">
     <section class="help-modal">
       <button id="close-help" class="close-help" aria-label="Fechar ajuda">×</button>
