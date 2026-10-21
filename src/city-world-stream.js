@@ -13,7 +13,8 @@ import {createCarvedTerrain} from "./terrain-cutout.js";
 import {createWorldSheet} from "./worldgen-sheet.js";
 import {createFlatMapWorldSheet,flatSampleHeight} from "./worldgen-flat-map.js";
 import {createSheetTerrain} from "./worldgen-sheet-terrain.js";
-import {createFlatVectorRoadPlan} from "./worldgen-flat-vector-roads.js";
+import {createFlatVectorRoadPlan,VECTOR_SEAM_GUARD_METRES}
+  from "./worldgen-flat-vector-roads.js";
 import {ROAD_DETAIL_DEFAULT} from "./vector-road-quality.js";
 import {createFlatAsphaltPlan} from "./worldgen-flat-asphalt-surface.js";
 import {physicalLayer} from "./asphalt-union.js";
@@ -98,7 +99,8 @@ function centerlineIndex(roads,cellSize=105){
 export function createStreamingCityWorld(scene,map,{
   sheetPreview=false,flatWorld=false,flatPaintedRoads=false,
   flatTextureQuality="smooth",flatRoadRender="raster",
-  vectorDetail=ROAD_DETAIL_DEFAULT
+  vectorDetail=ROAD_DETAIL_DEFAULT,
+  vectorSeamGuardMetres=VECTOR_SEAM_GUARD_METRES
 }={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
@@ -146,7 +148,9 @@ export function createStreamingCityWorld(scene,map,{
     createFlatAsphaltPlan(map.roads):null;
   const flatVectorPlan=flatWorld&&flatPaintedRoads&&
     flatRoadRender==="vector"?
-    createFlatVectorRoadPlan(map.roads):null;
+    createFlatVectorRoadPlan(map.roads,{
+      seamGuardMetres:vectorSeamGuardMetres
+    }):null;
   const flatAnyRoad=Boolean(flatAsphaltPlan||flatVectorPlan);
   const asphaltSource=flatAnyRoad?
     renderRoads.filter(road=>physicalLayer(road)!==0):
@@ -567,6 +571,7 @@ export function createStreamingCityWorld(scene,map,{
     }
     ground.update(x,z);
     if(flatVectorPlan){
+      counters.vectorSeamGuardMetres=flatVectorPlan.stats.seamGuardMetres;
       counters.vectorRoadTriangles=ground.vectorTriangles;
       counters.vectorRoadTiles=ground.loadedTiles;
       counters.vectorRoadDetail=ground.vectorDetail;

@@ -23,6 +23,10 @@ export const VECTOR_ROAD_COLORS=Object.freeze({
   sidewalk:"#ccc4b6",curb:"#eee1cf",asphalt:"#3f484e"
 });
 const KINDS=["sidewalk","curb","asphalt"];
+// 10cm safety band protects rasterized triangle boundaries from floating
+// point and MSAA coverage differences when adjacent 420m tiles meet.
+// The same canonical OSM primitives are clipped in both tiles.
+export const VECTOR_SEAM_GUARD_METRES=.10;
 const key=(gx,gz)=>gx+":"+gz;
 const widthOf=road=>{
   const n=Number(road.widthMeters);
@@ -32,25 +36,33 @@ const radiusOf=(item,kind)=>
   kind==="sidewalk"?item.half+item.walk:
   kind==="curb"?item.half+FLAT_CURB_BORDER_METRES:item.half;
 
-const bounds=(gx,gz,size)=>({
-  minX:gx*size,maxX:(gx+1)*size,
-  minZ:gz*size,maxZ:(gz+1)*size
+export const vectorTileClipBounds=(gx,gz,size,
+  guard=VECTOR_SEAM_GUARD_METRES)=>({
+  minX:gx*size-guard,maxX:(gx+1)*size+guard,
+  minZ:gz*size-guard,maxZ:(gz+1)*size+guard
 });
 /** True vector geometry: clipping happens AFTER computing each full
  * world-space primitive. Neighbor tiles therefore cut the SAME geometry.
  */
 export function createFlatVectorRoadPlan(roads,{
-  tileMetres=FLAT_ASPHALT_TILE_METRES
+  tileMetres=FLAT_ASPHALT_TILE_METRES,
+  seamGuardMetres=VECTOR_SEAM_GUARD_METRES
 }={}){
   if(!Array.isArray(roads)||!(tileMetres>0))
     throw Error("Vector road atlas requires OSM ways and positive tile size");
+  if(!Number.isFinite(seamGuardMetres)||
+      seamGuardMetres<0||seamGuardMetres>.5)
+    throw Error("Vector tile seam guard must be between 0 and 0.5m");
   const tileIndex=new Map();
   let roadsEligible=0,segments=0,joints=0;
   function insert(primitive,radius,centerX,centerZ,farX=centerX,farZ=centerZ){
-    const minX=Math.min(centerX,farX)-radius,
-      maxX=Math.max(centerX,farX)+radius,
-      minZ=Math.min(centerZ,farZ)-radius,
-      maxZ=Math.max(centerZ,farZ)+radius;
+    // A tile must know about primitives whose true footprint ends
+    // just outside its nominal edge but inside the 10cm guard band.
+    const reach=radius+seamGuardMetres;
+    const minX=Math.min(centerX,farX)-reach,
+      maxX=Math.max(centerX,farX)+reach,
+      minZ=Math.min(centerZ,farZ)-reach,
+      maxZ=Math.max(centerZ,farZ)+reach;
     for(let gx=Math.floor(minX/tileMetres);
       gx<=Math.floor(maxX/tileMetres);gx++)
       for(let gz=Math.floor(minZ/tileMetres);
@@ -106,7 +118,8 @@ export function createFlatVectorRoadPlan(roads,{
     }
   }
   function tileTriangles(gx,gz,detail=ROAD_DETAIL_DEFAULT){
-    const box=bounds(gx,gz,tileMetres),
+    const box=vectorTileClipBounds(
+      gx,gz,tileMetres,seamGuardMetres),
       originX=(gx+.5)*tileMetres,
       originZ=(gz+.5)*tileMetres;
     const out={sidewalk:[],curb:[],asphalt:[]},
@@ -150,5 +163,6 @@ export function createFlatVectorRoadPlan(roads,{
   }
   return {tileTriangles,
     stats:{sourceWays:roads.length,flatGroundWays:roadsEligible,
-      segments,joints,indexedTiles:tileIndex.size,tileMetres}};
+      segments,joints,indexedTiles:tileIndex.size,
+      tileMetres,seamGuardMetres}};
 }
