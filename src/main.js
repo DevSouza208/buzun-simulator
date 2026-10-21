@@ -400,6 +400,8 @@ function bindInputs() {
         applyRoadDetailLevel(event.target.value);
     });
   adminEditor=mountRoadAdmin({
+    asphaltOnly:flatBranchMode(location.search)&&
+      new URLSearchParams(location.search).get("sidewalks")!=="on",
     getRoads:()=>sourceRoads,
     getPosition:()=>player,
     getScene:()=>scene,
