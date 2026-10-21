@@ -7,6 +7,8 @@ import {paintFlatAsphaltTexture} from "./worldgen-flat-texture-quality.js";
 import {VECTOR_ROAD_COLORS} from "./worldgen-flat-vector-roads.js";
 import {ROAD_DETAIL_DEFAULT,isRoadDetail}
   from "./vector-road-quality.js";
+import {cutTerrainByAsphalt}
+  from "./worldgen-vector-terrain-cutout.js";
 
 /** WorldGen 6.0 terrain. The meshes are transport/cache units ONLY.
  * There is no hole-cutting alphaMap; adjacent tile vertices sample
@@ -19,11 +21,14 @@ export function createSheetTerrain(scene,sheet,bounds,{
   // Optimize distant geometry through LOD later, not missing chunks.
   visibilityRadius=900,maxActive=32,flatAsphaltPlan=null,
   flatVectorPlan=null,flatTextureQuality="smooth",
-  vectorDetail=ROAD_DETAIL_DEFAULT
+  vectorDetail=ROAD_DETAIL_DEFAULT,
+  terrainCutout=false
 }={}){
   const size=SHEET_TILE_METRES;
   const tiles=new Map(),pendingVectorTiles=new Set();
-  let liveVectorTriangles=0;
+  let liveVectorTriangles=0,liveTerrainTriangles=0,
+    liveMaskedGroundArea=0;
+  const cutoutEnabled=Boolean(terrainCutout&&flatVectorPlan?.stats.asphaltOnly);
   let currentVectorDetail=isRoadDetail(vectorDetail)?
     vectorDetail:ROAD_DETAIL_DEFAULT;
   const key=(x,z)=>x+":"+z;
@@ -49,6 +54,24 @@ export function createSheetTerrain(scene,sheet,bounds,{
   function rebuildVectorTile(mesh,gx,gz){
     const {layers}=flatVectorPlan.tileTriangles(
       gx,gz,currentVectorDetail);
+    let newGround=null,cutStats=null;
+    if(cutoutEnabled&&layers.asphalt.length){
+      // Subtract the unioned asphalt from the same ground triangles that
+      // were previously rendered beneath it. The index prevents scanning
+      // the full Grajaú road atlas per ground triangle.
+      const source=mesh.userData.baseTerrainGeometry;
+      const cut=cutTerrainByAsphalt(
+        source.attributes.position.array,
+        source.index?.array||null,layers.asphalt);
+      cutStats=cut.stats;
+      if(cut.stats.maskedArea>1e-5){
+        newGround=new THREE.BufferGeometry();
+        newGround.setAttribute("position",
+          new THREE.Float32BufferAttribute(cut.positions,3));
+        newGround.computeVertexNormals();
+        newGround.computeBoundingSphere();
+      }
+    }
     const replacements=[];
     for(const [order,kind] of ["sidewalk","curb","asphalt"].entries()){
       const vertices=layers[kind];
@@ -66,6 +89,21 @@ export function createSheetTerrain(scene,sheet,bounds,{
     const previous=mesh.userData.vectorTriangles||0;
     const count=["sidewalk","curb","asphalt"].reduce((n,k)=>
       n+layers[k].length/9,0);
+    const oldGround=mesh.geometry;
+    const nextGround=newGround||mesh.userData.baseTerrainGeometry;
+    if(cutoutEnabled){
+      liveTerrainTriangles-=mesh.userData.terrainTriangles||0;
+      liveMaskedGroundArea-=mesh.userData.maskedGroundArea||0;
+      mesh.geometry=nextGround;
+      if(oldGround!==mesh.userData.baseTerrainGeometry&&
+        oldGround!==nextGround)oldGround.dispose();
+      mesh.userData.terrainTriangles=nextGround.index?
+        nextGround.index.count/3:
+        nextGround.attributes.position.count/3;
+      mesh.userData.maskedGroundArea=cutStats?.maskedArea||0;
+      liveTerrainTriangles+=mesh.userData.terrainTriangles;
+      liveMaskedGroundArea+=mesh.userData.maskedGroundArea;
+    }
     for(const child of [...mesh.children]){
       mesh.remove(child);
       child.geometry.dispose();
@@ -130,6 +168,7 @@ export function createSheetTerrain(scene,sheet,bounds,{
     }
     const mesh=new THREE.Mesh(geometry,tileMaterial);
     mesh.name="Buzun_ContinuousSheet_"+gx+"_"+gz;
+    mesh.userData.baseTerrainGeometry=geometry;
     if(flatVectorPlan)rebuildVectorTile(mesh,gx,gz);
     mesh.position.set(ox,flatAsphaltPlan?0.072:0,oz);
     mesh.frustumCulled=true;
@@ -139,7 +178,11 @@ export function createSheetTerrain(scene,sheet,bounds,{
   function release(key,mesh){
     scene.remove(mesh);
     liveVectorTriangles-=mesh.userData.vectorTriangles||0;
+    liveTerrainTriangles-=mesh.userData.terrainTriangles||0;
+    liveMaskedGroundArea-=mesh.userData.maskedGroundArea||0;
     mesh.geometry.dispose();
+    if(mesh.userData.baseTerrainGeometry!==mesh.geometry)
+      mesh.userData.baseTerrainGeometry.dispose();
     if(flatVectorPlan)
       for(const part of mesh.children)
         part.geometry.dispose();
@@ -207,6 +250,9 @@ export function createSheetTerrain(scene,sheet,bounds,{
     get vectorPendingTiles(){return pendingVectorTiles.size;},
     get loadedTiles(){return tiles.size;},
     get vectorTriangles(){return liveVectorTriangles;},
+    get terrainTriangles(){return liveTerrainTriangles;},
+    get terrainMaskedArea(){return liveMaskedGroundArea;},
+    get terrainCutout(){return cutoutEnabled;},
     tileSize:size,mode:flatVectorPlan?"flat-vector-osm-surface":
       flatAsphaltPlan?"flat-continuous-road-surface":"world-sheet"};
 }

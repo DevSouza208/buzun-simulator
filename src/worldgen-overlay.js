@@ -56,6 +56,14 @@ export function mountWorldgenOverlay({
         ...(r.streaming?.vectorRoadTriangles!=null?[
           "Vetores OSM: "+r.streaming.vectorRoadTriangles
             .toLocaleString("pt-BR")+" triângulos carregados",
+          ...(r.streaming.terrainCutout?[
+            "Terreno recortado: "+
+              Math.round(r.streaming.terrainMaskedArea||0)
+                .toLocaleString("pt-BR")+" m²",
+            "Triângulos de terreno: "+
+              (r.streaming.terrainTriangles||0)
+                .toLocaleString("pt-BR")
+          ]:["Recorte do terreno: desativado"]),
           "Proteção de costura: "+
             (r.streaming.vectorSeamGuardMetres??0)+" m",
           "Detalhe das ruas: "+(r.streaming.vectorRoadDetail||"ultra")+

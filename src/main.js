@@ -173,7 +173,7 @@ async function refreshBuildVersion() {
       const label=flatBranchMode(location.search)?
         (params.get("sidewalks")!=="on"?
           (params.get("relief")==="flat"?
-            "ASFALTO PURO PLANO · 7.5":"ASFALTO PURO + RELEVO · 7.5"):
+            "ASFALTO RECORTADO PLANO · 7.6":"ASFALTO RECORTADO + RELEVO · 7.6"):
           (params.get("relief")==="flat"?
             "VETOR PLANO · 7.4":"VETOR + RELEVO · 7.4")):
         "LOW POLY";
@@ -576,6 +576,8 @@ async function start() {
       reliefWorld,vectorEdits:loadVectorEdits(),
       asphaltOnly:new URLSearchParams(location.search)
         .get("sidewalks")!=="on",
+      terrainCutout:new URLSearchParams(location.search)
+        .get("cutout")!=="off",
       flatPaintedRoads:flatWorld&&
         new URLSearchParams(location.search).get("roads")!=="geometry",
       flatTextureQuality:new URLSearchParams(location.search)
