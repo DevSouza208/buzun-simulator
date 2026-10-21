@@ -78,13 +78,13 @@ test("Flat branch loads the SAME snapshot as minimap and skips DEM and repairs",
   assert.match(main,/const flatWorld=flatBranchMode\(location\.search\)/);
   assert.match(main,/const authoredRoads=flatWorld\?sourceRoads:/);
   assert.match(main,/const \[imported,tiles\]=await Promise\.all/);
-  assert.match(main,/flatWorld\?Promise\.resolve\(null\)/);
+  assert.match(main,/flatWorld&&!reliefWorld\?Promise\.resolve\(null\)/);
   assert.match(main,/world = createWorld\(scene,roadData/);
   assert.match(main,/ctx\.strokeStyle = "#627e7d"/);
   assert.match(stream,/const renderRoads=flatWorld\?map\.roads/);
-  assert.match(stream,/flatWorld\?\s*createFlatMapWorldSheet/);
+  assert.match(stream,/flatWorld\?createFlatMapWorldSheet/);
   assert.match(stream,/flatLayerSpacing:flatWorld\?5:0/);
-  assert.match(terrain,/const grid=sheet\.flatWorld\?1:SHEET_GRID_SEGMENTS/);
+  assert.match(terrain,/const grid=sheet\.flatWorld\?1:\s*flatVectorPlan\?52:SHEET_GRID_SEGMENTS/);
 });
 test("Published Grajaú city OSM snapshot remains the horizontal source of truth",()=>{
   const snapshot=JSON.parse(readFileSync(new URL(
