@@ -75,7 +75,8 @@ export function createWorld(scene, map, options = {}) {
   if(options.cityRoads===true)
     return options.progressive===true?
       createStreamingCityWorld(scene,map,{
-        sheetPreview:options.sheetPreview===true
+        sheetPreview:options.sheetPreview===true,
+        flatWorld:options.flatWorld===true
       }):createCityWorld(scene,map);
   const roadsOnly = options.roadsOnly === true;
   // Single terrain height source powers the road, ground, cars and buildings.
