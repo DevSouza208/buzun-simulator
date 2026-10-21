@@ -507,6 +507,8 @@ async function start() {
     const {progressive,showWorldgen}=resolveWorldgenMode(location.search);
     world = createWorld(scene,roadData,{
       cityRoads:true,progressive:flatWorld||progressive,flatWorld,
+      flatPaintedRoads:flatWorld&&
+        new URLSearchParams(location.search).get("roads")!=="geometry",
       sheetPreview:new URLSearchParams(location.search).get("worldgen")==="sheet"
     });
     worldgenOverlay?.dispose();

@@ -13,6 +13,8 @@ import {createCarvedTerrain} from "./terrain-cutout.js";
 import {createWorldSheet} from "./worldgen-sheet.js";
 import {createFlatMapWorldSheet,flatSampleHeight} from "./worldgen-flat-map.js";
 import {createSheetTerrain} from "./worldgen-sheet-terrain.js";
+import {createFlatAsphaltPlan} from "./worldgen-flat-asphalt-surface.js";
+import {physicalLayer} from "./asphalt-union.js";
 import {createGlobalAsphaltAtlas} from "./worldgen-global-asphalt.js";
 import {graphFromRoads} from "./grajau-osm.js";
 import {summarizeRoadSectors} from "./worldgen-diagnostics.js";
@@ -92,7 +94,7 @@ function centerlineIndex(roads,cellSize=105){
   return {segments,candidates,closest};
 }
 export function createStreamingCityWorld(scene,map,{
-  sheetPreview=false,flatWorld=false
+  sheetPreview=false,flatWorld=false,flatPaintedRoads=false
 }={}){
   const began=time(),bounds=boundsFor(map.roads);
   const streets=centerlineIndex(map.roads);
@@ -133,8 +135,15 @@ export function createStreamingCityWorld(scene,map,{
       sheetOptions):null;
   // All OSM streets are part of ONE canonical asphalt domain. Atlas
   // cells are only render/cache partitions and never decide junctions.
+  // Flat WorldGen 7.0: every same-level road is painted on one
+  // continuous ground sheet. Bridges/tunnels remain separate 3D meshes.
+  const flatAsphaltPlan=flatWorld&&flatPaintedRoads?
+    createFlatAsphaltPlan(map.roads):null;
+  const asphaltSource=flatAsphaltPlan?
+    renderRoads.filter(road=>physicalLayer(road)!==0):
+    renderRoads;
   const globalAsphaltAtlas=worldSheet?createGlobalAsphaltAtlas(
-    renderRoads,worldSheet,{
+    asphaltSource,worldSheet,{
       junctions:globalJunctions,
       gradeModels:globalGrades,
       naturalHeight:terrainHeight,
@@ -160,7 +169,8 @@ export function createStreamingCityWorld(scene,map,{
   // for the next 10m player movement leaves every brand-new chunk visible
   // and can send hundreds of draw calls to WebGL (measured 1.8 FPS).
   let visibilityFocus={x:spawn.x,z:spawn.z};
-  const counters={mode:flatWorld?"flat-osm-1to1":
+  const counters={mode:flatAsphaltPlan?"flat-single-surface":
+    flatWorld?"flat-osm-1to1":
     sheetPreview?"world-sheet-preview":"experimental",
     regionMetres:REGION_METRES,
     repairedRoadGaps:joinPlan.stats.connected,
@@ -251,7 +261,7 @@ export function createStreamingCityWorld(scene,map,{
   // A sheet does not cut a transparent hole underneath asphalt.
   // Adjacent terrain chunks use precisely the same global H(x,z).
   const ground=worldSheet?
-    createSheetTerrain(scene,worldSheet,bounds):
+    createSheetTerrain(scene,worldSheet,bounds,{flatAsphaltPlan}):
     createCarvedTerrain(scene,corridors,globalJunctions,
       terrainHeight,bounds,roadSurfaceAdapter);
   const graph=graphFromRoads(map.roads);
@@ -551,7 +561,7 @@ export function createStreamingCityWorld(scene,map,{
   const empty=[];
   return {
     segments:streets.segments,spawn,terminalSpawn:spawn,
-    flatWorld,
+    flatWorld,flatPaintedRoads:Boolean(flatAsphaltPlan),
     pilotSpawns:empty,collides:()=>false,
     inExploreArea:(x,z)=>x>bounds.minX&&x<bounds.maxX&&
       z>bounds.minZ&&z<bounds.maxZ&&
